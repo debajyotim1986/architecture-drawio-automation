@@ -123,6 +123,23 @@ Next steps:
 If anything in this step fails, fix it before continuing — the rest of
 the scripts assume the venv exists.
 
+#### Offline / blocked-network install
+
+If your network blocks PyPI, the repo can ship a pre-built **`wheels\`**
+folder (a wheelhouse — see [`wheels\README.md`](../../wheels/README.md)).
+When `setup.ps1` sees a populated `wheels\` folder it switches to offline
+mode automatically — you'll see `[OK] Offline wheelhouse detected` — and:
+
+- installs the package **and** the `anthropic` SDK plus every dependency
+  from `wheels\` with `--no-index` (no PyPI contact);
+- requires the **exact** Python version the wheelhouse was built for
+  (e.g. 3.12), rather than "newest wins";
+- if that Python is missing, tries `winget install Python.Python.3.12`
+  automatically (winget uses Microsoft's CDN, which is usually reachable
+  even when PyPI is blocked).
+
+No extra flags are needed — just run `setup.ps1` as normal.
+
 ### Step 2 — Verify
 
 ```powershell
