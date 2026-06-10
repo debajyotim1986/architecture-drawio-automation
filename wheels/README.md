@@ -30,10 +30,14 @@ You'll see `[OK] Offline wheelhouse detected` in the output.
 
 The script reads the required Python version from the wheel filenames (the
 `cp312` tag) and **requires that exact version** — it will not silently use a
-different one. If Python 3.12 is missing, it tries to install it automatically
-with `winget install --id Python.Python.3.12` (winget uses Microsoft's CDN, not
-PyPI, so it usually works even when PyPI is blocked). If `winget` is unavailable
-or also blocked, the script stops with manual-install instructions.
+different one. If Python 3.12 is not installed, the script reports it and skips
+the install step (it does not try to install Python for you). Install Python
+3.12 first — e.g. `winget install Python.Python.3.12`, or the offline installer
+from <https://www.python.org/downloads/> — then re-run `setup.ps1`.
+
+The script is **best-effort**: if any single step fails it records the problem
+and continues with the remaining steps, then prints a summary of everything that
+went wrong at the end (and exits non-zero). It is always safe to re-run.
 
 To install manually instead:
 

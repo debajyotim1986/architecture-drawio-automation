@@ -133,12 +133,14 @@ mode automatically — you'll see `[OK] Offline wheelhouse detected` — and:
 - installs the package **and** the `anthropic` SDK plus every dependency
   from `wheels\` with `--no-index` (no PyPI contact);
 - requires the **exact** Python version the wheelhouse was built for
-  (e.g. 3.12), rather than "newest wins";
-- if that Python is missing, tries `winget install Python.Python.3.12`
-  automatically (winget uses Microsoft's CDN, which is usually reachable
-  even when PyPI is blocked).
+  (e.g. 3.12), rather than "newest wins". If that Python isn't installed,
+  the script reports it and skips the install — install Python 3.12 first
+  (`winget install Python.Python.3.12` or the python.org installer) and
+  re-run.
 
-No extra flags are needed — just run `setup.ps1` as normal.
+The script is **best-effort**: a failing step is recorded and the script
+keeps going, then lists every problem in a summary at the end. No extra
+flags are needed — just run `setup.ps1` as normal.
 
 ### Step 2 — Verify
 
