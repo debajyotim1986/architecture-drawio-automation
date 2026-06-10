@@ -1,0 +1,89 @@
+Key: PROJ-123
+Type: Story
+Title: Add asynchronous order-confirmation email after checkout
+
+1. Background
+The business currently processes {document type} manually, which is time-consuming, error-prone, and does not scale with growing volumes (~{X} documents/month). We will leverage Google Cloud Document AI to automate extraction, classification, and validation of these documents, reducing manual effort and turnaround time while improving data quality for downstream systems ({e.g., ERP, CRM, data warehouse}).
+2. Objective
+Build a production-grade, secure, and scalable document processing pipeline on GCP that ingests documents, extracts structured data using Document AI processors, validates the output, and delivers it to downstream consumers with full observability and auditability.
+3. In Scope
+
+Ingestion of documents (PDF, TIFF, PNG, JPEG) via {GCS bucket upload / API / email gateway}.
+Document classification and routing to appropriate Document AI processor(s) — {e.g., Invoice Parser, Form Parser, Custom Extractor}.
+Entity extraction and confidence-score-based validation.
+Human-in-the-loop (HITL) review workflow for low-confidence extractions.
+Persistence of extracted data to {BigQuery / Firestore / Cloud SQL}.
+Integration with downstream system: {name}.
+Logging, monitoring, alerting, and audit trail.
+IAM, encryption (at rest and in transit), and VPC-SC controls.
+
+additional requirement - 
+composer batch job will process data coming to gcs from different upstreams and then load it into bigquery tables in staging layer.
+in next process, staging data will be transformed as per business logic and load it curation layer of bigquery.
+whenever the file comes to gcs bucket, an event goes to pubsub
+also composer sensor checks the newly arrival files in gcs in each 5 minutes and process accordingly
+
+4. Out of Scope
+
+Source system changes for document submission.
+Migration of historical documents (to be tracked as a separate story).
+Training of custom Document AI processors beyond the initial {N} document templates.
+
+5. Functional Requirements
+
+FR1: System shall accept supported document formats up to {20 MB / 200 pages} per file.
+FR2: System shall auto-classify documents and invoke the correct processor.
+FR3: System shall extract fields: {list key fields, e.g., invoice number, vendor name, line items, totals, dates}.
+FR4: System shall flag extractions where field confidence is below {0.85} for HITL review.
+FR5: System shall provide a reviewer UI (or use Document AI Warehouse / HITL console) for correction.
+FR6: System shall publish validated output to {Pub/Sub topic / BigQuery table / downstream API}.
+FR7: System shall support reprocessing of failed documents without duplication.
+
+6. Non-Functional Requirements
+
+Performance: Process a single document end-to-end in under {30} seconds (excluding HITL).
+Throughput: Support peak load of {N} documents/hour with autoscaling.
+Availability: 99.9% monthly uptime for the pipeline.
+Security: CMEK-encrypted storage, least-privilege IAM, VPC Service Controls, no PII in logs.
+Compliance: {GDPR / DPDP / SOC 2 / HIPAA — as applicable}.
+Observability: Cloud Logging, Cloud Monitoring dashboards, alerting on error rate, latency, and processor quota.
+Cost: Stay within projected monthly budget of {USD X}; tagged resources for cost attribution.
+
+7. Proposed Architecture (High-Level)
+GCS (landing bucket) → Eventarc/Cloud Function → Cloud Workflows orchestrator → Document AI processor(s) → Validation (Cloud Run service) → HITL queue (if needed) → BigQuery + Pub/Sub → Downstream consumer. Cloud Logging + Cloud Monitoring across all stages. Secrets in Secret Manager.
+8. Dependencies
+
+GCP project provisioning with billing and required APIs (Document AI, GCS, Pub/Sub, BigQuery, Cloud Run, Workflows, Eventarc, Secret Manager).
+Sample documents ({100+}) for processor evaluation and tuning.
+Access to downstream system API specs.
+Sign-off from Security and Data Privacy teams.
+
+9. Assumptions
+
+Document templates are reasonably consistent within each category.
+Document AI quotas in the target region are sufficient for projected volume.
+Reviewers for HITL will be provided by the business operations team.
+
+10. Acceptance Criteria
+
+ Pipeline processes a sample batch of {N} documents with ≥ {95}% straight-through processing rate.
+ Extracted fields match ground truth with ≥ {95}% field-level accuracy on the test set.
+ HITL workflow successfully routes low-confidence documents and persists corrected output.
+ All infrastructure provisioned via Terraform/IaC and code-reviewed.
+ Monitoring dashboards and alerts are live; runbook documented.
+ Security review passed (IAM, encryption, network controls).
+ End-to-end UAT signed off by business stakeholder.
+
+11. Risks
+
+Document AI quota limits in chosen region — mitigate by requesting quota increase early.
+Variability in document quality (scanned, skewed) affecting accuracy — mitigate with preprocessing.
+Cost overrun on per-page processing — mitigate with budget alerts and sampling.
+
+Out of scope
+------------
+- SMS or push notifications.
+- Internationalization of email content.
+
+
+

@@ -1,0 +1,8 @@
+{
+  "files.associations": {
+    "*.drawio": "xml"
+  },
+  "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+  "chat.mcp.access": "all",
+  "git.ignoreLimitWarning": true
+}

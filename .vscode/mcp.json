@@ -1,0 +1,19 @@
+{
+  "servers": {
+    "drawio": {
+      "type": "stdio",
+      "command": "${workspaceFolder}/drawio-mcp-server/.venv/bin/python",
+      "args": [
+        "-m",
+        "drawio_mcp_server"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "DRAWIO_DIAGRAMS_DIR": "${workspaceFolder}/diagrams",
+        "DRAWIO_STORIES_DIR": "${workspaceFolder}/jira-stories",
+        "DRAWIO_ICONS_DIR": "${workspaceFolder}/logo_icon_gcp",
+        "PYTHONPATH": "${workspaceFolder}/drawio-mcp-server/src"
+      }
+    }
+  }
+}

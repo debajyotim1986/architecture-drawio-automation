@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Component Map — AI Architecture-Diagram Framework</title>
+<style>
+  :root {
+    --ink: #0f172a;
+    --muted: #475569;
+    --accent: #0b57d0;
+    --accent-2: #34a853;
+    --accent-3: #ea4335;
+    --accent-4: #fbbc04;
+    --pill: #f1f5f9;
+    --border: #e2e8f0;
+    --code: #1e293b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1400px;
+    background: linear-gradient(135deg, #0b1220 0%, #1e3a8a 55%, #0b57d0 100%);
+    font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { width: 1400px; padding: 28px 32px 32px; }
+
+  /* ====== Header ====== */
+  .header {
+    background: linear-gradient(135deg, #ffffff 0%, #f5f9ff 100%);
+    border-radius: 18px;
+    padding: 22px 28px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 22px;
+    align-items: center;
+    box-shadow: 0 20px 40px -16px rgba(2, 6, 23, 0.45);
+    margin-bottom: 18px;
+  }
+  .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+    font-size: 10.5px;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .title {
+    font-size: 26px;
+    line-height: 1.15;
+    font-weight: 800;
+    color: var(--ink);
+    margin: 0 0 8px;
+    letter-spacing: -0.4px;
+  }
+  .title .glow {
+    background: linear-gradient(90deg, #0b57d0 0%, #34a853 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .tagline {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0;
+    max-width: 920px;
+  }
+  .stats {
+    display: flex;
+    gap: 10px;
+  }
+  .stat {
+    background: linear-gradient(135deg, #0b57d0 0%, #1e40af 100%);
+    color: #fff;
+    border-radius: 12px;
+    padding: 12px 16px;
+    text-align: center;
+    min-width: 92px;
+    box-shadow: 0 8px 20px -8px rgba(11, 87, 208, 0.5);
+  }
+  .stat .v { font-size: 22px; font-weight: 800; line-height: 1; letter-spacing: -0.5px; }
+  .stat .l { font-size: 9.5px; letter-spacing: 1.2px; text-transform: uppercase; opacity: 0.9; margin-top: 4px; }
+
+  /* ====== Column grid ====== */
+  .cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+  }
+  .card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: 0 8px 22px -12px rgba(2, 6, 23, 0.5);
+    margin-bottom: 12px;
+  }
+  .card h2 {
+    margin: 0 0 8px;
+    font-size: 13.5px;
+    font-weight: 800;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: -0.2px;
+  }
+  .card h2 .pin {
+    width: 5px;
+    height: 16px;
+    border-radius: 3px;
+    background: var(--accent);
+  }
+  .card h2 .count {
+    background: var(--pill);
+    color: var(--muted);
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-left: auto;
+  }
+  .card h2.blue .pin { background: #6c8ebf; }
+  .card h2.green .pin { background: #82b366; }
+  .card h2.purple .pin { background: #9673a6; }
+  .card h2.orange .pin { background: #d79b00; }
+  .card h2.red .pin { background: #b85450; }
+  .card h2.yellow .pin { background: #d6b656; }
+  .card h2.teal .pin { background: #2a9d8f; }
+  .card h2.indigo .pin { background: #6366f1; }
+
+  /* ====== File rows ====== */
+  .files {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 145px 1fr;
+    gap: 8px;
+    align-items: baseline;
+    padding: 2px 0;
+    border-bottom: 1px dashed #f1f5f9;
+  }
+  .row:last-child { border-bottom: none; }
+  .row .fn {
+    font: 600 10.5px/1.3 ui-monospace, "SF Mono", Menlo, monospace;
+    color: var(--code);
+    overflow-wrap: anywhere;
+  }
+  .row .desc {
+    font-size: 10.5px;
+    color: var(--muted);
+    line-height: 1.35;
+  }
+  .row .desc strong { color: var(--ink); font-weight: 700; }
+
+  /* ====== Constants strip ====== */
+  .const-strip {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-top: 4px;
+    box-shadow: 0 8px 22px -12px rgba(2, 6, 23, 0.5);
+  }
+  .const-strip h2 {
+    margin: 0 0 10px;
+    font-size: 13.5px;
+    font-weight: 800;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .const-strip h2 .pin { width: 5px; height: 16px; border-radius: 3px; background: var(--accent-2); }
+  .const-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+  }
+  .const {
+    background: var(--pill);
+    border-radius: 10px;
+    padding: 9px 10px;
+    text-align: center;
+  }
+  .const .name { font: 700 10.5px/1.2 ui-monospace, Menlo, monospace; color: var(--code); }
+  .const .val { font-size: 18px; font-weight: 800; color: var(--accent); margin: 4px 0 2px; }
+  .const .effect { font-size: 9.5px; color: var(--muted); line-height: 1.3; }
+
+  /* ====== Footer ====== */
+  .footer {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 12px 22px;
+    color: #cbd5e1;
+    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+  }
+  .footer .author { color: #fff; font-weight: 700; }
+  .footer .stack { color: #93c5fd; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ============ HEADER ============ -->
+  <div class="header">
+    <div>
+      <div class="eyebrow">Component Map · 73 Files · 11 Layers</div>
+      <h1 class="title">Inside the <span class="glow">AI Architecture-Diagram Framework</span></h1>
+      <p class="tagline">
+        Every Python module, Markdown document, and shell wrapper that ships with the
+        framework — grouped by layer, sized at a glance. A complete file-by-file map
+        of what the project contains and what each piece is responsible for.
+      </p>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="v">73</div><div class="l">files</div></div>
+      <div class="stat"><div class="v">11</div><div class="l">layers</div></div>
+      <div class="stat"><div class="v">13</div><div class="l">MCP tools</div></div>
+    </div>
+  </div>
+
+  <!-- ============ THREE COLUMNS ============ -->
+  <div class="cols">
+
+    <!-- =================== COLUMN 1 =================== -->
+    <div>
+
+      <!-- MCP Server Core -->
+      <div class="card">
+        <h2 class="orange"><span class="pin"></span>MCP Server — Runtime Core<span class="count">3</span></h2>
+        <div class="files">
+          <div class="row"><div class="fn">__main__.py</div><div class="desc">Module entry point — <strong>python -m drawio_mcp_server</strong> launches the server.</div></div>
+          <div class="row"><div class="fn">server.py</div><div class="desc">Registers tools, handles <strong>list_tools / call_tool</strong> JSON-RPC over stdio.</div></div>
+          <div class="row"><div class="fn">types.py</div><div class="desc">Pydantic data classes — <strong>Diagram, DiagramNode, DiagramEdge</strong>.</div></div>
+        </div>
+      </div>
+
+      <!-- MCP Tools -->
+      <div class="card">
+        <h2 class="orange"><span class="pin"></span>MCP Tools — One File per Tool<span class="count">14</span></h2>
+        <div class="files">
+          <div class="row"><div class="fn">tools/__init__.py</div><div class="desc">Central registry — <strong>TOOL_REGISTRY</strong> dict the server iterates over.</div></div>
+          <div class="row"><div class="fn">list_diagrams.py</div><div class="desc">Returns natural-sorted <strong>.drawio</strong> filenames.</div></div>
+          <div class="row"><div class="fn">read_diagram.py</div><div class="desc">Parses .drawio → structured model (nodes + edges + geometry).</div></div>
+          <div class="row"><div class="fn">read_summary.py</div><div class="desc">Compact <strong>label-only</strong> view — token-cheap for LLM reasoning.</div></div>
+          <div class="row"><div class="fn">list_stories.py</div><div class="desc">Returns story filenames under <strong>jira-stories/</strong>.</div></div>
+          <div class="row"><div class="fn">read_story.py</div><div class="desc">Returns raw text of a story file. Read-only.</div></div>
+          <div class="row"><div class="fn">create_diagram.py</div><div class="desc">Creates a new empty timestamp-suffixed .drawio file.</div></div>
+          <div class="row"><div class="fn">add_container.py</div><div class="desc">Coloured swimlane column. Holds <strong>_COLUMN_GAP = 140</strong>.</div></div>
+          <div class="row"><div class="fn">add_node.py</div><div class="desc">Inserts a shape, resolves GCP icon, <strong>_CHILD_STRIDE = 200</strong>.</div></div>
+          <div class="row"><div class="fn">add_edge.py</div><div class="desc">Connects nodes, runs <strong>5 routing passes</strong>, frames busy nodes.</div></div>
+          <div class="row"><div class="fn">add_title.py</div><div class="desc">Bold deck-quality banner above the swimlanes.</div></div>
+          <div class="row"><div class="fn">add_connector_table.py</div><div class="desc">Embeds 14-column detail table. Hard guard against <strong>{TBD}</strong>.</div></div>
+          <div class="row"><div class="fn">update_node.py</div><div class="desc">Patches an existing node — label, shape, position, icon.</div></div>
+          <div class="row"><div class="fn">remove_element.py</div><div class="desc">Deletes a node (cascading edges) or a single edge.</div></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- =================== COLUMN 2 =================== -->
+    <div>
+
+      <!-- drawio Adapter -->
+      <div class="card">
+        <h2 class="blue"><span class="pin"></span>drawio XML Adapter<span class="count">6</span></h2>
+        <div class="files">
+          <div class="row"><div class="fn">drawio/__init__.py</div><div class="desc">Package marker for the adapter layer.</div></div>
+          <div class="row"><div class="fn">parser.py</div><div class="desc">Reads .drawio XML → <strong>Diagram model</strong> (waypoints, step prefix, styles).</div></div>
+          <div class="row"><div class="fn">builder.py</div><div class="desc">Serializes Diagram → mxGraph XML. Emits <strong>y=-22 label offset</strong>.</div></div>
+          <div class="row"><div class="fn">shapes.py</div><div class="desc">Style catalog — <strong>DEFAULT_EDGE_STYLE, SWIMLANE_COLORS, DEFAULT_SIZE</strong>.</div></div>
+          <div class="row"><div class="fn">gcp_icons.py</div><div class="desc">Service name → SVG + <strong>URL-encoded data URI</strong> style builder.</div></div>
+          <div class="row"><div class="fn">summarize.py</div><div class="desc">Converts Diagram → <strong>DiagramSummary</strong> (id+label only).</div></div>
+        </div>
+      </div>
+
+      <!-- Utility Layer -->
+      <div class="card">
+        <h2 class="green"><span class="pin"></span>Utility Layer<span class="count">5</span></h2>
+        <div class="files">
+          <div class="row"><div class="fn">util/__init__.py</div><div class="desc">Package marker for utilities.</div></div>
+          <div class="row"><div class="fn">config.py</div><div class="desc"><strong>ServerConfig</strong> — reads env vars for diagrams / stories / icons dirs.</div></div>
+          <div class="row"><div class="fn">diagram_store.py</div><div class="desc">Sandboxed loader/saver. <strong>Rejects paths outside</strong> the root.</div></div>
+          <div class="row"><div class="fn">story_store.py</div><div class="desc">Read-only loader for Jira story text / markdown / JSON.</div></div>
+          <div class="row"><div class="fn">natural_sort.py</div><div class="desc"><strong>PROJ-2</strong> before <strong>PROJ-10</strong> — digits-as-int comparison.</div></div>
+        </div>
+      </div>
+
+      <!-- Tests -->
+      <div class="card">
+        <h2 class="yellow"><span class="pin"></span>Tests<span class="count">3</span></h2>
+        <div class="files">
+          <div class="row"><div class="fn">tests/__init__.py</div><div class="desc">Pytest package marker.</div></div>
+          <div class="row"><div class="fn">test_natural_sort.py</div><div class="desc">Versioned filename ordering — <strong>PROJ-10</strong> after <strong>PROJ-2</strong>.</div></div>
+          <div class="row"><div class="fn">test_parser.py</div><div class="desc">Round-trip drawio parser → builder pipeline.</div></div>
+        </div>
+      </div>
+
+      <!-- Cross-Platform Scripts -->
+      <div class="card">
+        <h2 class="teal"><span class="pin"></span>Scripts — Python Entry Points<span class="count">4</span></h2>
+        <div class="files">
+          <div class="row"><div class="fn">normalize_jira_story.py</div><div class="desc">Raw business prose → <strong>10-section surgical</strong> tech doc.</div></div>
+          <div class="row"><div class="fn">verify_mcp.py</div><div class="desc">Pre-finalization health check. <strong>Exit 0 = ship-ready</strong>.</div></div>
+          <div class="row"><div class="fn">generate_connector_details.py</div><div class="desc">14-column detail table. Rule engine + optional LLM.</div></div>
+          <div class="row"><div class="fn">reroute_diagram.py</div><div class="desc">Retrofits an <strong>existing .drawio</strong> with new layout / routing.</div></div>
+        </div>
+      </div>
+
+      <!-- OS Wrappers (summary card) -->
+      <div class="card">
+        <h2 class="teal"><span class="pin"></span>OS Wrappers — Linux / Mac / Win<span class="count">18</span></h2>
+        <div class="files">
+          <div class="row"><div class="fn">linux/*.sh</div><div class="desc">setup · run-server · normalize · verify · demo · clean (Linux bash).</div></div>
+          <div class="row"><div class="fn">mac/*.sh</div><div class="desc">Same six commands in macOS / zsh flavour.</div></div>
+          <div class="row"><div class="fn">windows/*.ps1</div><div class="desc">Same six commands in Windows PowerShell.</div></div>
+          <div class="row"><div class="fn">scripts/README.md</div><div class="desc">Pointer to the right per-OS folder.</div></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- =================== COLUMN 3 =================== -->
+    <div>
+
+      <!-- Top-level docs -->
+      <div class="card">
+        <h2 class="purple"><span class="pin"></span>Top-Level Documentation<span class="count">4</span></h2>
+        <div class="files">
+          <div class="row"><div class="fn">README.md</div><div class="desc">Project pitch + quickstart + pointers into docs/.</div></div>
+          <div class="row"><div class="fn">high_level_instruction.md</div><div class="desc"><strong>Entry-point map</strong> — which markdown to read in what order.</div></div>
+          <div class="row"><div class="fn">drawio-mcp-server/README.md</div><div class="desc">Server-package README — install, test, MCP wiring.</div></div>
+          <div class="row"><div class="fn">vscode-restart-formality.md</div><div class="desc"><strong>Mandatory</strong> VS Code restart checklist between prompts.</div></div>
+        </div>
+      </div>
+
+      <!-- Long-form docs -->
+      <div class="card">
+        <h2 class="purple"><span class="pin"></span>Long-Form Docs (<code>docs/</code>)<span class="count">15</span></h2>
+        <div class="files">
+          <div class="row"><div class="fn">architecture.md</div><div class="desc">High-level system architecture.</div></div>
+          <div class="row"><div class="fn">component.md</div><div class="desc"><strong>Prose</strong> narrative of every directory.</div></div>
+          <div class="row"><div class="fn">component_details.md</div><div class="desc"><strong>Tabular matrix</strong> of every file (this map's source).</div></div>
+          <div class="row"><div class="fn">mermaid_diagram.md</div><div class="desc">12 end-to-end Mermaid views.</div></div>
+          <div class="row"><div class="fn">mermaid_diagram.html</div><div class="desc">Browser-renderable mirror of the .md.</div></div>
+          <div class="row"><div class="fn">installation.md</div><div class="desc">Step-by-step install (Mac / Linux / Win).</div></div>
+          <div class="row"><div class="fn">usage.md</div><div class="desc">One-time setup + day-to-day workflow.</div></div>
+          <div class="row"><div class="fn">access_mcp.md</div><div class="desc">Three ways to attach MCP to VS Code.</div></div>
+          <div class="row"><div class="fn">execution.md</div><div class="desc">Detailed execution guide with phase checkpoints.</div></div>
+          <div class="row"><div class="fn">high_level_flow.md</div><div class="desc">Narrative of the full prompt → diagram pipeline.</div></div>
+          <div class="row"><div class="fn">high_level_instruction.md</div><div class="desc">"Build from scratch" Epics → Tasks → Sub-tasks.</div></div>
+          <div class="row"><div class="fn">tool-reference.md</div><div class="desc">Quick MCP tool + shape vocabulary reference.</div></div>
+          <div class="row"><div class="fn">connector-details-template.md</div><div class="desc">14-column connector-detail table schema.</div></div>
+          <div class="row"><div class="fn">architecture-flow.html</div><div class="desc">Static HTML rendering of the architecture flow.</div></div>
+          <div class="row"><div class="fn">mcp-copilot-setup.html</div><div class="desc">Static HTML walk-through for MCP + Copilot setup.</div></div>
+        </div>
+      </div>
+
+      <!-- Prompts -->
+      <div class="card">
+        <h2 class="indigo"><span class="pin"></span>Prompts (<code>prompts/</code>)<span class="count">3</span></h2>
+        <div class="files">
+          <div class="row"><div class="fn">create-diagram.md</div><div class="desc"><strong>Primary prompt.</strong> 12-step copy-paste flow for a new diagram.</div></div>
+          <div class="row"><div class="fn">update-diagram.md</div><div class="desc">Incremental update of an existing diagram.</div></div>
+          <div class="row"><div class="fn">prompt.md</div><div class="desc">Prompt cookbook — additional self-contained recipes.</div></div>
+        </div>
+      </div>
+
+      <!-- GitHub / Copilot config -->
+      <div class="card">
+        <h2 class="red"><span class="pin"></span>GitHub / Copilot Configuration<span class="count">1</span></h2>
+        <div class="files">
+          <div class="row"><div class="fn">.github/copilot-instructions.md</div><div class="desc">Auto-attached repo-wide rules. Swimlanes-first, GCP icon rule, <strong>zero-TBD</strong> rule.</div></div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ============ LAYOUT CONSTANTS STRIP ============ -->
+  <div class="const-strip">
+    <h2><span class="pin"></span>Layout Constants — Single Source of Truth</h2>
+    <div class="const-grid">
+      <div class="const">
+        <div class="name">_COLUMN_GAP</div>
+        <div class="val">140</div>
+        <div class="effect">px between swimlanes · add_container.py</div>
+      </div>
+      <div class="const">
+        <div class="name">_CONTAINER_CHILD_STRIDE</div>
+        <div class="val">200</div>
+        <div class="effect">px between stacked icons · add_node.py</div>
+      </div>
+      <div class="const">
+        <div class="name">_CORRIDOR_INSET</div>
+        <div class="val">70</div>
+        <div class="effect">half of column gap · add_edge.py</div>
+      </div>
+      <div class="const">
+        <div class="name">_LANE_BAND_HALF</div>
+        <div class="val">50</div>
+        <div class="effect">max sub-lane offset · add_edge.py</div>
+      </div>
+      <div class="const">
+        <div class="name">_BUSY_DEGREE_THRESHOLD</div>
+        <div class="val">3</div>
+        <div class="effect">edges → triggers card border · add_edge.py</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ FOOTER ============ -->
+  <div class="footer">
+    <div>
+      <span class="author">Debajyoti Mukhopadhyay</span>
+      &nbsp;·&nbsp;Component Map · Architecture &amp; Tooling
+    </div>
+    <div class="stack">
+      Python · MCP · LLM-Agnostic · draw.io · Pluggable Icons · Verifier
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

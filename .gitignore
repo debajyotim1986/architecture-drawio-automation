@@ -1,0 +1,31 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Virtual env ---
+.venv/
+venv/
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+
+# --- IDE local ---
+.idea/
+*.swp
+
+# --- Generated diagrams (keep the folder, ignore contents) ---
+diagrams/*.drawio
+diagrams/*.drawio.bak
+!diagrams/README.md
+
+# --- Generated stories (keep the folder, ignore contents) ---
+jira-stories/*.txt
+jira-stories/*.md
+!jira-stories/README.md
+!jira-stories/PROJ-123.txt

@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI Architecture-Diagram Copilot — One Pager</title>
+<style>
+  :root {
+    --bg: #0e1117;
+    --card: #ffffff;
+    --ink: #0f172a;
+    --muted: #475569;
+    --accent: #0b57d0;
+    --accent-2: #34a853;
+    --accent-3: #ea4335;
+    --accent-4: #fbbc04;
+    --border: #e2e8f0;
+    --pill: #f1f5f9;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1200px;
+    background: linear-gradient(135deg, #0b1220 0%, #1e3a8a 55%, #0b57d0 100%);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { width: 1200px; padding: 28px 32px 32px; }
+
+  /* ====== Header ====== */
+  .header {
+    background: linear-gradient(135deg, #ffffff 0%, #f5f9ff 100%);
+    border-radius: 18px;
+    padding: 24px 30px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 22px;
+    align-items: center;
+    box-shadow: 0 20px 40px -16px rgba(2, 6, 23, 0.45);
+    margin-bottom: 18px;
+  }
+  .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+    font-size: 10.5px;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .title {
+    font-size: 28px;
+    line-height: 1.15;
+    font-weight: 800;
+    color: var(--ink);
+    margin: 0 0 8px;
+    letter-spacing: -0.4px;
+  }
+  .title .glow {
+    background: linear-gradient(90deg, #0b57d0 0%, #34a853 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .tagline {
+    font-size: 13.5px;
+    color: var(--muted);
+    margin: 0 0 12px;
+    max-width: 720px;
+  }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--pill);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .badge.green .dot { background: var(--accent-2); }
+  .badge.red .dot { background: var(--accent-3); }
+  .badge.yellow .dot { background: var(--accent-4); }
+  .stamp {
+    background: linear-gradient(135deg, #0b57d0 0%, #1e40af 100%);
+    color: #fff;
+    border-radius: 14px;
+    padding: 18px 22px;
+    text-align: center;
+    min-width: 200px;
+    box-shadow: 0 12px 24px -10px rgba(11, 87, 208, 0.6);
+  }
+  .stamp .num { font-size: 32px; font-weight: 800; line-height: 1; letter-spacing: -1px; }
+  .stamp .label { font-size: 10.5px; letter-spacing: 1.5px; text-transform: uppercase; opacity: 0.9; margin-top: 6px; }
+
+  /* ====== Pull-quote ====== */
+  .quote {
+    background: linear-gradient(135deg, #0b57d0 0%, #1e40af 100%);
+    color: #fff;
+    border-radius: 14px;
+    padding: 14px 22px;
+    margin-bottom: 16px;
+    box-shadow: 0 10px 24px -12px rgba(11, 87, 208, 0.6);
+  }
+  .quote .text { font-size: 13.5px; font-weight: 600; line-height: 1.45; }
+  .quote .text em { color: #fde68a; font-style: normal; font-weight: 800; }
+
+  /* ====== Pipeline (full width "Req → Tech Doc → Diagram") ====== */
+  .pipeline {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 18px 22px;
+    box-shadow: 0 8px 22px -12px rgba(2, 6, 23, 0.5);
+    margin-bottom: 18px;
+  }
+  .pipeline h2 { margin: 0 0 14px; font-size: 15px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+  .pipeline h2 .pin { width: 6px; height: 18px; border-radius: 3px; background: var(--accent-2); }
+  .stages {
+    display: grid;
+    grid-template-columns: 1fr 40px 1fr 40px 1fr;
+    gap: 0;
+    align-items: stretch;
+  }
+  .stage {
+    border-radius: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    position: relative;
+  }
+  .stage .num {
+    position: absolute;
+    top: -10px;
+    left: 14px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    line-height: 22px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .stage.s1 { background: #fef3c7; border-color: #fbbf24; }
+  .stage.s1 .num { background: #b45309; }
+  .stage.s2 { background: #ddd6fe; border-color: #8b5cf6; }
+  .stage.s2 .num { background: #6d28d9; }
+  .stage.s3 { background: #bbf7d0; border-color: #16a34a; }
+  .stage.s3 .num { background: #166534; }
+  .stage h3 {
+    margin: 4px 0 6px;
+    font-size: 12.5px;
+    font-weight: 800;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .stage .sub { font-size: 11px; color: var(--muted); margin: 0 0 8px; font-style: italic; }
+  .stage .lines { font-size: 11px; color: var(--ink); line-height: 1.45; }
+  .stage .lines strong { font-weight: 700; }
+  .stage .file {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 10.5px;
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-top: 6px;
+    display: inline-block;
+  }
+  .arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    font-size: 28px;
+    font-weight: 800;
+  }
+
+  /* ====== Reference architecture mini-diagram ====== */
+  .refarch {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 16px 22px 18px;
+    box-shadow: 0 8px 22px -12px rgba(2, 6, 23, 0.5);
+    margin-bottom: 18px;
+  }
+  .refarch h2 { margin: 0 0 4px; font-size: 15px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+  .refarch h2 .pin { width: 6px; height: 18px; border-radius: 3px; background: var(--accent); }
+  .refarch .sub { margin: 0 0 10px; font-size: 11.5px; color: var(--muted); }
+  .arch-flow {
+    display: grid;
+    grid-template-columns: 1fr 24px 1fr 24px 1fr 24px 1fr 24px 1fr 24px 1fr;
+    gap: 0;
+    align-items: center;
+  }
+  .anode {
+    border-radius: 10px;
+    padding: 10px 8px;
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+  .anode .t { font-size: 11.5px; font-weight: 800; color: var(--ink); letter-spacing: -0.2px; }
+  .anode .r { font-size: 10px; color: var(--muted); margin-top: 3px; line-height: 1.3; }
+  .anode.user { background: #f1f5f9; border-color: #cbd5e1; }
+  .anode.llm { background: #e1d5e7; border-color: #9673a6; }
+  .anode.server { background: #ffe6cc; border-color: #d79b00; }
+  .anode.tools { background: #fff2cc; border-color: #d6b656; }
+  .anode.adapter { background: #dae8fc; border-color: #6c8ebf; }
+  .anode.storage { background: #d5e8d4; border-color: #82b366; }
+  .arr {
+    text-align: center;
+    color: var(--accent);
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .gate-strip {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    align-items: center;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .gate {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #fef3c7;
+    border: 1px solid #fbbf24;
+    color: #92400e;
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 10.5px;
+    font-weight: 700;
+  }
+  .gate .dot { width: 6px; height: 6px; border-radius: 50%; background: #b45309; }
+
+  /* ====== Two-column body ====== */
+  .body-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 16px; }
+  .card {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 16px 20px;
+    box-shadow: 0 8px 22px -12px rgba(2, 6, 23, 0.5);
+    margin-bottom: 14px;
+  }
+  .card h2 {
+    margin: 0 0 10px;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card h2 .pin { width: 6px; height: 18px; border-radius: 3px; background: var(--accent); }
+  .card h2.green .pin { background: var(--accent-2); }
+  .card h2.red .pin { background: var(--accent-3); }
+  .card h2.yellow .pin { background: var(--accent-4); }
+  .card p, .card li { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .card ul { margin: 0; padding-left: 18px; }
+  .card li { margin: 2px 0; }
+  .card li strong { color: var(--ink); font-weight: 700; }
+
+  /* ====== Framework architecture layers ====== */
+  .layers { display: flex; flex-direction: column; gap: 5px; margin: 6px 0 8px; }
+  .layer {
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 11.5px;
+    color: var(--ink);
+    border: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .layer strong { font-weight: 800; }
+  .layer.lc { background: #e1d5e7; border-color: #9673a6; }
+  .layer.ls { background: #ffe6cc; border-color: #d79b00; }
+  .layer.lt { background: #fff2cc; border-color: #d6b656; }
+  .layer.la { background: #dae8fc; border-color: #6c8ebf; }
+  .layer.lst { background: #d5e8d4; border-color: #82b366; }
+  .layer .role { color: var(--muted); font-size: 10.5px; font-style: italic; }
+
+  /* ====== Metrics ====== */
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .metric { background: var(--pill); border-radius: 10px; padding: 9px 6px; text-align: center; }
+  .metric .v { font-size: 20px; font-weight: 800; color: var(--ink); letter-spacing: -0.5px; line-height: 1; }
+  .metric .l { font-size: 10px; color: var(--muted); margin-top: 4px; }
+
+  /* ====== Tech tag grid ====== */
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tag {
+    background: var(--pill);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .tag.blue { background: #dae8fc; border-color: #6c8ebf; color: #1f3a73; }
+  .tag.green { background: #d5e8d4; border-color: #82b366; color: #3f6630; }
+  .tag.yellow { background: #fff2cc; border-color: #d6b656; color: #8a6200; }
+  .tag.purple { background: #e1d5e7; border-color: #9673a6; color: #5e3a78; }
+  .tag.orange { background: #ffe6cc; border-color: #d79b00; color: #8a5a00; }
+
+  /* ====== Steps ====== */
+  .steps { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .step { background: var(--pill); border-radius: 8px; padding: 7px 6px; text-align: center; position: relative; }
+  .step .n { display: inline-block; width: 16px; height: 16px; line-height: 16px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; margin-bottom: 4px; }
+  .step .t { font-size: 9.5px; font-weight: 600; color: var(--ink); line-height: 1.25; }
+
+  /* ====== Footer ====== */
+  .footer {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    padding: 14px 22px;
+    color: #cbd5e1;
+    font-size: 11.5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 6px;
+  }
+  .footer .author { color: #fff; font-weight: 700; }
+  .footer .stack { color: #93c5fd; font-weight: 600; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .colhead { margin: 0 0 4px; color: var(--ink); font-weight: 700; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ============ HEADER ============ -->
+  <div class="header">
+    <div>
+      <div class="eyebrow">Open Source · MCP · Python · LLM-Agnostic</div>
+      <h1 class="title">A Framework that turns <span class="glow">Requirements&nbsp;→&nbsp;Architecture Diagrams</span></h1>
+      <p class="tagline">
+        A local Python <strong>Model Context Protocol</strong> server that lets any LLM
+        client (GitHub Copilot, Claude Desktop, Cursor) build deck-quality
+        architecture diagrams from a single prompt — pluggable icon catalogs,
+        intent-level layout tools, automatic routing, and a structured
+        connector-detail table generated alongside every diagram.
+      </p>
+      <div class="badges">
+        <span class="badge"><span class="dot"></span>13 MCP tools</span>
+        <span class="badge green"><span class="dot"></span>Pluggable icon catalog</span>
+        <span class="badge yellow"><span class="dot"></span>macOS · Linux · Windows</span>
+        <span class="badge red"><span class="dot"></span>Verifier as hard gate</span>
+      </div>
+    </div>
+    <div class="stamp">
+      <div class="num">1&nbsp;prompt</div>
+      <div class="label">→ verified diagram</div>
+    </div>
+  </div>
+
+  <!-- ============ PULL QUOTE ============ -->
+  <div class="quote">
+    <div class="text">
+      Drop a business requirement into your LLM client. The framework <em>normalizes
+      it to a technical document</em>, builds the diagram via 13 MCP tools, <em>verifies
+      it against quality gates</em>, and ships the result with an auto-filled
+      connector-detail table — fully reproducible.
+    </div>
+  </div>
+
+  <!-- ============ REQUIREMENT → TECH DOC → DIAGRAM PIPELINE ============ -->
+  <div class="pipeline">
+    <h2><span class="pin"></span>From Business Requirement to Architecture Diagram — Three Stages</h2>
+    <div class="stages">
+
+      <div class="stage s1">
+        <div class="num">1</div>
+        <h3>Business Requirement</h3>
+        <div class="sub">unstructured prose from Jira / Confluence / email</div>
+        <div class="lines">
+          The product owner writes the change in <strong>plain language</strong>.
+          No format rules, no architectural framing — just the user need.
+        </div>
+        <span class="file">jira-stories/&lt;KEY&gt;.txt</span>
+      </div>
+
+      <div class="arrow">→</div>
+
+      <div class="stage s2">
+        <div class="num">2</div>
+        <h3>Technical Document</h3>
+        <div class="sub">LLM-normalized 10-section surgical format</div>
+        <div class="lines">
+          <code>normalize_jira_story.py</code> extracts <strong>components,
+          interactions, data, NFRs, observability</strong> into a fixed schema
+          the diagram-builder can rely on.
+        </div>
+        <span class="file">jira-stories/&lt;KEY&gt;-surgical.txt</span>
+      </div>
+
+      <div class="arrow">→</div>
+
+      <div class="stage s3">
+        <div class="num">3</div>
+        <h3>Architecture Diagram</h3>
+        <div class="sub">deck-quality drawio + 14-column connector table</div>
+        <div class="lines">
+          Copilot reads the technical document and drives <strong>13 MCP tools</strong>
+          (containers, nodes, edges, title, table). Every diagram passes a
+          verifier before it ships.
+        </div>
+        <span class="file">diagrams/&lt;KEY&gt;-&lt;ts&gt;.drawio</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ REFERENCE ARCHITECTURE (mini-diagram) ============ -->
+  <div class="refarch">
+    <h2><span class="pin"></span>Reference Architecture — High-Level Flow</h2>
+    <p class="sub">User pastes a prompt → LLM client speaks MCP over stdio → server dispatches to one of 13 intent-level tools → drawio adapter writes XML → sandboxed filesystem stores the artifact. A verifier sits as a hard gate before anything ships.</p>
+    <div class="arch-flow">
+      <div class="anode user"><div class="t">User</div><div class="r">pastes business<br/>requirement + prompt</div></div>
+      <div class="arr">→</div>
+      <div class="anode llm"><div class="t">LLM Client</div><div class="r">Copilot · Claude<br/>Cursor · any MCP</div></div>
+      <div class="arr">⇄</div>
+      <div class="anode server"><div class="t">MCP Server</div><div class="r">server.py<br/>stdio JSON-RPC</div></div>
+      <div class="arr">→</div>
+      <div class="anode tools"><div class="t">13 MCP Tools</div><div class="r">add_container · node<br/>edge · table · ...</div></div>
+      <div class="arr">→</div>
+      <div class="anode adapter"><div class="t">drawio Adapter</div><div class="r">parser · builder<br/>shapes · icons</div></div>
+      <div class="arr">→</div>
+      <div class="anode storage"><div class="t">Sandbox FS</div><div class="r">.drawio + <br/>connectors.md</div></div>
+    </div>
+    <div class="gate-strip">
+      <span class="gate"><span class="dot"></span>verify_mcp.py — hard quality gate (exit 2 = no ship)</span>
+      <span>&nbsp;·&nbsp;</span>
+      <span class="gate"><span class="dot"></span>Zero-TBD guard on the connector table</span>
+    </div>
+  </div>
+
+  <!-- ============ TWO COLUMNS ============ -->
+  <div class="body-grid">
+
+    <!-- ========== LEFT COLUMN ========== -->
+    <div>
+
+      <!-- The Problem -->
+      <div class="card">
+        <h2 class="red"><span class="pin"></span>The Problem</h2>
+        <ul>
+          <li>Architecture diagrams are <strong>manual, slow, and inconsistent</strong> — engineers either skip them or hand-draw whiteboards that drift from the code.</li>
+          <li>Different teams pick different shapes, palettes, and conventions, so every diagram has to be re-learned.</li>
+          <li>Connector details (protocol, auth, SLA, monitoring) live in tribal knowledge instead of on the diagram.</li>
+        </ul>
+      </div>
+
+      <!-- The Solution: framework architecture -->
+      <div class="card">
+        <h2 class="green"><span class="pin"></span>The Solution — Framework Architecture</h2>
+        <p style="margin:0 0 8px;">A four-layer pipeline. Each layer has one job and a clear contract with its neighbour, so any layer can be swapped without rewriting the others.</p>
+        <div class="layers">
+          <div class="layer lc"><strong>1. LLM Client</strong><span class="role">Copilot / Claude / Cursor — speaks MCP</span></div>
+          <div class="layer ls"><strong>2. MCP Server (stdio JSON-RPC)</strong><span class="role">server.py — dispatches calls</span></div>
+          <div class="layer lt"><strong>3. Intent-Level Tools</strong><span class="role">tools/* — 13 small, composable verbs</span></div>
+          <div class="layer la"><strong>4. drawio XML Adapter</strong><span class="role">parser · builder · shapes · icons</span></div>
+          <div class="layer lst"><strong>5. Sandboxed Storage</strong><span class="role">file-system, refuses paths outside the root</span></div>
+        </div>
+        <p style="font-size:10.5px;margin:8px 0 0;color:var(--muted);">
+          Pluggable icon catalog (GCP today, AWS/Azure trivial), deterministic
+          auto-layout (column gap, row stride, sub-lane deconfliction), and a
+          verifier that hard-fails before any diagram is delivered.
+        </p>
+      </div>
+
+      <!-- 7-step user journey -->
+      <div class="card">
+        <h2><span class="pin"></span>End-to-End Operational Flow</h2>
+        <div class="steps">
+          <div class="step"><span class="n">1</span><div class="t">Write requirement</div></div>
+          <div class="step"><span class="n">2</span><div class="t">Normalize to tech doc</div></div>
+          <div class="step"><span class="n">3</span><div class="t">Paste prompt in LLM</div></div>
+          <div class="step"><span class="n">4</span><div class="t">LLM drives MCP tools</div></div>
+          <div class="step"><span class="n">5</span><div class="t">Verify diagram</div></div>
+          <div class="step"><span class="n">6</span><div class="t">Auto-fill connectors</div></div>
+          <div class="step"><span class="n">7</span><div class="t">Embed detail table</div></div>
+        </div>
+      </div>
+
+      <!-- Key Engineering Highlights -->
+      <div class="card">
+        <h2 class="yellow"><span class="pin"></span>Engineering Highlights</h2>
+        <ul>
+          <li><strong>Intent-level API</strong> — LLM says "add_container Ingestion" / "add_edge A→B"; the server handles every pixel.</li>
+          <li><strong>Smart routing</strong> — orthogonal edges with row-gap waypoints + sub-lane deconfliction prevent overlap.</li>
+          <li><strong>Auto fan-out</strong> — parallel connectors spread across the node perimeter automatically.</li>
+          <li><strong>Busy-node cards</strong> — nodes with &gt; 3 edges auto-wrap in a rounded card border.</li>
+          <li><strong>Pluggable icon catalog</strong> — drop SVGs in <code>logo_icon_*/</code>, the resolver picks them by service name.</li>
+          <li><strong>Zero-TBD guard</strong> — connector table refuses to embed if any cell is unfilled.</li>
+          <li><strong>Self-bootstrapping scripts</strong> — re-exec under venv; one command works on Mac / Linux / Windows.</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <!-- ========== RIGHT COLUMN ========== -->
+    <div>
+
+      <!-- Metrics -->
+      <div class="card">
+        <h2><span class="pin"></span>By the Numbers</h2>
+        <div class="metrics">
+          <div class="metric"><div class="v">13</div><div class="l">MCP tools</div></div>
+          <div class="metric"><div class="v">5</div><div class="l">routing passes</div></div>
+          <div class="metric"><div class="v">10</div><div class="l">section schema</div></div>
+          <div class="metric"><div class="v">14</div><div class="l">detail columns</div></div>
+          <div class="metric"><div class="v">0</div><div class="l">icon overlaps</div></div>
+          <div class="metric"><div class="v">86 → 10</div><div class="l">edge overlaps</div></div>
+          <div class="metric"><div class="v">3 OS</div><div class="l">Mac · Linux · Win</div></div>
+          <div class="metric"><div class="v">1 prompt</div><div class="l">to ship</div></div>
+        </div>
+      </div>
+
+      <!-- Tech Stack (no Cloud/Icons) -->
+      <div class="card">
+        <h2 class="green"><span class="pin"></span>Tech Stack</h2>
+        <div class="split">
+          <div>
+            <p class="colhead">Server</p>
+            <div class="tags">
+              <span class="tag blue">Python 3.13</span>
+              <span class="tag blue">MCP SDK</span>
+              <span class="tag blue">Pydantic v2</span>
+              <span class="tag blue">stdio JSON-RPC</span>
+              <span class="tag blue">mxGraph XML</span>
+              <span class="tag blue">asyncio</span>
+            </div>
+          </div>
+          <div>
+            <p class="colhead">AI &amp; Tooling</p>
+            <div class="tags">
+              <span class="tag purple">GitHub Copilot</span>
+              <span class="tag purple">Claude / Anthropic SDK</span>
+              <span class="tag purple">Any MCP client</span>
+              <span class="tag orange">draw.io</span>
+              <span class="tag orange">VS Code MCP</span>
+            </div>
+          </div>
+        </div>
+        <div class="split" style="margin-top:10px;">
+          <div>
+            <p class="colhead">Output Formats</p>
+            <div class="tags">
+              <span class="tag green">.drawio (XML)</span>
+              <span class="tag green">Markdown</span>
+              <span class="tag green">Mermaid</span>
+              <span class="tag green">HTML</span>
+              <span class="tag green">JPEG</span>
+            </div>
+          </div>
+          <div>
+            <p class="colhead">Quality</p>
+            <div class="tags">
+              <span class="tag yellow">verify_mcp.py</span>
+              <span class="tag yellow">deterministic fill</span>
+              <span class="tag yellow">pytest</span>
+              <span class="tag yellow">cross-platform</span>
+              <span class="tag yellow">sandbox paths</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MCP Tool Surface -->
+      <div class="card">
+        <h2><span class="pin"></span>MCP Tool Surface</h2>
+        <p class="colhead">Read-only</p>
+        <div class="tags" style="margin-bottom:8px;">
+          <span class="tag blue">list_diagrams</span>
+          <span class="tag blue">read_diagram</span>
+          <span class="tag blue">read_diagram_summary</span>
+          <span class="tag blue">list_stories</span>
+          <span class="tag blue">read_story</span>
+        </div>
+        <p class="colhead">Mutating</p>
+        <div class="tags">
+          <span class="tag orange">create_diagram</span>
+          <span class="tag orange">add_container</span>
+          <span class="tag orange">add_node</span>
+          <span class="tag orange">add_edge</span>
+          <span class="tag orange">add_title</span>
+          <span class="tag orange">add_connector_table</span>
+          <span class="tag orange">update_node</span>
+          <span class="tag orange">remove_element</span>
+        </div>
+      </div>
+
+      <!-- Outcomes -->
+      <div class="card">
+        <h2 class="green"><span class="pin"></span>Outcomes</h2>
+        <ul>
+          <li>From <strong>~2 hours of manual drafting</strong> per architecture diagram down to <strong>one prompt</strong>.</li>
+          <li>Visually consistent — same palette, icon system, and routing across every diagram an org produces.</li>
+          <li>Verifiable — a <code>verify_mcp.py</code> exit-2 means the diagram does <strong>not</strong> ship.</li>
+          <li>Reusable — swap the icon catalog and the framework draws AWS, Azure, on-prem, or domain-specific diagrams.</li>
+          <li>Documented — 12 Mermaid views + tabular component matrix make onboarding minutes, not days.</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ FOOTER ============ -->
+  <div class="footer">
+    <div>
+      <span class="author">Debajyoti Mukhopadhyay</span>
+      &nbsp;·&nbsp;Architecture &amp; Tooling
+    </div>
+    <div class="stack">
+      Python · MCP · LLM-Agnostic · draw.io · Pluggable Icons · Verifier
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
