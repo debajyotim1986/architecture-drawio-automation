@@ -32,7 +32,7 @@ $env:DRAWIO_DIAGRAMS_DIR = (Join-Path $RepoRoot 'diagrams')
 $env:DRAWIO_STORIES_DIR  = (Join-Path $RepoRoot 'jira-stories')
 $env:PYTHONPATH          = (Join-Path $RepoRoot 'drawio-mcp-server\src')
 
-$tmpIn = Join-Path $env:TEMP "mcp_probe_$([guid]::NewGuid().ToString('N')).jsonl"
+$tmpIn = Join-Path $env:TEMP "mcp_probe_${PID}_$(Get-Random).jsonl"
 Set-Content -Path $tmpIn -Value $payload -Encoding ASCII
 
 try {
@@ -60,7 +60,7 @@ for line in buf.splitlines():
         if n: names.append(n)
 print("\n".join(names))
 '@
-$tmpPy = Join-Path $env:TEMP "parse_$([guid]::NewGuid().ToString('N')).py"
+$tmpPy = Join-Path $env:TEMP "parse_${PID}_$(Get-Random).py"
 Set-Content -Path $tmpPy -Value $parseScript -Encoding UTF8
 try {
     $names = $out | & $VenvPython $tmpPy

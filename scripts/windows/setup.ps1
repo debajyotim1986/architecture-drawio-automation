@@ -18,8 +18,15 @@ function Write-Ok($msg)   { Write-Host "[OK] $msg"  -ForegroundColor Green }
 function Write-Warn2($msg){ Write-Host "[!]  $msg"  -ForegroundColor Yellow }
 
 # Record a failure and keep going (does NOT exit). Reported in the summary.
-$Problems = New-Object System.Collections.ArrayList
-function Note-Fail($msg) { Write-Host "[X]  $msg" -ForegroundColor Red; [void]$Problems.Add($msg) }
+# Use a plain PowerShell array rather than New-Object System.Collections.ArrayList:
+# locked-down corporate machines often run in Constrained Language Mode, where
+# New-Object for arbitrary .NET types is blocked and would leave $Problems null,
+# making every Note-Fail call throw "InvokeMethodOnNull". A native array works in
+# both full and constrained language modes.
+$script:Problems = @()
+# Must use $script: on the += so the assignment updates the script-scoped array
+# instead of creating a function-local copy.
+function Note-Fail($msg) { Write-Host "[X]  $msg" -ForegroundColor Red; $script:Problems += $msg }
 
 # Return the first candidate launcher that satisfies the version test, else $null.
 # $Exact=$true demands major.minor == ($Maj,$Min); otherwise just >= 3.10.
@@ -210,7 +217,7 @@ print(f"  wrote {path}")
 '@
 
 if (Test-Path $VenvPython) {
-    $tmpPy = Join-Path $env:TEMP "patch_mcp_$([guid]::NewGuid().ToString('N')).py"
+    $tmpPy = Join-Path $env:TEMP "patch_mcp_${PID}_$(Get-Random).py"
     Set-Content -Path $tmpPy -Value $patchScript -Encoding UTF8
     try {
         & $VenvPython $tmpPy $McpJson $VenvPython
@@ -255,7 +262,7 @@ else:
     print("  already up to date")
 '@
 if (Test-Path $VenvPython) {
-    $tmpPy2 = Join-Path $env:TEMP "patch_settings_$([guid]::NewGuid().ToString('N')).py"
+    $tmpPy2 = Join-Path $env:TEMP "patch_settings_${PID}_$(Get-Random).py"
     Set-Content -Path $tmpPy2 -Value $settingsScript -Encoding UTF8
     try {
         & $VenvPython $tmpPy2 $SettingsJson
@@ -270,11 +277,11 @@ if (Test-Path $VenvPython) {
 
 # ---------- 6. final ----------
 Write-Host ""
-if ($Problems.Count -eq 0) {
+if ($script:Problems.Count -eq 0) {
     Write-Ok "Setup complete."
 } else {
-    Write-Warn2 "Setup finished with $($Problems.Count) problem(s):"
-    foreach ($p in $Problems) { Write-Host "       - $p" -ForegroundColor Yellow }
+    Write-Warn2 "Setup finished with $($script:Problems.Count) problem(s):"
+    foreach ($p in $script:Problems) { Write-Host "       - $p" -ForegroundColor Yellow }
     Write-Host ""
     Write-Host "Fix the above and re-run scripts\windows\setup.ps1 (it is safe to re-run)."
 }
@@ -286,4 +293,4 @@ Write-Host "  4. Copilot Chat -> MCP indicator -> confirm 'drawio' connected (13
 
 # Non-zero exit if anything failed, so callers/CI can detect it - but only AFTER
 # attempting every step.
-if ($Problems.Count -gt 0) { exit 1 }
+if ($script:Problems.Count -gt 0) { exit 1 }
