@@ -1,4 +1,4 @@
-# Offline wheelhouse (Windows x64 / Python 3.12)
+# Offline wheelhouse (Windows x64 / Python 3.14)
 
 This folder is a **self-contained wheelhouse** for installing `drawio-mcp-server`
 (including the `[normalizer]` extra, which pulls in the **anthropic** SDK) on a
@@ -12,9 +12,11 @@ It contains pre-downloaded `.whl` files for:
   installed in **editable** mode (`pip install -e`);
 - `pip` / `setuptools` / `wheel`.
 
-The compiled wheels (`pydantic_core`, `jiter`, `cryptography`, `cffi`, `rpds_py`,
-`tomli`) are **`cp312` / `win_amd64`** — they only work on **Windows x64 with
-Python 3.12**. For a different OS or Python version, regenerate (see below).
+The compiled wheels (`pydantic_core`, `jiter`, `cffi`, `rpds_py`, `tomli`) are
+**`cp314` / `win_amd64`** — they only work on **Windows x64 with Python 3.14**.
+(`cryptography` ships as a `cp311-abi3` stable-ABI wheel, which runs on any
+Python 3.11+, including 3.14.) For a different OS or Python version, regenerate
+(see below).
 
 ## How to install (offline)
 
@@ -29,10 +31,10 @@ invocation to `--no-index --find-links wheels`, so nothing is fetched from PyPI.
 You'll see `[OK] Offline wheelhouse detected` in the output.
 
 The script reads the required Python version from the wheel filenames (the
-`cp312` tag) and **requires that exact version** — it will not silently use a
-different one. If Python 3.12 is not installed, the script reports it and skips
+`cp314` tag) and **requires that exact version** — it will not silently use a
+different one. If Python 3.14 is not installed, the script reports it and skips
 the install step (it does not try to install Python for you). Install Python
-3.12 first — e.g. `winget install Python.Python.3.12`, or the offline installer
+3.14 first — e.g. `winget install Python.Python.3.14`, or the offline installer
 from <https://www.python.org/downloads/> — then re-run `setup.ps1`.
 
 The script is **best-effort**: if any single step fails it records the problem
@@ -52,7 +54,7 @@ download host does not need to be Windows):
 
 ```bash
 pip download --only-binary=:all: \
-  --platform win_amd64 --python-version 3.12 --implementation cp --abi cp312 \
+  --platform win_amd64 --python-version 3.14 --implementation cp --abi cp314 \
   --dest wheels \
   "anthropic>=0.40" "mcp>=1.0.0" "pydantic>=2.0" \
   hatchling editables pip setuptools wheel
