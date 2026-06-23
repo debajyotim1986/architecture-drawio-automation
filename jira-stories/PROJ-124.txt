@@ -1,0 +1,27 @@
+Key: PROJ-124
+Type: Story
+Title: Add asynchronous order-confirmation email after checkout
+
+1. Background
+This is a data processing pipeline where data comes from different source in different form. processing data, validate data and do dq checks
+2. Objective
+Build a production-grade, secure, and scalable data processing pipeline on GCP that ingests csv,parquet extracts structured data using dataproc/apache spark based processing, validates the output, and delivers it to downstream consumers with full observability and auditability.
+3. In Scope
+
+this is a data ingestion pipeline from onprem to gcp
+file comes form onprem system to gcs bucket
+composer batch job will process data coming to gcs from different upstreams and then load it into bigquery tables in staging layer.
+in next process, staging data will be transformed as per business logic and load it curation layer of bigquery.
+whenever the file comes to gcs bucket, an event goes to pubsub
+also composer sensor checks the newly arrival files in gcs in each 5 minutes and process accordingly
+while composer job runs, it creates dataproc cluster on the flw based on data volume and then process it based on configuration.
+dataplex service is used for data validation
+csv, parquet and other file format based input files are receievd from sources and finally load the data in bigquery 
+once data process completes, it close the the cluster and update the audit table
+
+4. Out of Scope
+
+Source system changes for document submission.
+Migration of historical documents (to be tracked as a separate story).
+Training of custom Document AI processors beyond the initial {N} document templates.
+
