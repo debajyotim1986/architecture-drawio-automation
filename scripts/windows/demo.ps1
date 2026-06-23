@@ -3,8 +3,9 @@
   Drop the bundled sample story into jira-stories\DEMO-001.txt.
 .DESCRIPTION
   We deliberately use DEMO-001 (not PROJ-123) because
-  jira-stories\PROJ-123.txt is the reference template the normalizer
-  uses - overwriting it would break normalize_jira_story.py.
+  jira-stories\PROJ-123.txt is the canonical worked-example story the
+  docs and prompts point at - overwriting it would invalidate those
+  references.
 #>
 $ErrorActionPreference = 'Stop'
 

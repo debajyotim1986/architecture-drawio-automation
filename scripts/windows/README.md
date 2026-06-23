@@ -194,7 +194,7 @@ powershell -ExecutionPolicy Bypass -File scripts\windows\demo.ps1
 ```
 
 This copies `examples\sample-jira-story.txt` to
-`jira-stories\PROJ-123.txt` and prints the prompt to paste into Copilot
+`jira-stories\DEMO-001.txt` and prints the prompt to paste into Copilot
 Chat:
 
 ```

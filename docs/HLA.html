@@ -1,0 +1,817 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>High-Level Architecture — AI Architecture-Diagram Copilot</title>
+<style>
+  :root {
+    --ink: #0f172a;
+    --muted: #64748b;
+    --accent: #0b57d0;
+    --accent-2: #34a853;
+    --accent-3: #ea4335;
+    --accent-4: #fbbc04;
+    --line: rgba(148,163,184,0.55);
+    --glass: rgba(255,255,255,0.92);
+    --glass-soft: rgba(255,255,255,0.7);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1320px;
+    background:
+      radial-gradient(1200px 520px at 18% -10%, rgba(11,87,208,0.55), transparent 60%),
+      radial-gradient(900px 500px at 95% 8%, rgba(52,168,83,0.30), transparent 55%),
+      linear-gradient(135deg, #070b16 0%, #0d1a3a 50%, #0a1733 100%);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { width: 1320px; padding: 30px 34px 34px; }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  /* ===== Header ===== */
+  .head { display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: center; margin-bottom: 20px; }
+  .eyebrow { text-transform: uppercase; letter-spacing: 3px; font-size: 10.5px; color: #93c5fd; font-weight: 800; margin-bottom: 9px; }
+  .h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.6px; margin: 0 0 9px; color: #f8fafc; line-height: 1.1; }
+  .h1 .glow { background: linear-gradient(90deg, #60a5fa 0%, #34d399 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .sub { font-size: 13px; color: #cbd5e1; max-width: 820px; margin: 0; }
+  .legend-top { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 13px; }
+  .lt { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.16); color: #e2e8f0; border-radius: 999px; padding: 4px 11px; font-size: 11px; font-weight: 600; }
+  .lt i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  .stamp { background: linear-gradient(135deg, rgba(255,255,255,0.16), rgba(255,255,255,0.05)); border: 1px solid rgba(255,255,255,0.22); border-radius: 16px; padding: 16px 20px; text-align: center; color: #fff; min-width: 196px; backdrop-filter: blur(6px); }
+  .stamp .n { font-size: 30px; font-weight: 800; letter-spacing: -0.5px; line-height: 1; }
+  .stamp .l { font-size: 10px; letter-spacing: 1.6px; text-transform: uppercase; opacity: 0.85; margin-top: 7px; }
+
+  /* ===== Overall layout: main stack + right rail ===== */
+  .grid { display: grid; grid-template-columns: 1fr 326px; gap: 18px; align-items: start; }
+
+  /* ===== System boundary ===== */
+  .boundary {
+    position: relative;
+    border: 1.5px dashed rgba(148,163,184,0.5);
+    border-radius: 20px;
+    padding: 30px 22px 22px;
+    background: rgba(255,255,255,0.04);
+  }
+  .boundary > .btag {
+    position: absolute; top: -12px; left: 22px;
+    background: linear-gradient(135deg,#0b57d0,#1e40af); color: #fff;
+    font-size: 10.5px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase;
+    padding: 4px 12px; border-radius: 999px; box-shadow: 0 8px 18px -8px rgba(11,87,208,0.8);
+  }
+
+  /* ===== Plane ===== */
+  .plane {
+    background: var(--glass);
+    border-radius: 16px;
+    padding: 14px 16px 15px;
+    box-shadow: 0 18px 38px -20px rgba(2,6,23,0.85);
+    border: 1px solid rgba(255,255,255,0.6);
+  }
+  .plane-h { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+  .badge-ic { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex: none; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05); }
+  .badge-ic svg { width: 19px; height: 19px; }
+  .plane-h .tt { font-size: 14.5px; font-weight: 800; color: var(--ink); letter-spacing: -0.2px; }
+  .plane-h .ss { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .plane-h .tag-r { margin-left: auto; font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; color: #fff; padding: 3px 9px; border-radius: 999px; }
+
+  /* node grids */
+  .nodes { display: grid; gap: 9px; }
+  .nodes.c1 { grid-template-columns: 1fr; }
+  .nodes.c4 { grid-template-columns: repeat(4,1fr); }
+  .nodes.c5 { grid-template-columns: repeat(5,1fr); }
+  .nodes.c3 { grid-template-columns: repeat(3,1fr); }
+  .node {
+    border-radius: 11px; padding: 9px 10px; border: 1px solid var(--line);
+    background: #fff; position: relative; overflow: hidden;
+  }
+  .node::before { content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background: var(--accent); }
+  .node .nt { font-size: 12px; font-weight: 800; color: var(--ink); letter-spacing: -0.2px; }
+  .node .nr { font-size: 10px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
+  .node code { font-size: 9.5px; color: #334155; }
+
+  /* color theming per plane */
+  .t-client .badge-ic { background:#e8effe; } .t-client .tag-r { background:#3b82f6; }
+  .t-client .node::before { background:#3b82f6; }
+  .t-core .badge-ic { background:#fde9d6; } .t-core .tag-r { background:#d97706; }
+  .t-core .node::before { background:#d97706; }
+  .t-tools .badge-ic { background:#fbf3cf; } .t-tools .tag-r { background:#ca8a04; }
+  .t-tools .node::before { background:#ca8a04; }
+  .t-domain .badge-ic { background:#e7dcf0; } .t-domain .tag-r { background:#7c3aed; }
+  .t-domain .node::before { background:#7c3aed; }
+  .t-store .badge-ic { background:#dcefd6; } .t-store .tag-r { background:#16a34a; }
+  .t-store .node::before { background:#16a34a; }
+
+  .grouplbl { font-size: 9.5px; font-weight: 800; letter-spacing: 0.7px; text-transform: uppercase; color: var(--muted); margin: 2px 0 6px; }
+  .sub-block + .sub-block { margin-top: 11px; }
+
+  /* connector between planes */
+  .conn { display: flex; flex-direction: column; align-items: center; padding: 7px 0; }
+  .conn .ln { width: 2px; height: 12px; background: linear-gradient(180deg, rgba(255,255,255,0.15), rgba(255,255,255,0.7)); }
+  .conn .pill { background: rgba(255,255,255,0.95); border: 1px solid rgba(255,255,255,0.7); color: #1e293b; font-size: 10.5px; font-weight: 700; padding: 3px 12px; border-radius: 999px; box-shadow: 0 6px 14px -8px rgba(2,6,23,0.7); white-space: nowrap; }
+  .conn .pill .dir { color: var(--accent); font-weight: 900; }
+  .conn .ar { color: rgba(255,255,255,0.85); font-size: 13px; line-height: 1; }
+
+  /* ===== Right rail ===== */
+  .rail { display: flex; flex-direction: column; gap: 14px; }
+  .panel {
+    background: var(--glass); border-radius: 16px; padding: 14px 15px;
+    box-shadow: 0 18px 38px -20px rgba(2,6,23,0.85); border: 1px solid rgba(255,255,255,0.6);
+  }
+  .panel h3 { margin: 0 0 10px; font-size: 13px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+  .panel h3 .pin { width: 6px; height: 16px; border-radius: 3px; background: var(--accent); }
+  .panel.rail-scripts h3 .pin { background:#d97706; }
+  .panel.rail-ext h3 .pin { background:#0ea5e9; }
+  .panel.rail-x h3 .pin { background:#16a34a; }
+
+  .scard { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; background:#fff; }
+  .scard:last-child { margin-bottom: 0; }
+  .scard .st { font-size: 11.5px; font-weight: 800; color: var(--ink); }
+  .scard .sd { font-size: 10px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+  .scard code { font-size: 9.5px; color:#9a3412; }
+
+  .ext { display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:10px; padding:9px 10px; margin-bottom:8px; background:#fff; }
+  .ext:last-child { margin-bottom:0; }
+  .ext .eic { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex:none; background:#e0f2fe; }
+  .ext .eic svg { width:17px; height:17px; }
+  .ext .et { font-size:11.5px; font-weight:800; color:var(--ink); }
+  .ext .er { font-size:10px; color:var(--muted); margin-top:1px; }
+
+  .xlist { margin: 0; padding: 0; list-style: none; }
+  .xlist li { font-size: 11px; color: #334155; padding: 5px 0 5px 20px; position: relative; border-bottom: 1px dashed #e2e8f0; }
+  .xlist li:last-child { border-bottom: 0; }
+  .xlist li::before { content: "✓"; position: absolute; left: 0; top: 5px; color: var(--accent-2); font-weight: 900; }
+  .xlist li b { color: var(--ink); font-weight: 800; }
+
+  /* ===== artifacts band ===== */
+  .artifacts { margin-top: 18px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 16px; padding: 14px 18px; }
+  .artifacts .ah { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #93c5fd; margin-bottom: 10px; }
+  .achips { display: flex; gap: 10px; flex-wrap: wrap; }
+  .achip { display:flex; align-items:center; gap:9px; background: rgba(255,255,255,0.95); border:1px solid rgba(255,255,255,0.7); border-radius: 11px; padding: 9px 13px; }
+  .achip .ad { width: 9px; height: 9px; border-radius: 50%; }
+  .achip .af { font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 11px; font-weight: 700; color: #1e293b; }
+  .achip .ax { font-size: 10px; color: var(--muted); }
+
+  /* ===== High-Level Flow (start → end, dual audience) ===== */
+  .hlf {
+    margin-top: 18px;
+    background: var(--glass);
+    border-radius: 18px;
+    padding: 18px 24px 24px;
+    box-shadow: 0 18px 38px -20px rgba(2,6,23,0.85);
+    border: 1px solid rgba(255,255,255,0.6);
+  }
+  .hlf-h { display: flex; align-items: center; gap: 10px; }
+  .hlf-h .pin { width: 6px; height: 18px; border-radius: 3px; background: linear-gradient(180deg,#3b82f6,#16a34a); }
+  .hlf-h .tt { font-size: 16px; font-weight: 800; color: var(--ink); letter-spacing: -0.2px; }
+  .hlf-sub { font-size: 11.5px; color: var(--muted); margin: 5px 0 0; }
+  .hlf-legend { display: flex; gap: 10px; margin: 12px 0 20px; flex-wrap: wrap; }
+  .hlf-legend .lg { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; color: #334155; background: var(--pill, #f1f5f9); border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; }
+  .hlf-legend .lg .em { font-size: 13px; }
+  .hlf-legend .lg .mn { font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 10px; background:#0f172a; color:#e2e8f0; padding:1px 6px; border-radius:4px; }
+
+  .track { position: relative; }
+  .track-line {
+    position: absolute; left: 7.143%; right: 7.143%; top: 90px; height: 4px; border-radius: 2px;
+    background: linear-gradient(90deg,#64748b 0%,#d97706 20%,#7c3aed 38%,#ca8a04 55%,#dc2626 68%,#d97706 82%,#16a34a 100%);
+    z-index: 0;
+  }
+  .stations { display: grid; grid-template-columns: repeat(7,1fr); position: relative; z-index: 1; }
+  .st-col { display: flex; flex-direction: column; align-items: center; padding: 0 7px; }
+  .plain { height: 72px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; text-align: center; }
+  .plain .em { font-size: 21px; line-height: 1; }
+  .plain .pt { font-size: 11px; font-weight: 700; color: var(--ink); line-height: 1.28; margin-top: 6px; }
+  .dot {
+    width: 28px; height: 28px; border-radius: 50%; background: #fff; border: 3px solid #3b82f6;
+    color: #1e293b; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+    margin: 6px 0; z-index: 2; box-shadow: 0 4px 10px -4px rgba(2,6,23,0.6);
+  }
+  .tech { margin-top: 8px; border: 1px solid var(--line); border-top-width: 3px; border-radius: 10px; padding: 8px 9px; background: #fff; width: 100%; text-align: center; }
+  .tech .tl { font-size: 9px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: var(--muted); }
+  .tech .tw { font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 9.5px; color: #334155; line-height: 1.35; margin-top: 4px; word-break: break-word; }
+  .tech .ac { display: inline-block; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 7px; border-radius: 999px; margin-top: 6px; color: #fff; }
+
+  /* ===== Futuristic / target-state architecture ===== */
+  .fut {
+    margin-top: 18px;
+    border-radius: 18px;
+    padding: 20px 24px 22px;
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(720px 240px at 8% -10%, rgba(34,211,238,0.20), transparent 60%),
+      radial-gradient(720px 280px at 96% 0%, rgba(168,85,247,0.22), transparent 60%),
+      linear-gradient(135deg,#05070f 0%, #0b1228 55%, #0a0f24 100%);
+    border: 1px solid rgba(125,211,252,0.28);
+    box-shadow: inset 0 0 0 1px rgba(168,85,247,0.10), 0 18px 40px -18px rgba(0,0,0,0.85);
+  }
+  .fut::after { content:""; position:absolute; inset:0; background-image: linear-gradient(rgba(125,211,252,0.045) 1px, transparent 1px); background-size: 100% 30px; pointer-events:none; }
+  .fut-h { display:flex; align-items:center; gap:12px; position:relative; z-index:1; flex-wrap:wrap; }
+  .fut-tag { font-size:9.5px; font-weight:900; letter-spacing:2px; text-transform:uppercase; color:#04111a; background:linear-gradient(90deg,#22d3ee,#a855f7); padding:4px 12px; border-radius:999px; box-shadow:0 0 18px rgba(34,211,238,0.55); }
+  .fut-h .tt { font-size:17px; font-weight:800; color:#e6f6ff; letter-spacing:-0.2px; }
+  .fut-h .tt .neon { background:linear-gradient(90deg,#67e8f9,#c084fc); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  .fut-sub { font-size:11.5px; color:#9fb3d1; margin:7px 0 18px; position:relative; z-index:1; max-width:920px; }
+
+  .fflow { display:flex; align-items:stretch; gap:0; position:relative; z-index:1; }
+  .fnode {
+    flex:1; border-radius:14px; padding:13px 13px 12px;
+    background: linear-gradient(160deg, rgba(255,255,255,0.075), rgba(255,255,255,0.02));
+    border:1px solid rgba(125,211,252,0.28);
+    box-shadow: 0 0 22px -6px rgba(34,211,238,0.28), inset 0 1px 0 rgba(255,255,255,0.08);
+    position:relative;
+  }
+  .fnode::before { content:""; position:absolute; left:13px; right:13px; top:0; height:2px; border-radius:2px; background:linear-gradient(90deg,#22d3ee,#a855f7); box-shadow:0 0 12px rgba(34,211,238,0.75); }
+  .fnode .fic { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:19px; background:rgba(34,211,238,0.12); border:1px solid rgba(125,211,252,0.35); margin-bottom:9px; }
+  .fnode .fn { font-size:12.5px; font-weight:800; color:#eaf6ff; letter-spacing:-0.2px; }
+  .fnode .fr { font-size:10.5px; color:#9fb3d1; line-height:1.4; margin-top:4px; }
+  .fbadge { display:inline-block; font-size:9px; font-weight:800; letter-spacing:0.4px; text-transform:uppercase; padding:3px 8px; border-radius:999px; margin-top:8px; margin-right:4px; color:#cffafe; background:rgba(34,211,238,0.14); border:1px solid rgba(34,211,238,0.42); }
+  .fbadge.violet { color:#f0d9ff; background:rgba(168,85,247,0.18); border-color:rgba(168,85,247,0.5); }
+  .fbadge.green { color:#d1fae5; background:rgba(52,211,153,0.18); border-color:rgba(52,211,153,0.5); }
+
+  .farrow { width:40px; display:flex; align-items:center; justify-content:center; color:#67e8f9; font-size:20px; font-weight:800; text-shadow:0 0 10px rgba(103,232,249,0.85); flex:none; }
+  .fsplit { width:40px; display:flex; align-items:center; justify-content:center; color:#c084fc; font-size:22px; font-weight:800; flex:none; text-shadow:0 0 12px rgba(192,132,252,0.8); }
+
+  .fouts { flex:1.18; display:flex; flex-direction:column; gap:10px; }
+  .fout { border-radius:12px; padding:10px 12px; background:linear-gradient(160deg, rgba(255,255,255,0.075), rgba(255,255,255,0.02)); border:1px solid rgba(125,211,252,0.28); display:flex; gap:10px; align-items:flex-start; position:relative; }
+  .fout .fic2 { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; flex:none; }
+  .fout .fn { font-size:11.5px; font-weight:800; color:#eaf6ff; }
+  .fout .fr { font-size:10px; color:#9fb3d1; line-height:1.38; margin-top:2px; }
+  .fout.jira { border-color: rgba(59,130,246,0.55); box-shadow:0 0 22px -8px rgba(59,130,246,0.55); }
+  .fout.jira .fic2 { background:rgba(59,130,246,0.20); border:1px solid rgba(59,130,246,0.55); color:#bfdbfe; }
+  .fout.gh { border-color: rgba(168,85,247,0.55); box-shadow:0 0 22px -8px rgba(168,85,247,0.55); }
+  .fout.gh .fic2 { background:rgba(168,85,247,0.20); border:1px solid rgba(168,85,247,0.55); color:#e9d5ff; }
+  .fout .cond { display:inline-block; font-size:8.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; color:#fde68a; background:rgba(251,191,36,0.15); border:1px solid rgba(251,191,36,0.45); padding:1px 7px; border-radius:999px; margin-top:6px; }
+
+  .fstack { margin-top:16px; display:flex; gap:6px; flex-wrap:wrap; position:relative; z-index:1; }
+  .ftag { font-size:10px; font-weight:700; color:#bfe9ff; background:rgba(34,211,238,0.10); border:1px solid rgba(125,211,252,0.32); border-radius:6px; padding:3px 9px; }
+
+  /* ===== Complete component map ===== */
+  .cmap { margin-top: 18px; background: var(--glass); border-radius: 18px; padding: 18px 22px 22px; box-shadow: 0 18px 38px -20px rgba(2,6,23,0.85); border: 1px solid rgba(255,255,255,0.6); }
+  .cmap-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .cmap-h .pin { width: 6px; height: 18px; border-radius: 3px; background: linear-gradient(180deg,#0b57d0,#34a853); }
+  .cmap-h .tt { font-size: 16px; font-weight: 800; color: var(--ink); letter-spacing: -0.2px; }
+  .cmap-h .stats { margin-left: auto; display: flex; gap: 8px; }
+  .cmap-h .cstat { background: linear-gradient(135deg,#0b57d0,#1e40af); color: #fff; border-radius: 10px; padding: 7px 12px; text-align: center; min-width: 62px; box-shadow: 0 8px 18px -10px rgba(11,87,208,0.7); }
+  .cmap-h .cstat .v { font-size: 17px; font-weight: 800; line-height: 1; }
+  .cmap-h .cstat .l { font-size: 8.5px; letter-spacing: 1px; text-transform: uppercase; opacity: 0.9; margin-top: 3px; }
+  .cmap-sub { font-size: 11.5px; color: var(--muted); margin: 6px 0 16px; }
+  .cmap-cols { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; align-items: start; }
+  .cmap-cols > div { display: flex; flex-direction: column; gap: 12px; }
+  .ccard { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: 0 8px 22px -14px rgba(2,6,23,0.5); }
+  .ccard h4 { margin: 0 0 8px; font-size: 12.5px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px; letter-spacing: -0.2px; }
+  .ccard h4 .pin { width: 5px; height: 15px; border-radius: 3px; background: #0b57d0; }
+  .ccard h4 .count { margin-left: auto; background: #f1f5f9; color: var(--muted); border-radius: 10px; padding: 1px 8px; font-size: 10px; font-weight: 800; }
+  .ccard h4.blue .pin { background:#6c8ebf; } .ccard h4.green .pin { background:#82b366; }
+  .ccard h4.purple .pin { background:#9673a6; } .ccard h4.orange .pin { background:#d79b00; }
+  .ccard h4.red .pin { background:#b85450; } .ccard h4.yellow .pin { background:#d6b656; }
+  .ccard h4.teal .pin { background:#2a9d8f; } .ccard h4.indigo .pin { background:#6366f1; }
+  .crow { display: grid; grid-template-columns: 138px 1fr; gap: 8px; align-items: baseline; padding: 3px 0; border-bottom: 1px dashed #eef2f7; }
+  .crow:last-child { border-bottom: none; }
+  .cfn { font: 700 10px/1.3 ui-monospace,"SF Mono",Menlo,monospace; color: #1e293b; overflow-wrap: anywhere; }
+  .cdesc { font-size: 10px; color: var(--muted); line-height: 1.35; }
+  .cdesc strong { color: var(--ink); font-weight: 700; }
+  .cconst { margin-top: 14px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 13px 16px; box-shadow: 0 8px 22px -14px rgba(2,6,23,0.5); }
+  .cconst h4 { margin: 0 0 10px; font-size: 12.5px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+  .cconst h4 .pin { width: 5px; height: 15px; border-radius: 3px; background: #34a853; }
+  .cconst-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; }
+  .cu { background: #f1f5f9; border-radius: 10px; padding: 9px 10px; text-align: center; }
+  .cu .name { font: 700 10px/1.2 ui-monospace,Menlo,monospace; color: #1e293b; overflow-wrap: anywhere; }
+  .cu .val { font-size: 18px; font-weight: 800; color: var(--accent); margin: 4px 0 2px; }
+  .cu .effect { font-size: 9px; color: var(--muted); line-height: 1.3; }
+
+  /* ===== footer ===== */
+  .footer { margin-top: 16px; display: flex; justify-content: space-between; align-items: center; color: #cbd5e1; font-size: 11.5px; }
+  .footer .author { color: #fff; font-weight: 800; }
+  .footer .stack { color: #93c5fd; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ===== HEADER ===== -->
+  <div class="head">
+    <div>
+      <div class="eyebrow">High-Level Architecture · MCP · GitHub Copilot</div>
+      <h1 class="h1">AI Architecture-Diagram <span class="glow">Copilot</span></h1>
+      <p class="sub">A local Model-Context-Protocol server that turns a Jira requirement into a deck-quality
+      draw.io diagram. GitHub Copilot in VS Code speaks MCP over stdio to a registry of 13 intent-level tools; a domain
+      adapter renders mxGraph XML; everything is written through a path-sandboxed file store. An offline CLI
+      toolchain normalizes the requirement, fills the connector contract, and gates quality before delivery.</p>
+      <div class="legend-top">
+        <span class="lt"><i style="background:#3b82f6"></i>Client plane</span>
+        <span class="lt"><i style="background:#d97706"></i>Server core</span>
+        <span class="lt"><i style="background:#ca8a04"></i>Tool layer</span>
+        <span class="lt"><i style="background:#7c3aed"></i>Domain &amp; rendering</span>
+        <span class="lt"><i style="background:#16a34a"></i>Sandboxed storage</span>
+      </div>
+    </div>
+    <div class="stamp">
+      <div class="n">13 tools</div>
+      <div class="l">1 prompt → verified diagram</div>
+    </div>
+  </div>
+
+  <!-- ===== MAIN GRID ===== -->
+  <div class="grid">
+
+    <!-- ============ LEFT: layered system ============ -->
+    <div class="boundary">
+      <span class="btag">drawio-mcp-server · process boundary</span>
+
+      <!-- PLANE 1 — Clients -->
+      <div class="plane t-client">
+        <div class="plane-h">
+          <span class="badge-ic"><svg viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+          <div>
+            <div class="tt">Client / Experience Plane</div>
+            <div class="ss">GitHub Copilot Chat in VS Code drives the whole pipeline by prompt</div>
+          </div>
+          <span class="tag-r">consumer</span>
+        </div>
+        <div class="nodes c1">
+          <div class="node"><div class="nt">GitHub Copilot — VS Code Chat</div><div class="nr">Reads the prompt, speaks MCP over stdio and calls the 13 tools · wired via <code>.vscode/mcp.json</code></div></div>
+        </div>
+      </div>
+
+      <div class="conn"><span class="ar">▲</span><span class="pill">MCP · stdio · JSON-RPC&nbsp;&nbsp;<span class="dir">⇅</span>&nbsp;&nbsp;tools/list · tools/call</span><span class="ar">▼</span></div>
+
+      <!-- PLANE 2 — Server core -->
+      <div class="plane t-core">
+        <div class="plane-h">
+          <span class="badge-ic"><svg viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.2A1.6 1.6 0 0 0 7 19.3a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 2.6 14H2.4a2 2 0 1 1 0-4h.2A1.6 1.6 0 0 0 4 7a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 9 2.6h.1A1.6 1.6 0 0 0 10 1.4 2 2 0 0 1 14 1.4a1.6 1.6 0 0 0 1 1.2h.1a1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V7a1.6 1.6 0 0 0 1.2 1H21a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1Z"/></svg></span>
+          <div>
+            <div class="tt">MCP Server Core</div>
+            <div class="ss">Transport handlers + config + the dispatch registry</div>
+          </div>
+          <span class="tag-r">runtime</span>
+        </div>
+        <div class="nodes c3">
+          <div class="node"><div class="nt">server.py</div><div class="nr"><code>@list_tools</code> / <code>@call_tool</code> · stdio loop · errors → text</div></div>
+          <div class="node"><div class="nt">tools/__init__ registry</div><div class="nr"><code>TOOL_REGISTRY</code> name → (schema, handler) · dispatch</div></div>
+          <div class="node"><div class="nt">util/config</div><div class="nr">env: DIAGRAMS / STORIES / ICONS dirs</div></div>
+        </div>
+      </div>
+
+      <div class="conn"><span class="ar">▲</span><span class="pill">dispatch_tool(name, args, cfg)&nbsp;&nbsp;<span class="dir">→</span></span><span class="ar">▼</span></div>
+
+      <!-- PLANE 3 — Tools -->
+      <div class="plane t-tools">
+        <div class="plane-h">
+          <span class="badge-ic"><svg viewBox="0 0 24 24" fill="none" stroke="#a16207" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2-2 2.6-2.6Z"/></svg></span>
+          <div>
+            <div class="tt">Tool Layer — 13 intent-level verbs</div>
+            <div class="ss">Small composable operations; the LLM names intent, the server does the geometry</div>
+          </div>
+          <span class="tag-r">capabilities</span>
+        </div>
+        <div class="sub-block">
+          <div class="grouplbl">Read-only (5)</div>
+          <div class="nodes c5">
+            <div class="node"><div class="nt">list_diagrams</div></div>
+            <div class="node"><div class="nt">read_diagram</div></div>
+            <div class="node"><div class="nt">read_diagram_summary</div></div>
+            <div class="node"><div class="nt">list_stories</div></div>
+            <div class="node"><div class="nt">read_story</div></div>
+          </div>
+        </div>
+        <div class="sub-block">
+          <div class="grouplbl">Mutating (8)</div>
+          <div class="nodes c4">
+            <div class="node"><div class="nt">create_diagram</div></div>
+            <div class="node"><div class="nt">add_title</div></div>
+            <div class="node"><div class="nt">add_container</div><div class="nr">swimlane layers</div></div>
+            <div class="node"><div class="nt">add_node</div><div class="nr">gcp_icon · auto-place</div></div>
+            <div class="node"><div class="nt">add_edge</div><div class="nr">number · route · fan-out</div></div>
+            <div class="node"><div class="nt">add_connector_table</div><div class="nr">zero-TBD guard</div></div>
+            <div class="node"><div class="nt">update_node</div></div>
+            <div class="node"><div class="nt">remove_element</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="conn"><span class="ar">▲</span><span class="pill">intent → model mutation&nbsp;&nbsp;<span class="dir">→</span></span><span class="ar">▼</span></div>
+
+      <!-- PLANE 4 — Domain & rendering -->
+      <div class="plane t-domain">
+        <div class="plane-h">
+          <span class="badge-ic"><svg viewBox="0 0 24 24" fill="none" stroke="#6d28d9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4Z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg></span>
+          <div>
+            <div class="tt">Domain Model &amp; Rendering Adapter</div>
+            <div class="ss">Intent-level <code>Diagram</code> model ⇄ uncompressed mxGraph XML, with deterministic layout</div>
+          </div>
+          <span class="tag-r">drawio/</span>
+        </div>
+        <div class="nodes c3">
+          <div class="node"><div class="nt">types · Pydantic</div><div class="nr">Diagram / Node / Edge intent model</div></div>
+          <div class="node"><div class="nt">parser ⇄ builder</div><div class="nr">.drawio XML ↔ model round-trip</div></div>
+          <div class="node"><div class="nt">summarize</div><div class="nr">compact label-only view</div></div>
+          <div class="node"><div class="nt">shapes</div><div class="nr">shape→style · swimlane palette · edge style</div></div>
+          <div class="node"><div class="nt">gcp_icons resolver</div><div class="nr">name→SVG data-URI · label auto-detect</div></div>
+          <div class="node"><div class="nt">layout engine</div><div class="nr">waypoints · fan-out · busy-node cards</div></div>
+        </div>
+      </div>
+
+      <div class="conn"><span class="ar">▲</span><span class="pill">sandboxed read / write&nbsp;&nbsp;<span class="dir">⇅</span></span><span class="ar">▼</span></div>
+
+      <!-- PLANE 5 — Storage -->
+      <div class="plane t-store">
+        <div class="plane-h">
+          <span class="badge-ic"><svg viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span>
+          <div>
+            <div class="tt">Sandboxed Storage</div>
+            <div class="ss">File-backed stores that refuse any path escaping their configured root</div>
+          </div>
+          <span class="tag-r">util/ · fs</span>
+        </div>
+        <div class="nodes c3">
+          <div class="node"><div class="nt">DiagramStore</div><div class="nr"><code>diagrams/*.drawio</code> · natural-sorted</div></div>
+          <div class="node"><div class="nt">StoryStore</div><div class="nr"><code>jira-stories/*</code> · read-only</div></div>
+          <div class="node"><div class="nt">Icon catalog</div><div class="nr"><code>logo_icon_gcp/</code> · pluggable SVGs</div></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ============ RIGHT RAIL ============ -->
+    <div class="rail">
+
+      <div class="panel rail-scripts">
+        <h3><span class="pin"></span>Offline Toolchain — CLI</h3>
+        <div class="scard">
+          <div class="st">normalize_jira_story.py</div>
+          <div class="sd">Raw note → canonical <code>&lt;KEY&gt;-surgical.txt</code>. CREATE or diagram-aware UPDATE mode.</div>
+        </div>
+        <div class="scard">
+          <div class="st">generate_connector_details.py</div>
+          <div class="sd">Rule-engine fills the 14-column connector table; optional Claude refine; zero-TBD.</div>
+        </div>
+        <div class="scard">
+          <div class="st">verify_mcp.py <span style="color:#dc2626">· hard gate</span></div>
+          <div class="sd">Registry + dangling edges + icons + arrowheads + fan-out. Exit 2 = no ship.</div>
+        </div>
+        <div class="scard">
+          <div class="st">reroute_diagram.py</div>
+          <div class="sd">Replays layout/routing passes on an existing diagram.</div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.4;">Each script self-bootstraps under the project venv — one command on macOS · Linux · Windows.</div>
+      </div>
+
+      <div class="panel rail-ext">
+        <h3><span class="pin"></span>External Services</h3>
+        <div class="ext">
+          <span class="eic"><svg viewBox="0 0 24 24" fill="none" stroke="#0369a1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg></span>
+          <div><div class="et">Anthropic API — Claude</div><div class="er">used by normalize + connector fill (optional)</div></div>
+        </div>
+        <div class="ext">
+          <span class="eic"><svg viewBox="0 0 24 24" fill="none" stroke="#0369a1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h8v8H8z"/></svg></span>
+          <div><div class="et">draw.io renderer</div><div class="er">VS Code draw.io extension</div></div>
+        </div>
+      </div>
+
+      <div class="panel rail-x">
+        <h3><span class="pin"></span>Cross-Cutting Guarantees</h3>
+        <ul class="xlist">
+          <li><b>Path sandbox</b> — stores reject any path outside their root</li>
+          <li><b>Verifier gate</b> — exit-2 blocks delivery of a broken diagram</li>
+          <li><b>Zero-TBD guard</b> — table refuses to embed if any cell is unfilled</li>
+          <li><b>Deterministic layout</b> — column gap, row stride, sub-lane deconfliction</li>
+          <li><b>Pluggable icon catalog</b> — GCP icons today (<code>logo_icon_gcp/</code>)</li>
+          <li><b>Cross-OS bootstrap</b> — same command on Mac / Linux / Windows</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== HIGH-LEVEL FLOW (start → end) ===== -->
+  <div class="hlf">
+    <div class="hlf-h"><span class="pin"></span><span class="tt">High-Level Flow — From Idea to Finished Diagram</span></div>
+    <p class="hlf-sub">Read left to right. The same journey, two views: the <b>plain-language</b> story above the line is for everyone; the <b>technical detail</b> below the line shows exactly what runs at each step.</p>
+    <div class="hlf-legend">
+      <span class="lg"><span class="em">💬</span>Plain language — any audience</span>
+      <span class="lg"><span class="mn">{ }</span>Under the hood — the tech stuff</span>
+    </div>
+
+    <div class="track">
+      <div class="track-line"></div>
+      <div class="stations">
+
+        <!-- 1 -->
+        <div class="st-col">
+          <div class="plain"><span class="em">✍️</span><span class="pt">You describe the need in plain English</span></div>
+          <div class="dot" style="border-color:#64748b">1</div>
+          <div class="tech" style="border-top-color:#64748b">
+            <div class="tl">Input</div>
+            <div class="tw">jira-stories/&lt;KEY&gt;.txt</div>
+            <span class="ac" style="background:#64748b">Human</span>
+          </div>
+        </div>
+
+        <!-- 2 -->
+        <div class="st-col">
+          <div class="plain"><span class="em">📝</span><span class="pt">It becomes a clear technical brief</span></div>
+          <div class="dot" style="border-color:#d97706">2</div>
+          <div class="tech" style="border-top-color:#d97706">
+            <div class="tl">Normalize</div>
+            <div class="tw">normalize_jira_story.py → &lt;KEY&gt;-surgical.txt</div>
+            <span class="ac" style="background:#d97706">Terminal</span>
+          </div>
+        </div>
+
+        <!-- 3 -->
+        <div class="st-col">
+          <div class="plain"><span class="em">🧠</span><span class="pt">The AI reads it and plans the layout</span></div>
+          <div class="dot" style="border-color:#7c3aed">3</div>
+          <div class="tech" style="border-top-color:#7c3aed">
+            <div class="tl">Understand</div>
+            <div class="tw">read_story · read_diagram_summary</div>
+            <span class="ac" style="background:#7c3aed">AI · MCP</span>
+          </div>
+        </div>
+
+        <!-- 4 -->
+        <div class="st-col">
+          <div class="plain"><span class="em">🎨</span><span class="pt">The diagram is drawn — layers, icons, arrows</span></div>
+          <div class="dot" style="border-color:#ca8a04">4</div>
+          <div class="tech" style="border-top-color:#ca8a04">
+            <div class="tl">Build</div>
+            <div class="tw">create_diagram → add_container → add_node(gcp_icon) → add_edge</div>
+            <span class="ac" style="background:#ca8a04">MCP</span>
+          </div>
+        </div>
+
+        <!-- 5 -->
+        <div class="st-col">
+          <div class="plain"><span class="em">🛡️</span><span class="pt">An automatic check catches any mistakes</span></div>
+          <div class="dot" style="border-color:#dc2626">5</div>
+          <div class="tech" style="border-top-color:#dc2626">
+            <div class="tl">Verify · gate</div>
+            <div class="tw">verify_mcp.py &nbsp;(exit 2 = stop)</div>
+            <span class="ac" style="background:#dc2626">Terminal</span>
+          </div>
+        </div>
+
+        <!-- 6 -->
+        <div class="st-col">
+          <div class="plain"><span class="em">📋</span><span class="pt">Connection details are documented in a table</span></div>
+          <div class="dot" style="border-color:#d97706">6</div>
+          <div class="tech" style="border-top-color:#d97706">
+            <div class="tl">Document</div>
+            <div class="tw">generate_connector_details.py → &lt;KEY&gt;-connectors.md</div>
+            <span class="ac" style="background:#d97706">Terminal</span>
+          </div>
+        </div>
+
+        <!-- 7 -->
+        <div class="st-col">
+          <div class="plain"><span class="em">✅</span><span class="pt">You get a polished, ready-to-present diagram</span></div>
+          <div class="dot" style="border-color:#16a34a">7</div>
+          <div class="tech" style="border-top-color:#16a34a">
+            <div class="tl">Deliver</div>
+            <div class="tw">add_connector_table → &lt;KEY&gt;-&lt;ts&gt;.drawio</div>
+            <span class="ac" style="background:#16a34a">MCP</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== FUTURISTIC / TARGET-STATE ARCHITECTURE ===== -->
+  <div class="fut">
+    <div class="fut-h">
+      <span class="fut-tag">Vision · Target State</span>
+      <span class="tt">Futuristic Architecture — <span class="neon">Serverless &amp; Agent-Engine Native</span></span>
+    </div>
+    <p class="fut-sub">Zero local setup. A user opens a hosted web app, pastes a Jira story, and a fully-managed agent returns a finished architecture diagram — attached straight back into Jira and, when a repository is provided, committed to GitHub as diagram-as-code.</p>
+
+    <div class="fflow">
+
+      <!-- User -->
+      <div class="fnode">
+        <div class="fic">👤</div>
+        <div class="fn">User</div>
+        <div class="fr">Opens the web app, pastes a Jira story and hits submit — nothing to install.</div>
+        <span class="fbadge">Browser</span>
+      </div>
+
+      <div class="farrow">▸</div>
+
+      <!-- Frontend -->
+      <div class="fnode">
+        <div class="fic">🌐</div>
+        <div class="fn">Web Frontend</div>
+        <div class="fr">A hosted UI on a public URL receives the story and calls the backend agent.</div>
+        <span class="fbadge">GCP Cloud Run</span>
+      </div>
+
+      <div class="farrow">▸</div>
+
+      <!-- LLM normalize -->
+      <div class="fnode">
+        <div class="fic">✨</div>
+        <div class="fn">LLM Normalizer</div>
+        <div class="fr">Converts the raw Jira story into the canonical surgical brief automatically.</div>
+        <span class="fbadge green">Zero-cost LLM</span>
+      </div>
+
+      <div class="farrow">▸</div>
+
+      <!-- MCP Agent -->
+      <div class="fnode">
+        <div class="fic">🤖</div>
+        <div class="fn">MCP Diagram Agent</div>
+        <div class="fr">Drives the 13 MCP tools to build the layered, icon-rich diagram + connector table.</div>
+        <span class="fbadge violet">Built with ADK</span>
+        <span class="fbadge violet">Vertex AI Agent Engine</span>
+      </div>
+
+      <div class="fsplit">⤜</div>
+
+      <!-- Outputs -->
+      <div class="fouts">
+        <div class="fout jira">
+          <div class="fic2">📌</div>
+          <div>
+            <div class="fn">Jira</div>
+            <div class="fr">The finished diagram is attached back onto the original story — no copy-paste.</div>
+            <span class="cond" style="color:#bfdbfe;background:rgba(59,130,246,0.15);border-color:rgba(59,130,246,0.45)">Jira REST API</span>
+          </div>
+        </div>
+        <div class="fout gh">
+          <div class="fic2">&lt;/&gt;</div>
+          <div>
+            <div class="fn">GitHub — Diagram-as-Code</div>
+            <div class="fr">When a repo link is supplied, the diagram is committed / updated in the repository.</div>
+            <span class="cond">If repo link given</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="fstack">
+      <span class="ftag">GCP Cloud Run</span>
+      <span class="ftag">Vertex AI Agent Engine</span>
+      <span class="ftag">Agent Development Kit (ADK)</span>
+      <span class="ftag">Zero-cost LLM</span>
+      <span class="ftag">Model Context Protocol</span>
+      <span class="ftag">Jira REST API</span>
+      <span class="ftag">GitHub API</span>
+      <span class="ftag">Diagram-as-Code</span>
+      <span class="ftag">Fully serverless</span>
+    </div>
+  </div>
+
+  <!-- ===== ARTIFACTS ===== -->
+  <div class="artifacts">
+    <div class="ah">Artifacts produced — one prompt, fully reproducible</div>
+    <div class="achips">
+      <div class="achip"><span class="ad" style="background:#3b82f6"></span><span class="af">jira-stories/&lt;KEY&gt;-surgical.txt</span><span class="ax">canonical technical doc</span></div>
+      <div class="achip"><span class="ad" style="background:#16a34a"></span><span class="af">diagrams/&lt;KEY&gt;-&lt;ts&gt;.drawio</span><span class="ax">layered diagram + embedded table</span></div>
+      <div class="achip"><span class="ad" style="background:#d97706"></span><span class="af">jira-stories/&lt;KEY&gt;-connectors.md</span><span class="ax">14-column integration contract</span></div>
+    </div>
+  </div>
+
+  <!-- ===== COMPLETE COMPONENT MAP ===== -->
+  <div class="cmap">
+    <div class="cmap-h">
+      <span class="pin"></span>
+      <span class="tt">Complete Component Map — every file, by layer</span>
+      <div class="stats">
+        <div class="cstat"><div class="v">73</div><div class="l">files</div></div>
+        <div class="cstat"><div class="v">11</div><div class="l">layers</div></div>
+        <div class="cstat"><div class="v">13</div><div class="l">MCP tools</div></div>
+      </div>
+    </div>
+    <p class="cmap-sub">Every Python module, Markdown document, and shell wrapper that ships with the framework — grouped by layer, sized at a glance.</p>
+
+    <div class="cmap-cols">
+
+      <!-- ===== COLUMN 1 ===== -->
+      <div>
+        <div class="ccard">
+          <h4 class="orange"><span class="pin"></span>MCP Server — Runtime Core<span class="count">3</span></h4>
+          <div class="crow"><div class="cfn">__main__.py</div><div class="cdesc">Module entry point — <strong>python -m drawio_mcp_server</strong> launches the server.</div></div>
+          <div class="crow"><div class="cfn">server.py</div><div class="cdesc">Registers tools, handles <strong>list_tools / call_tool</strong> JSON-RPC over stdio.</div></div>
+          <div class="crow"><div class="cfn">types.py</div><div class="cdesc">Pydantic data classes — <strong>Diagram, DiagramNode, DiagramEdge</strong>.</div></div>
+        </div>
+        <div class="ccard">
+          <h4 class="orange"><span class="pin"></span>MCP Tools — One File per Tool<span class="count">14</span></h4>
+          <div class="crow"><div class="cfn">tools/__init__.py</div><div class="cdesc">Central registry — <strong>TOOL_REGISTRY</strong> dict the server iterates over.</div></div>
+          <div class="crow"><div class="cfn">list_diagrams.py</div><div class="cdesc">Returns natural-sorted <strong>.drawio</strong> filenames.</div></div>
+          <div class="crow"><div class="cfn">read_diagram.py</div><div class="cdesc">Parses .drawio → structured model (nodes + edges + geometry).</div></div>
+          <div class="crow"><div class="cfn">read_summary.py</div><div class="cdesc">Compact <strong>label-only</strong> view — token-cheap for LLM reasoning.</div></div>
+          <div class="crow"><div class="cfn">list_stories.py</div><div class="cdesc">Returns story filenames under <strong>jira-stories/</strong>.</div></div>
+          <div class="crow"><div class="cfn">read_story.py</div><div class="cdesc">Returns raw text of a story file. Read-only.</div></div>
+          <div class="crow"><div class="cfn">create_diagram.py</div><div class="cdesc">Creates a new empty timestamp-suffixed .drawio file.</div></div>
+          <div class="crow"><div class="cfn">add_container.py</div><div class="cdesc">Coloured swimlane column. Holds <strong>_COLUMN_GAP = 140</strong>.</div></div>
+          <div class="crow"><div class="cfn">add_node.py</div><div class="cdesc">Inserts a shape, resolves GCP icon, <strong>_CHILD_STRIDE = 200</strong>.</div></div>
+          <div class="crow"><div class="cfn">add_edge.py</div><div class="cdesc">Connects nodes, runs <strong>5 routing passes</strong>, frames busy nodes.</div></div>
+          <div class="crow"><div class="cfn">add_title.py</div><div class="cdesc">Bold deck-quality banner above the swimlanes.</div></div>
+          <div class="crow"><div class="cfn">add_connector_table.py</div><div class="cdesc">Embeds 14-column detail table. Hard guard against <strong>{TBD}</strong>.</div></div>
+          <div class="crow"><div class="cfn">update_node.py</div><div class="cdesc">Patches an existing node — label, shape, position, icon.</div></div>
+          <div class="crow"><div class="cfn">remove_element.py</div><div class="cdesc">Deletes a node (cascading edges) or a single edge.</div></div>
+        </div>
+      </div>
+
+      <!-- ===== COLUMN 2 ===== -->
+      <div>
+        <div class="ccard">
+          <h4 class="blue"><span class="pin"></span>drawio XML Adapter<span class="count">6</span></h4>
+          <div class="crow"><div class="cfn">drawio/__init__.py</div><div class="cdesc">Package marker for the adapter layer.</div></div>
+          <div class="crow"><div class="cfn">parser.py</div><div class="cdesc">Reads .drawio XML → <strong>Diagram model</strong> (waypoints, step prefix, styles).</div></div>
+          <div class="crow"><div class="cfn">builder.py</div><div class="cdesc">Serializes Diagram → mxGraph XML. Emits <strong>y=-22 label offset</strong>.</div></div>
+          <div class="crow"><div class="cfn">shapes.py</div><div class="cdesc">Style catalog — <strong>DEFAULT_EDGE_STYLE, SWIMLANE_COLORS, DEFAULT_SIZE</strong>.</div></div>
+          <div class="crow"><div class="cfn">gcp_icons.py</div><div class="cdesc">Service name → SVG + <strong>URL-encoded data URI</strong> style builder.</div></div>
+          <div class="crow"><div class="cfn">summarize.py</div><div class="cdesc">Converts Diagram → <strong>DiagramSummary</strong> (id+label only).</div></div>
+        </div>
+        <div class="ccard">
+          <h4 class="green"><span class="pin"></span>Utility Layer<span class="count">5</span></h4>
+          <div class="crow"><div class="cfn">util/__init__.py</div><div class="cdesc">Package marker for utilities.</div></div>
+          <div class="crow"><div class="cfn">config.py</div><div class="cdesc"><strong>ServerConfig</strong> — reads env vars for diagrams / stories / icons dirs.</div></div>
+          <div class="crow"><div class="cfn">diagram_store.py</div><div class="cdesc">Sandboxed loader/saver. <strong>Rejects paths outside</strong> the root.</div></div>
+          <div class="crow"><div class="cfn">story_store.py</div><div class="cdesc">Read-only loader for Jira story text / markdown / JSON.</div></div>
+          <div class="crow"><div class="cfn">natural_sort.py</div><div class="cdesc"><strong>PROJ-2</strong> before <strong>PROJ-10</strong> — digits-as-int comparison.</div></div>
+        </div>
+        <div class="ccard">
+          <h4 class="yellow"><span class="pin"></span>Tests<span class="count">3</span></h4>
+          <div class="crow"><div class="cfn">tests/__init__.py</div><div class="cdesc">Pytest package marker.</div></div>
+          <div class="crow"><div class="cfn">test_natural_sort.py</div><div class="cdesc">Versioned filename ordering — <strong>PROJ-10</strong> after <strong>PROJ-2</strong>.</div></div>
+          <div class="crow"><div class="cfn">test_parser.py</div><div class="cdesc">Round-trip drawio parser → builder pipeline.</div></div>
+        </div>
+        <div class="ccard">
+          <h4 class="teal"><span class="pin"></span>Scripts — Python Entry Points<span class="count">4</span></h4>
+          <div class="crow"><div class="cfn">normalize_jira_story.py</div><div class="cdesc">Raw business prose → <strong>canonical surgical</strong> tech doc.</div></div>
+          <div class="crow"><div class="cfn">verify_mcp.py</div><div class="cdesc">Pre-finalization health check. <strong>Exit 0 = ship-ready</strong>.</div></div>
+          <div class="crow"><div class="cfn">generate_connector_details.py</div><div class="cdesc">14-column detail table. Rule engine + optional LLM.</div></div>
+          <div class="crow"><div class="cfn">reroute_diagram.py</div><div class="cdesc">Retrofits an <strong>existing .drawio</strong> with new layout / routing.</div></div>
+        </div>
+        <div class="ccard">
+          <h4 class="teal"><span class="pin"></span>OS Wrappers — Linux / Mac / Win<span class="count">18</span></h4>
+          <div class="crow"><div class="cfn">linux/*.sh</div><div class="cdesc">setup · run-server · normalize · verify · demo · clean (Linux bash).</div></div>
+          <div class="crow"><div class="cfn">mac/*.sh</div><div class="cdesc">Same six commands in macOS / zsh flavour.</div></div>
+          <div class="crow"><div class="cfn">windows/*.ps1</div><div class="cdesc">Same six commands in Windows PowerShell.</div></div>
+          <div class="crow"><div class="cfn">scripts/README.md</div><div class="cdesc">Pointer to the right per-OS folder.</div></div>
+        </div>
+      </div>
+
+      <!-- ===== COLUMN 3 ===== -->
+      <div>
+        <div class="ccard">
+          <h4 class="purple"><span class="pin"></span>Top-Level Documentation<span class="count">4</span></h4>
+          <div class="crow"><div class="cfn">README.md</div><div class="cdesc">Project pitch + quickstart + pointers into docs/.</div></div>
+          <div class="crow"><div class="cfn">high_level_instruction.md</div><div class="cdesc"><strong>Entry-point map</strong> — which markdown to read in what order.</div></div>
+          <div class="crow"><div class="cfn">drawio-mcp-server/README.md</div><div class="cdesc">Server-package README — install, test, MCP wiring.</div></div>
+          <div class="crow"><div class="cfn">vscode-restart-formality.md</div><div class="cdesc"><strong>Mandatory</strong> VS Code restart checklist between prompts.</div></div>
+        </div>
+        <div class="ccard">
+          <h4 class="purple"><span class="pin"></span>Long-Form Docs &amp; Templates<span class="count">15+</span></h4>
+          <div class="crow"><div class="cfn">architecture.md</div><div class="cdesc">High-level system architecture.</div></div>
+          <div class="crow"><div class="cfn">component.md</div><div class="cdesc"><strong>Prose</strong> narrative of every directory.</div></div>
+          <div class="crow"><div class="cfn">component_details.md</div><div class="cdesc"><strong>Tabular matrix</strong> of every file (this map's source).</div></div>
+          <div class="crow"><div class="cfn">mermaid_diagram.md/.html</div><div class="cdesc">12 end-to-end Mermaid views + renderable mirror.</div></div>
+          <div class="crow"><div class="cfn">installation.md</div><div class="cdesc">Step-by-step install (Mac / Linux / Win).</div></div>
+          <div class="crow"><div class="cfn">usage.md</div><div class="cdesc">One-time setup + day-to-day workflow.</div></div>
+          <div class="crow"><div class="cfn">tool-reference.md</div><div class="cdesc">Quick MCP tool + shape vocabulary reference.</div></div>
+          <div class="crow"><div class="cfn">connector-details-template.md</div><div class="cdesc">14-column connector-detail table schema.</div></div>
+          <div class="crow"><div class="cfn">onepager.html · HLA.html</div><div class="cdesc">Static one-pagers — product, this architecture &amp; flow.</div></div>
+          <div class="crow"><div class="cfn">template/*</div><div class="cdesc"><strong>Jira + surgical templates</strong> &amp; create/update prompt templates.</div></div>
+        </div>
+        <div class="ccard">
+          <h4 class="indigo"><span class="pin"></span>Prompts<span class="count">3</span></h4>
+          <div class="crow"><div class="cfn">create-diagram.md</div><div class="cdesc"><strong>Primary prompt.</strong> 12-step copy-paste flow for a new diagram.</div></div>
+          <div class="crow"><div class="cfn">update-diagram.md</div><div class="cdesc">Incremental update of an existing diagram.</div></div>
+          <div class="crow"><div class="cfn">prompt.md</div><div class="cdesc">Prompt cookbook — additional self-contained recipes.</div></div>
+        </div>
+        <div class="ccard">
+          <h4 class="red"><span class="pin"></span>GitHub / Copilot Configuration<span class="count">1</span></h4>
+          <div class="crow"><div class="cfn">.github/copilot-instructions.md</div><div class="cdesc">Auto-attached repo-wide rules. Swimlanes-first, GCP icon rule, <strong>zero-TBD</strong> rule.</div></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Layout constants -->
+    <div class="cconst">
+      <h4><span class="pin"></span>Layout Constants — Single Source of Truth</h4>
+      <div class="cconst-grid">
+        <div class="cu"><div class="name">_COLUMN_GAP</div><div class="val">140</div><div class="effect">px between swimlanes · add_container.py</div></div>
+        <div class="cu"><div class="name">_CONTAINER_CHILD_STRIDE</div><div class="val">200</div><div class="effect">px between stacked icons · add_node.py</div></div>
+        <div class="cu"><div class="name">_CORRIDOR_INSET</div><div class="val">70</div><div class="effect">half of column gap · add_edge.py</div></div>
+        <div class="cu"><div class="name">_LANE_BAND_HALF</div><div class="val">50</div><div class="effect">max sub-lane offset · add_edge.py</div></div>
+        <div class="cu"><div class="name">_BUSY_DEGREE_THRESHOLD</div><div class="val">3</div><div class="effect">edges → triggers card border · add_edge.py</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== FOOTER ===== -->
+  <div class="footer">
+    <div><span class="author">Debajyoti Mukhopadhyay</span>&nbsp;·&nbsp;Architecture &amp; Tooling</div>
+    <div class="stack">Python 3.13 · MCP · Pydantic · mxGraph XML · GitHub Copilot · GCP Icons · Verifier</div>
+  </div>
+
+</div>
+</body>
+</html>

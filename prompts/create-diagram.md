@@ -109,10 +109,12 @@ capability. Please:
      `source_story_path`, `target_path`, `reference_template`, and
      `raw_story_text`. Use your Write tool to CREATE the file at
      `target_path` (NOT to overwrite `source_story_path`) as a
-     build-from-scratch canonical story (shape of
-     [`jira-stories/PROJ-123.txt`](../jira-stories/PROJ-123.txt)).
-     Re-run the normalizer with `--check` to confirm `FORMAT_OK`
-     before proceeding.
+     build-from-scratch canonical story matching the shape of the
+     payload's `reference_template`
+     ([`template/surgical-story-template.txt`](../template/surgical-story-template.txt);
+     [`jira-stories/PROJ-123.txt`](../jira-stories/PROJ-123.txt) is a
+     filled-in worked example). Re-run the normalizer with `--check` to
+     confirm `FORMAT_OK` before proceeding.
    - Any other exit code → STOP and report the error.
 1. Call `read_story` with `name="<KEY>-surgical.txt"` (NOT the
    original `{{STORY_FILE}}`). Derive `<KEY>` from the input

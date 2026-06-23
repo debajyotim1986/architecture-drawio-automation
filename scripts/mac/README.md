@@ -18,7 +18,7 @@ setup with one command.
 | `setup.sh` | First time, or after pulling new code | One-shot installer: installs Homebrew (if missing), Python 3.12, Git, optionally VS Code; creates the venv; installs the MCP server in editable mode; patches `.vscode/mcp.json` and `.vscode/settings.json`. Idempotent. |
 | `verify.sh` | After `setup.sh`, or anytime you suspect the server is broken | Sends an MCP `initialize` + `tools/list` JSON-RPC probe and confirms all 13 expected tools are advertised. |
 | `run-server.sh` | Debugging without VS Code | Launches the server in the foreground over stdio with the right env vars. Press **Ctrl+C** to stop. |
-| `demo.sh` | First end-to-end test | Copies `examples/sample-jira-story.txt` to `jira-stories/DEMO-001.txt` (avoids clobbering `PROJ-123.txt` which is the normalizer's reference template). |
+| `demo.sh` | First end-to-end test | Copies `examples/sample-jira-story.txt` to `jira-stories/DEMO-001.txt` (avoids clobbering `PROJ-123.txt`, the canonical worked-example story). |
 | `clean.sh` | Resetting to a clean slate | Removes the venv. Pass `--all` to also delete the demo story and any generated `*.drawio` files. |
 
 ---

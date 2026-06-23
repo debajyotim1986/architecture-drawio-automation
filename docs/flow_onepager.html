@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Prompt → Diagram — End-to-End Flow (One Pager)</title>
+<style>
+  :root {
+    --ink: #0f172a;
+    --muted: #475569;
+    --accent: #0b57d0;
+    --accent-2: #34a853;
+    --accent-3: #ea4335;
+    --accent-4: #fbbc04;
+    --border: #e2e8f0;
+    --pill: #f1f5f9;
+    --card: #ffffff;
+    /* actor colors */
+    --human: #cbd5e1;
+    --term: #d6b656;
+    --llm: #9673a6;
+    --mcp: #d79b00;
+    --file: #82b366;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1200px;
+    background: linear-gradient(135deg, #0b1220 0%, #1e3a8a 55%, #0b57d0 100%);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { width: 1200px; padding: 28px 32px 32px; }
+  code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  /* ====== Header ====== */
+  .header {
+    background: linear-gradient(135deg, #ffffff 0%, #f5f9ff 100%);
+    border-radius: 18px;
+    padding: 22px 30px;
+    box-shadow: 0 20px 40px -16px rgba(2, 6, 23, 0.45);
+    margin-bottom: 16px;
+  }
+  .eyebrow { text-transform: uppercase; letter-spacing: 2.5px; font-size: 10.5px; color: var(--accent); font-weight: 700; margin-bottom: 8px; }
+  .title { font-size: 26px; line-height: 1.15; font-weight: 800; margin: 0 0 8px; letter-spacing: -0.4px; }
+  .title .glow { background: linear-gradient(90deg, #0b57d0 0%, #34a853 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .tagline { font-size: 13px; color: var(--muted); margin: 0 0 12px; max-width: 900px; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; background: var(--pill); border: 1px solid var(--border); border-radius: 14px; padding: 4px 10px; font-size: 11px; font-weight: 600; color: var(--ink); }
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .badge.green .dot { background: var(--accent-2); }
+  .badge.red .dot { background: var(--accent-3); }
+  .badge.yellow .dot { background: var(--accent-4); }
+
+  /* ====== Actor legend ====== */
+  .legend {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 12px;
+    padding: 10px 18px;
+    margin-bottom: 16px;
+    display: flex; gap: 18px; flex-wrap: wrap; align-items: center;
+    color: #e2e8f0; font-size: 11.5px;
+  }
+  .legend b { color: #fff; font-weight: 700; margin-right: 4px; }
+  .lg { display: inline-flex; align-items: center; gap: 7px; }
+  .chip { display: inline-block; width: 12px; height: 12px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.15); }
+  .chip.human { background: var(--human); }
+  .chip.term { background: var(--term); }
+  .chip.llm { background: var(--llm); }
+  .chip.mcp { background: var(--mcp); }
+  .chip.file { background: var(--file); }
+
+  /* ====== Flow ====== */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .phase {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 14px 18px;
+    box-shadow: 0 8px 22px -12px rgba(2, 6, 23, 0.5);
+    display: grid;
+    grid-template-columns: 58px 1fr 300px;
+    gap: 16px;
+    align-items: center;
+    border-left: 6px solid var(--accent);
+  }
+  .phase.term { border-left-color: var(--term); }
+  .phase.llm { border-left-color: var(--llm); }
+  .phase.mcp { border-left-color: var(--mcp); }
+  .phase.human { border-left-color: #94a3b8; }
+
+  .pn {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 18px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 14px -6px rgba(11,87,208,0.7);
+  }
+  .phase.term .pn { background: #b45309; }
+  .phase.llm .pn { background: #6d28d9; }
+  .phase.mcp .pn { background: #c2740a; }
+  .phase.human .pn { background: #475569; }
+
+  .pbody h3 { margin: 0 0 3px; font-size: 14.5px; font-weight: 800; color: var(--ink); }
+  .pbody .who { display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; margin-left: 8px; vertical-align: middle; }
+  .who.human { background: var(--human); color: #1e293b; }
+  .who.term { background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; }
+  .who.llm { background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; }
+  .who.mcp { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
+  .pbody p { margin: 0 0 6px; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+  .pbody p strong { color: var(--ink); font-weight: 700; }
+  .cmd {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px; color: #0f172a;
+    background: #0f172a08; border: 1px dashed #cbd5e1;
+    border-radius: 6px; padding: 5px 9px; display: block; margin-top: 4px;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .cmd .k { color: var(--accent); font-weight: 700; }
+
+  .pio { display: flex; flex-direction: column; gap: 6px; }
+  .iolabel { font-size: 9px; font-weight: 800; letter-spacing: 0.7px; text-transform: uppercase; color: var(--muted); }
+  .filepill {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 10.5px; color: #2f5230;
+    background: #eaf4e6; border: 1px solid #b6d7a8;
+    border-radius: 6px; padding: 4px 8px; display: inline-block;
+  }
+  .filepill.in { color: #334155; background: #eef2f7; border-color: #cbd5e1; }
+  .filepill.tool { color: #9a3412; background: #fff3e6; border-color: #fdba74; }
+
+  .connector { display: flex; justify-content: center; align-items: center; height: 22px; color: #cbd5e1; }
+  .connector::before { content: "▼"; font-size: 14px; color: rgba(255,255,255,0.75); }
+
+  /* ====== Gate / branch callouts ====== */
+  .callout {
+    margin: 0; display: grid; grid-template-columns: 58px 1fr; gap: 16px; align-items: center;
+    border-radius: 12px; padding: 11px 18px;
+  }
+  .callout .ic { width: 44px; height: 44px; border-radius: 12px; display:flex; align-items:center; justify-content:center; font-size: 20px; }
+  .gate { background: #fffbeb; border: 1px solid #fbbf24; }
+  .gate .ic { background: #fde68a; }
+  .gate h4 { margin: 0 0 2px; font-size: 13px; font-weight: 800; color: #92400e; }
+  .gate p { margin: 0; font-size: 11px; color: #78350f; line-height: 1.4; }
+  .gate code { background: #fef3c7; padding: 0 4px; border-radius: 3px; }
+
+  .branch { background: #eef2ff; border: 1px solid #c7d2fe; }
+  .branch .ic { background: #c7d2fe; }
+  .branch h4 { margin: 0 0 2px; font-size: 13px; font-weight: 800; color: #3730a3; }
+  .branch p { margin: 0; font-size: 11px; color: #3730a3; line-height: 1.45; }
+  .branch b { font-weight: 800; }
+
+  /* ====== Footer ====== */
+  .footer {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    padding: 14px 22px;
+    color: #cbd5e1;
+    font-size: 11.5px;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 16px;
+  }
+  .footer .author { color: #fff; font-weight: 700; }
+  .footer .stack { color: #93c5fd; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ============ HEADER ============ -->
+  <div class="header">
+    <div class="eyebrow">High-Level Architecture · End-to-End Flow</div>
+    <h1 class="title">From <span class="glow">Prompt&nbsp;→&nbsp;Architecture Diagram</span> — how the pipeline runs</h1>
+    <p class="tagline">
+      A single business requirement flows through a terminal normalizer, an
+      LLM client speaking MCP, thirteen intent-level tools, and a hard verifier
+      gate — landing a deck-quality <code>.drawio</code> diagram plus a
+      filled connector-detail table. Read top to bottom; each step names the
+      actor, the exact command or tool, and the file it produces.
+    </p>
+    <div class="badges">
+      <span class="badge"><span class="dot"></span>1 prompt → verified diagram</span>
+      <span class="badge yellow"><span class="dot"></span>2 terminal scripts</span>
+      <span class="badge"><span class="dot"></span>13 MCP tools</span>
+      <span class="badge red"><span class="dot"></span>verifier = hard gate</span>
+      <span class="badge green"><span class="dot"></span>macOS · Linux · Windows</span>
+    </div>
+  </div>
+
+  <!-- ============ ACTOR LEGEND ============ -->
+  <div class="legend">
+    <span><b>Who does what:</b></span>
+    <span class="lg"><span class="chip human"></span>Human author</span>
+    <span class="lg"><span class="chip term"></span>Terminal script (self-bootstraps under venv)</span>
+    <span class="lg"><span class="chip llm"></span>LLM client (Copilot / Claude / any MCP)</span>
+    <span class="lg"><span class="chip mcp"></span>MCP tool (drawio server)</span>
+    <span class="lg"><span class="chip file"></span>File artifact</span>
+  </div>
+
+  <!-- ============ FLOW ============ -->
+  <div class="flow">
+
+    <!-- Phase 0 -->
+    <div class="phase human">
+      <div class="pn">0</div>
+      <div class="pbody">
+        <h3>Author the requirement<span class="who human">Human</span></h3>
+        <p>The product owner drops a <strong>raw business note</strong> into a story file — plain prose, no format rules. Section&nbsp;3 (In&nbsp;Scope) is the part that drives the diagram: name the components and the connections.</p>
+        <span class="cmd">start from <span class="k">template/jira-story-template.txt</span></span>
+      </div>
+      <div class="pio">
+        <span class="iolabel">Output</span>
+        <span class="filepill">jira-stories/&lt;KEY&gt;.txt</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <!-- Phase 1 -->
+    <div class="phase term">
+      <div class="pn">1</div>
+      <div class="pbody">
+        <h3>Normalize → technical "surgical" doc<span class="who term">Terminal</span></h3>
+        <p><code>normalize_jira_story.py</code> rewrites the raw note into the <strong>canonical 11-section format</strong> the builder relies on, using <code>template/surgical-story-template.txt</code> as the reference shape. The original file is never modified.</p>
+        <span class="cmd"><span class="k">python</span> scripts/normalize_jira_story.py jira-stories/&lt;KEY&gt;.txt
+        <span class="k"># add</span> --diagram &lt;FILE&gt; <span class="k">for UPDATE (surgical-diff) mode</span></span>
+      </div>
+      <div class="pio">
+        <span class="iolabel">In → Out</span>
+        <span class="filepill in">jira-stories/&lt;KEY&gt;.txt</span>
+        <span class="filepill">jira-stories/&lt;KEY&gt;-surgical.txt</span>
+      </div>
+    </div>
+
+    <!-- Branch callout -->
+    <div class="connector"></div>
+    <div class="callout branch">
+      <div class="ic">⑂</div>
+      <div>
+        <h4>Two modes &amp; a fallback</h4>
+        <p><b>CREATE</b> (no <code>--diagram</code>): canonical input is copied verbatim; raw input gets an LLM rewrite. &nbsp;<b>UPDATE</b> (<code>--diagram&nbsp;&lt;FILE&gt;</code>): always LLM-rewritten, embedding <code>read_diagram_summary</code> so the surgical quotes existing labels for explicit REMOVE/ADD. &nbsp;<b>No API key?</b> Exit&nbsp;2 emits a <code>NEEDS_NORMALIZATION</code> payload — the LLM writes the surgical file itself.</p>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <!-- Phase 2 -->
+    <div class="phase llm">
+      <div class="pn">2</div>
+      <div class="pbody">
+        <h3>Read the doc &amp; decide create vs update<span class="who llm">LLM</span></h3>
+        <p>The LLM client reads the surgical doc, surveys existing diagrams, and picks a path: build new, or patch the existing one in place.</p>
+        <span class="cmd"><span class="k">read_story</span>(name="&lt;KEY&gt;-surgical.txt") · <span class="k">list_diagrams</span> · <span class="k">read_diagram_summary</span></span>
+      </div>
+      <div class="pio">
+        <span class="iolabel">MCP tools (read-only)</span>
+        <span class="filepill tool">read_story · list_diagrams · read_diagram_summary</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <!-- Phase 3 -->
+    <div class="phase mcp">
+      <div class="pn">3</div>
+      <div class="pbody">
+        <h3>Build the diagram — swimlanes, then nodes, then edges<span class="who mcp">MCP</span></h3>
+        <p><strong>create_diagram</strong> makes a timestamped file. Then <strong>layer first</strong>: 4–6 <strong>add_container</strong> swimlanes (colored layers) BEFORE any node. <strong>add_node</strong> drops each component with its official <code>gcp_icon</code>. <strong>add_edge</strong> connects them — auto-numbered steps, parallel fan-out, row-gap waypoint routing, busy-node cards. One call at a time.</p>
+        <span class="cmd"><span class="k">create_diagram</span>(jira_key) → <span class="k">add_container</span> ×N → <span class="k">add_node</span>(parent_id, gcp_icon) → <span class="k">add_edge</span> &nbsp;(opt. <span class="k">add_title</span>)</span>
+      </div>
+      <div class="pio">
+        <span class="iolabel">Output</span>
+        <span class="filepill">diagrams/&lt;KEY&gt;-&lt;ts&gt;.drawio</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <!-- Gate: verify -->
+    <div class="callout gate">
+      <div class="ic">🛡️</div>
+      <div>
+        <h4>Hard gate — verify before anything ships</h4>
+        <p><code>python scripts/verify_mcp.py --diagram &lt;FILE&gt;</code> checks the 13-tool registry, <strong>no dangling edges</strong>, <strong>no duplicate labels</strong>, every GCP node uses its icon, every arrowhead renders, and parallel edges are fanned out. <strong>Exit 2 = do not ship</strong> — fix with <code>update_node</code> / <code>remove_element</code> and re-verify.</p>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <!-- Phase 4 -->
+    <div class="phase term">
+      <div class="pn">4</div>
+      <div class="pbody">
+        <h3>Generate the connector-detail table<span class="who term">Terminal</span></h3>
+        <p><code>generate_connector_details.py</code> walks the diagram's numbered edges and fills a <strong>14-column</strong> table (interaction, protocol, auth, data, network, SLA, reliability, observability, compliance, dependencies) via a deterministic GCP-defaults rule engine — optionally refined by Claude. <strong>Zero <code>{TBD}</code></strong> in the output.</p>
+        <span class="cmd"><span class="k">python</span> scripts/generate_connector_details.py --diagram &lt;FILE&gt; --story jira-stories/&lt;KEY&gt;-surgical.txt</span>
+      </div>
+      <div class="pio">
+        <span class="iolabel">Output</span>
+        <span class="filepill">jira-stories/&lt;KEY&gt;-connectors.md</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <!-- Phase 5 -->
+    <div class="phase mcp">
+      <div class="pn">5</div>
+      <div class="pbody">
+        <h3>Embed the table below the diagram<span class="who mcp">MCP</span></h3>
+        <p><strong>add_connector_table</strong> reads the <code>.md</code> and lays a styled table beneath the swimlanes — one row per numbered edge — so opening the file shows the architecture <strong>and</strong> the per-connector contract on one canvas. A <strong>zero-TBD pre-flight guard</strong> refuses to embed a half-filled table.</p>
+        <span class="cmd"><span class="k">add_connector_table</span>(diagram="&lt;KEY&gt;-&lt;ts&gt;.drawio")</span>
+      </div>
+      <div class="pio">
+        <span class="iolabel">Updated artifact</span>
+        <span class="filepill">diagrams/&lt;KEY&gt;-&lt;ts&gt;.drawio</span>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <!-- Phase 6 / done -->
+    <div class="phase">
+      <div class="pn">✓</div>
+      <div class="pbody">
+        <h3>Deliver — deck-quality, verified, documented</h3>
+        <p>The result is a layered <code>.drawio</code> with official GCP icons, numbered data-flow connectors, an embedded integration-contract table, and a passing verifier — <strong>fully reproducible from the same prompt</strong>. Re-runs are timestamped, so prior diagrams are never overwritten.</p>
+      </div>
+      <div class="pio">
+        <span class="iolabel">Ships</span>
+        <span class="filepill">diagrams/&lt;KEY&gt;-&lt;ts&gt;.drawio</span>
+        <span class="filepill">jira-stories/&lt;KEY&gt;-connectors.md</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============ FOOTER ============ -->
+  <div class="footer">
+    <div>
+      <span class="author">Debajyoti Mukhopadhyay</span>
+      &nbsp;·&nbsp;Prompt-to-Diagram Flow
+    </div>
+    <div class="stack">
+      Jira note → normalize → MCP build → verify → connector table → embed
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

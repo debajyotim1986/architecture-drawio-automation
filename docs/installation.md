@@ -214,7 +214,8 @@ The most common cause is the wrong `python` path — re-do Step 10.
 1. Use the bundled demo script (which copies
    [`examples/sample-jira-story.txt`](../examples/sample-jira-story.txt)
    to `jira-stories/DEMO-001.txt` — we deliberately avoid `PROJ-123.txt`
-   because that file is the normalizer's reference template):
+   because that file is the canonical worked-example story the docs and
+   prompts point at):
    ```bash
    ./scripts/linux/demo.sh    # or scripts/mac/demo.sh, or scripts\windows\demo.ps1
    ```

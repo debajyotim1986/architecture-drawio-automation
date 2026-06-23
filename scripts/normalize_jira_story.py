@@ -7,7 +7,7 @@ Two modes
 
 **Create mode** (default — no `--diagram` supplied):
     Rewrites a raw business note into a build-from-scratch canonical
-    story (the shape of `jira-stories/PROJ-123.txt`). The output names
+    story (the shape of `template/surgical-story-template.txt`). The output names
     components, their connections, and the GCP services involved, but
     does NOT pretend to know any existing diagram state.
 
@@ -92,7 +92,10 @@ from pathlib import Path
 from typing import Iterable
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_TEMPLATE = REPO_ROOT / "jira-stories" / "PROJ-123.txt"
+# Reference template that defines the canonical surgical-text shape. The LLM
+# rewrite path is shown this file as the structure to match; `PROJ-123.txt`
+# remains a worked example story but is no longer the template.
+DEFAULT_TEMPLATE = REPO_ROOT / "template" / "surgical-story-template.txt"
 DEFAULT_DIAGRAMS_DIR = REPO_ROOT / "diagrams"
 MCP_SRC = REPO_ROOT / "drawio-mcp-server" / "src"
 if MCP_SRC.exists() and str(MCP_SRC) not in sys.path:
@@ -558,10 +561,10 @@ def emit_delegate_payload(
                 "`read_diagram_summary`."
                 if diagram_summary is not None
                 else "Produce a build-from-scratch story in the shape "
-                "of PROJ-123.txt: list components and their "
-                "connections in section 3, an ASCII flow in section "
-                "7, and per-component acceptance criteria in section "
-                "10."
+                "of template/surgical-story-template.txt: list "
+                "components and their connections in section 3, an "
+                "ASCII flow in section 7, and per-component acceptance "
+                "criteria in section 10."
             )
             + f" Preserve every fact in the raw note. Use {{placeholder}} "
             f"for unknown values. After writing `{target_path.name}`, "
@@ -611,7 +614,8 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=DEFAULT_TEMPLATE,
         help=(
-            "Reference template (defaults to jira-stories/PROJ-123.txt). "
+            "Reference template (defaults to "
+            "template/surgical-story-template.txt). "
             "Its structure is what every story is rewritten to match."
         ),
     )

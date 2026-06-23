@@ -1,0 +1,29 @@
+Key: {PROJ-NNN}
+Type: Story
+Title: {one-line summary of the capability}
+
+1. Background
+{Why this work exists — the current pain / manual process / scaling limit, with rough volumes if known. This is a raw business note: a sentence or two is fine.}
+
+2. Objective
+{One paragraph: what production system you want to build on GCP and the outcome it delivers (ingest / process / validate / serve), with observability and auditability.}
+
+3. In Scope
+{This is the section that DRIVES THE DIAGRAM. Write free-form prose — the normalizer turns it into the canonical surgical story. Name every component and every connection in plain language. One thought per line is easiest to parse, e.g.:}
+
+{system is a <kind of> pipeline from <where> to <where>}
+{<source> sends <data> to <component>}
+{<component> processes / loads data into <component>}
+{when <event> happens, <component> notifies <component>}
+{<component> validates / transforms data, then writes to <component>}
+{on completion, <component> updates <component> (e.g. an audit table)}
+
+4. Out of Scope
+- {what this story deliberately does NOT cover}
+- {work tracked as a separate story}
+- {anything explicitly deferred}
+
+{Sections 5-11 (Functional / Non-Functional Requirements, Proposed Architecture,
+Dependencies, Assumptions, Acceptance Criteria, Risks) are optional in the raw
+note — the normalizer synthesizes them from section 3. Add them only if you
+already have the detail.}

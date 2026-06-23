@@ -4,7 +4,7 @@
 .PARAMETER All
   Also remove the demo story (jira-stories\DEMO-001.*) and any
   *.drawio files generated under diagrams\. Note: PROJ-123.txt is the
-  reference template the normalizer needs and is NEVER removed.
+  canonical worked-example story and is NEVER removed.
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File scripts\windows\clean.ps1
   powershell -ExecutionPolicy Bypass -File scripts\windows\clean.ps1 -All
@@ -34,8 +34,9 @@ Get-ChildItem -Path $ServerDir -Recurse -Force -ErrorAction SilentlyContinue `
 
 if ($All) {
     Write-Host "-All: also removing jira-stories\DEMO-001.* and diagrams\*.drawio"
-    # PROJ-123.txt is the reference template the normalizer uses -
-    # NEVER delete it or normalize.ps1 will fail on the next run.
+    # PROJ-123.txt is the canonical worked-example story (the
+    # normalizer's template lives at template\surgical-story-template.txt)
+    # - NEVER delete it; the docs and prompts point at it.
     Remove-Item -Force (Join-Path $RepoRoot 'jira-stories\DEMO-001.txt') -ErrorAction SilentlyContinue
     Remove-Item -Force (Join-Path $RepoRoot 'jira-stories\DEMO-001-surgical.txt') -ErrorAction SilentlyContinue
     Remove-Item -Force (Join-Path $RepoRoot 'jira-stories\DEMO-001-connectors.md') -ErrorAction SilentlyContinue

@@ -29,9 +29,10 @@ find "$REPO_ROOT/drawio-mcp-server" \
 
 if $ALL; then
   echo "--all: also removing jira-stories/DEMO-001.* and diagrams/*.drawio"
-  # Note: jira-stories/PROJ-123.txt is the reference template the
-  # normalizer uses (DEFAULT_TEMPLATE in normalize_jira_story.py) —
-  # do NOT delete it or normalize.sh will fail on the next run.
+  # Note: jira-stories/PROJ-123.txt is the canonical worked-example
+  # story (the normalizer's reference template lives at
+  # template/surgical-story-template.txt) — leave PROJ-123.txt in place
+  # so the docs and create/update prompts that point at it stay valid.
   rm -f "$REPO_ROOT/jira-stories/DEMO-001.txt"
   rm -f "$REPO_ROOT/jira-stories/DEMO-001-surgical.txt"
   rm -f "$REPO_ROOT/jira-stories/DEMO-001-connectors.md"
