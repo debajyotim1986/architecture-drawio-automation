@@ -1,0 +1,27 @@
+Key: PROJ-123
+Type: Story
+Title: Add asynchronous order-confirmation email after checkout
+
+Summary
+-------
+After a customer completes checkout, the system must send a confirmation
+email asynchronously. The checkout service should not block on email
+delivery, and email failures must not fail the order.
+
+Acceptance criteria
+-------------------
+- When the Checkout Service finalizes an order, it publishes an
+  "OrderPlaced" event to a message broker (Kafka topic
+  "orders.placed.v1").
+- A new Notification Service consumes "orders.placed.v1" and renders an
+  email using a template stored in the existing Template Store
+  (PostgreSQL).
+- The Notification Service calls SendGrid to deliver the email.
+- Failures are retried up to 3 times with exponential backoff, then sent
+  to a dead-letter topic "orders.placed.dlq".
+- All events are audit-logged to the existing Audit DB.
+
+Out of scope
+------------
+- SMS or push notifications.
+- Internationalization of email content.

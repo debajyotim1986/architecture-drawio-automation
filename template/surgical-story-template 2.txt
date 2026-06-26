@@ -1,0 +1,78 @@
+Key: {PROJ-NNN}
+Type: Story
+Title: {one-line summary of the capability — derived from section 3}
+
+1. Background
+{Why this work exists: the current pain / manual process / scaling limit, with rough volumes (~{X}/period) if known. Name the business domain and the downstream systems that will consume the result.}
+
+2. Objective
+{One paragraph: build a production-grade, secure, scalable {system type} on GCP that {ingests / processes / validates / serves ...}, with full observability and auditability.}
+
+3. In Scope
+{Prose summary of what the system does, end to end. Then list components and connections explicitly — this is what the diagram is built from.}
+
+Components (the GCP service name in parentheses drives the official icon via gcp_icon):
+- {Component label} ({GCP service, e.g. Cloud Storage})
+- {Component label} ({GCP service, e.g. Pub/Sub})
+- {Component label} ({GCP service, e.g. Cloud Composer})
+- {Component label} ({GCP service, e.g. Dataproc})
+- {Component label} ({GCP service, e.g. BigQuery})
+- {External / non-GCP component} (external — non-GCP)
+- {Observability} (Cloud Logging) / (Cloud Monitoring)
+- {Security} (Secret Manager / IAM) — if relevant
+
+Connections (Source → Target : ≤3-word edge label):
+- {Source component} → {Target component} : {label}
+- {Source component} → {Target component} : {label}
+- {Source component} → {Target component} : {label}
+- {... one line per connection in flow order ...}
+
+4. Out of Scope
+- {what this story deliberately does NOT cover}
+- {historical backfill / migration — separate story}
+- {anything explicitly deferred}
+
+5. Functional Requirements
+FR1: {System shall {accept / ingest} ... up to {size/limit}.}
+FR2: {System shall {classify / route / trigger / orchestrate} ...}
+FR3: {System shall {process / transform / extract} ...}
+FR4: {System shall {persist / load} output to {target}.}
+FR5: {System shall {validate / run quality checks} and gate on the result.}
+FR6: {System shall {record an audit entry / clean up resources} on completion.}
+FR7: {System shall support reprocessing of failed work without duplication.}
+
+6. Non-Functional Requirements
+Performance: {single unit / batch end-to-end under {N} {seconds/minutes}}.
+Throughput: {peak {N}/{period} with autoscaling}.
+Availability: {99.9% monthly uptime}.
+Security: CMEK-encrypted storage, least-privilege IAM, VPC Service Controls, no PII in logs; secrets in Secret Manager.
+Compliance: {GDPR / DPDP / SOC 2 / HIPAA — as applicable}.
+Observability: Cloud Logging, Cloud Monitoring dashboards, alerting on error rate / latency / quota.
+Cost: {stay within {USD X}/period; tagged resources for cost attribution}.
+
+7. Proposed Architecture (High-Level)
+{A single ASCII flow line using the component labels from section 3, e.g.:}
+{Source} → {Component} ({GCP service}) → {Component} ({GCP service}) → {Component} ({GCP service}). {Cross-cutting concerns, e.g. Cloud Logging + Cloud Monitoring across all stages; secrets in Secret Manager.}
+
+8. Dependencies
+- GCP project provisioning with billing and required APIs ({list the services from section 3}).
+- {Connectivity / source specs / sample data}.
+- Sign-off from Security and Data Privacy teams.
+
+9. Assumptions
+- {What you took as given when filling sections 5-8.}
+- {Quotas in the target region are sufficient for projected volume.}
+
+10. Acceptance Criteria
+{Write each so it can be ticked off against read_diagram_summary — one per component and one per connection.}
+- read_diagram_summary returns a node for each component named in section 3, each GCP service using its official icon.
+- The connector sequence {A → B → C → ...} exists end-to-end in the diagram.
+- {Each distinct trigger / branch named in section 3 is present as its own connector.}
+- {Pipeline processes a sample workload with ≥ {95}% success.}
+- Monitoring dashboards and alerts are live; runbook documented.
+- Security review passed (IAM, encryption, network controls).
+
+11. Risks
+- {Quota limits — mitigate by requesting increases early.}
+- {Data / input quality variability — mitigate with validation and a quarantine path.}
+- {Cost overrun — mitigate with right-sizing, autoscaling, and budget alerts.}
