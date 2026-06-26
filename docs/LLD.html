@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Low-Level Design — AI Architecture-Diagram Copilot</title>
+<style>
+  :root {
+    --ink:#0f172a; --muted:#64748b; --line:rgba(148,163,184,0.55);
+    --glass:rgba(255,255,255,0.95);
+    --json:#0ea5e9; --py:#d97706; --tool:#ca8a04; --md:#7c3aed;
+    --asset:#16a34a; --store:#0891b2; --gate:#be123c; --llm:#0369a1; --human:#64748b;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; padding:0; }
+  body {
+    width:1320px;
+    background:
+      radial-gradient(1200px 520px at 16% -10%, rgba(11,87,208,0.55), transparent 60%),
+      radial-gradient(940px 540px at 97% 4%, rgba(168,85,247,0.30), transparent 55%),
+      radial-gradient(700px 700px at 60% 120%, rgba(14,165,233,0.18), transparent 60%),
+      linear-gradient(135deg,#060912 0%,#0c1838 50%,#0a1733 100%);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); -webkit-font-smoothing:antialiased;
+  }
+  .page { width:1320px; padding:28px 34px 40px; }
+  code { font-family:ui-monospace,"SF Mono",Menlo,monospace; }
+
+  /* ===== header ===== */
+  .head { display:grid; grid-template-columns:1fr auto; gap:22px; align-items:center; margin-bottom:16px; }
+  .eyebrow { text-transform:uppercase; letter-spacing:3px; font-size:10.5px; color:#93c5fd; font-weight:800; margin-bottom:9px; }
+  .h1 { font-size:31px; font-weight:800; letter-spacing:-0.6px; margin:0 0 9px; color:#f8fafc; line-height:1.08; }
+  .h1 .glow { background:linear-gradient(90deg,#60a5fa,#c084fc); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  .sub { font-size:13px; color:#cbd5e1; max-width:900px; margin:0; }
+  .metrics { display:flex; gap:9px; }
+  .metric { background:linear-gradient(135deg,rgba(255,255,255,0.17),rgba(255,255,255,0.05)); border:1px solid rgba(255,255,255,0.22); border-radius:14px; padding:11px 14px; text-align:center; color:#fff; min-width:78px; }
+  .metric .n { font-size:22px; font-weight:800; line-height:1; }
+  .metric .l { font-size:8.5px; letter-spacing:1.2px; text-transform:uppercase; opacity:0.85; margin-top:6px; }
+
+  /* ===== sticky stage navigator ===== */
+  .navwrap { position:sticky; top:0; z-index:30; margin:0 -34px 16px; padding:9px 34px; background:rgba(7,12,24,0.82); backdrop-filter:blur(8px); border-bottom:1px solid rgba(148,163,184,0.22); }
+  .nav { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .nav .nlab { font-size:9.5px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:#7c8aa0; margin-right:4px; }
+  .nav a { text-decoration:none; display:inline-flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700; color:#dbe4f0; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.14); border-radius:999px; padding:3px 10px; }
+  .nav a .nn { width:16px; height:16px; border-radius:50%; background:var(--c,#0b57d0); color:#fff; font-size:9px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+
+  /* ===== legend ===== */
+  .legend { display:flex; gap:7px; flex-wrap:wrap; margin:0 0 16px; }
+  .lg { display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.16); color:#e2e8f0; border-radius:999px; padding:4px 11px; font-size:10.5px; font-weight:700; }
+  .lg i { width:9px; height:9px; border-radius:3px; display:inline-block; }
+
+  /* ===== type badge ===== */
+  .b { font-size:8.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; color:#fff; padding:2px 7px; border-radius:999px; white-space:nowrap; }
+  .b.json{background:var(--json)} .b.py{background:var(--py)} .b.tool{background:var(--tool)}
+  .b.md{background:var(--md)} .b.asset{background:var(--asset)} .b.store{background:var(--store)}
+  .b.gate{background:var(--gate)} .b.llm{background:var(--llm)} .b.human{background:var(--human)}
+
+  /* ===== plumbing panel ===== */
+  .plumb { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.16); border-radius:16px; padding:15px 18px; margin-bottom:18px; }
+  .plumb .ph { font-size:12px; font-weight:800; letter-spacing:0.6px; text-transform:uppercase; color:#93c5fd; margin-bottom:11px; display:flex; align-items:center; gap:8px; }
+  .plumb-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+
+  /* ===== call chain ===== */
+  .chain { display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin:0 0 11px; padding:8px 11px; background:linear-gradient(90deg, rgba(11,87,208,0.06), rgba(124,58,237,0.05)); border:1px solid var(--line); border-radius:10px; }
+  .chain .ck { font-size:8px; font-weight:800; letter-spacing:0.6px; text-transform:uppercase; color:var(--muted); margin-right:3px; }
+  .chain .cp { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:9.5px; font-weight:700; color:#1e293b; background:#fff; border:1px solid var(--line); border-radius:6px; padding:2px 7px; }
+  .chain .cp.t{ border-color:var(--tool); color:#7c5e06; } .chain .cp.s{ border-color:var(--store); color:#075e6b; }
+  .chain .cp.f{ border-color:var(--asset); color:#0f6b32; } .chain .cp.l{ border-color:var(--llm); color:#075985; }
+  .chain .cp.g{ border-color:var(--gate); color:#9f1239; } .chain .cp.p{ border-color:var(--py); color:#9a5b08; }
+  .chain .ar { color:#94a3b8; font-weight:800; font-size:11px; }
+
+  /* ===== stage ===== */
+  .stage { background:var(--glass); border-radius:16px; margin-bottom:16px; box-shadow:0 18px 38px -20px rgba(2,6,23,0.85); border:1px solid rgba(255,255,255,0.6); overflow:hidden; scroll-margin-top:54px; }
+  .stage-h { display:flex; align-items:center; gap:12px; padding:13px 18px; background:linear-gradient(90deg, color-mix(in srgb,var(--sc,#0b57d0) 13%, #fff), #fff 70%); border-bottom:1px solid var(--line); }
+  .stage-h .num { width:32px; height:32px; border-radius:10px; background:linear-gradient(135deg,var(--sc,#0b57d0), color-mix(in srgb,var(--sc,#0b57d0) 60%, #000)); color:#fff; font-size:14px; font-weight:800; display:flex; align-items:center; justify-content:center; flex:none; box-shadow:0 6px 14px -6px var(--sc,#0b57d0); }
+  .stage-h .nm { font-size:15px; font-weight:800; color:var(--ink); letter-spacing:-0.2px; }
+  .stage-h .ds { font-size:11px; color:var(--muted); margin-top:1px; }
+  .stage-h .who { margin-left:auto; }
+  .arts { padding:13px 16px 15px; display:flex; flex-direction:column; gap:9px; }
+
+  /* ===== artifact card ===== */
+  .art { border:1px solid var(--line); border-left:3px solid var(--ac,#94a3b8); border-radius:11px; background:#fff; padding:9px 12px; }
+  .art-h { display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+  .art-h .fp {
+    font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:11px; font-weight:800;
+    color:color-mix(in srgb, var(--ac,#475569) 78%, #000);
+    background:color-mix(in srgb, var(--ac,#94a3b8) 16%, #fff);
+    border:1px solid color-mix(in srgb, var(--ac,#94a3b8) 50%, #fff);
+    border-radius:7px; padding:2px 9px;
+  }
+  .art-h .one { font-size:10.5px; color:var(--muted); }
+  .art-h .arrow { color:#94a3b8; font-weight:800; font-size:11px; }
+  .art .one-full { font-size:10.5px; color:#475569; line-height:1.45; margin-top:5px; }
+
+  /* ===== function list ===== */
+  .fns { margin-top:8px; border-top:1px dashed #e2e8f0; padding-top:7px; display:grid; grid-template-columns:1fr 1fr; gap:3px 18px; }
+  .fns.one-col { grid-template-columns:1fr; }
+  .fn { display:grid; grid-template-columns:auto 1fr; gap:7px; align-items:baseline; font-size:10px; padding:1px 0; }
+  .fn .fnn { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:9.5px; font-weight:700; color:#0b57d0; white-space:nowrap; }
+  .fn .fnd { color:#475569; line-height:1.4; }
+
+  /* ===== return-shape chip ===== */
+  .ret { margin-top:8px; display:flex; align-items:center; gap:8px; }
+  .ret .rk { font-size:8px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; color:var(--muted); }
+  .ret code { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:9.5px; color:#a5f3fc; background:#0f172a; border:1px solid #1e293b; border-radius:6px; padding:3px 8px; }
+
+  .reads { font-size:10px; color:#475569; margin-top:7px; line-height:1.5; }
+  .reads b { color:#1e293b; font-weight:800; text-transform:uppercase; letter-spacing:0.4px; font-size:8.5px; }
+  .reads code { font-size:9.5px; background:#f1f5f9; padding:1px 5px; border-radius:4px; color:#1e293b; }
+  .reads .gatey { color:#b91c1c; font-weight:700; }
+  .reads .llmy { color:var(--llm); font-weight:700; }
+
+  /* ===== reference section ===== */
+  .ref { background:var(--glass); border-radius:18px; padding:18px 22px 20px; margin-bottom:16px; box-shadow:0 18px 38px -20px rgba(2,6,23,0.85); border:1px solid rgba(255,255,255,0.6); }
+  .ref-h { display:flex; align-items:center; gap:10px; margin-bottom:13px; }
+  .ref-h .pin { width:6px; height:18px; border-radius:3px; background:linear-gradient(180deg,#0b57d0,#7c3aed); }
+  .ref-h .tt { font-size:16px; font-weight:800; color:var(--ink); letter-spacing:-0.2px; }
+  .ref-h .sub2 { font-size:11px; color:var(--muted); margin-left:auto; }
+
+  /* tools matrix */
+  table.tools { width:100%; border-collapse:collapse; font-size:10.5px; }
+  table.tools th { text-align:left; font-size:8.5px; letter-spacing:0.6px; text-transform:uppercase; color:var(--muted); padding:6px 10px; border-bottom:2px solid var(--line); }
+  table.tools td { padding:6px 10px; border-bottom:1px solid #eef2f7; vertical-align:top; }
+  table.tools tr:last-child td { border-bottom:none; }
+  table.tools .tn { display:inline-block; font-family:ui-monospace,Menlo,monospace; font-size:10px; font-weight:800; color:#0b57d0; background:#eaf1fe; border:1px solid #bcd3f7; border-radius:6px; padding:2px 8px; }
+  table.tools .kind { font-size:8px; font-weight:800; text-transform:uppercase; padding:1px 7px; border-radius:999px; color:#fff; }
+  table.tools .kind.ro { background:#0891b2; } table.tools .kind.mut { background:#ca8a04; }
+  table.tools code { font-size:9.5px; color:#334155; }
+  table.tools .rsh { font-family:ui-monospace,Menlo,monospace; font-size:9px; color:#0f766e; }
+
+  /* constants grid */
+  .cgrid { display:grid; grid-template-columns:repeat(5,1fr); gap:9px; }
+  .cu { background:#f8fafc; border:1px solid var(--line); border-radius:11px; padding:10px 11px; text-align:center; }
+  .cu .name { font:700 9.5px/1.2 ui-monospace,Menlo,monospace; color:#1e293b; overflow-wrap:anywhere; }
+  .cu .val { font-size:20px; font-weight:800; color:#0b57d0; margin:5px 0 3px; }
+  .cu .effect { font-size:8.5px; color:var(--muted); line-height:1.3; }
+
+  /* lineage band */
+  .lineage { display:flex; align-items:stretch; gap:0; flex-wrap:wrap; }
+  .ln { flex:1; min-width:150px; border:1px solid var(--line); border-top:3px solid var(--lc,#64748b); border-radius:11px; padding:9px 11px; background:#fff; }
+  .ln .lf { display:inline-block; font-family:ui-monospace,Menlo,monospace; font-size:9.5px; font-weight:800; overflow-wrap:anywhere; color:color-mix(in srgb,var(--lc,#475569) 80%,#000); background:color-mix(in srgb,var(--lc,#64748b) 15%,#fff); border:1px solid color-mix(in srgb,var(--lc,#64748b) 45%,#fff); border-radius:6px; padding:2px 7px; }
+  .ln .lr { font-size:9.5px; color:var(--muted); margin-top:3px; line-height:1.35; }
+  .lnar { display:flex; align-items:center; padding:0 7px; color:#94a3b8; font-size:18px; font-weight:800; }
+
+  /* invariants */
+  .inv { display:grid; grid-template-columns:repeat(2,1fr); gap:9px; }
+  .ivc { border:1px solid var(--line); border-radius:11px; padding:9px 12px; background:#fff; }
+  .ivc .ivt { font-size:11.5px; font-weight:800; color:var(--ink); display:flex; align-items:center; gap:7px; }
+  .ivc .ivt i { width:8px; height:16px; border-radius:3px; background:#16a34a; }
+  .ivc .ivd { font-size:10px; color:#475569; line-height:1.45; margin-top:4px; }
+  .ivc code { font-size:9px; background:#f1f5f9; padding:1px 4px; border-radius:4px; }
+
+  .footer { margin-top:18px; display:flex; justify-content:space-between; align-items:center; color:#cbd5e1; font-size:11.5px; }
+  .footer .author { color:#fff; font-weight:800; }
+  .footer .stack { color:#93c5fd; font-weight:700; }
+  .footer a { color:#93c5fd; font-weight:700; text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="head">
+    <div>
+      <div class="eyebrow">Low-Level Design · File · Function · Data-Shape</div>
+      <h1 class="h1">Architecture-Diagram Copilot — <span class="glow">LLD</span></h1>
+      <p class="sub">The 13-stage technical flow at implementation depth. For every stage: the <b>call chain</b>, each JSON/Python/Markdown/SVG artifact it touches, the <b>functions</b> that do the work, and the exact <b>return shape</b> of each MCP tool. Reference tables at the end pin down the tool contract, layout constants, data lineage, and the invariants that hold across the whole pipeline.</p>
+    </div>
+    <div class="metrics">
+      <div class="metric"><div class="n">13</div><div class="l">stages</div></div>
+      <div class="metric"><div class="n">13</div><div class="l">MCP tools</div></div>
+      <div class="metric"><div class="n">34</div><div class="l">files</div></div>
+      <div class="metric"><div class="n">2</div><div class="l">LLMs</div></div>
+    </div>
+  </div>
+
+  <!-- STICKY NAV -->
+  <div class="navwrap">
+    <div class="nav">
+      <span class="nlab">Jump to stage</span>
+      <a href="#s0" style="--c:#64748b"><span class="nn">0</span>Prompt</a>
+      <a href="#s1" style="--c:#7c3aed"><span class="nn">1</span>Route</a>
+      <a href="#s2" style="--c:#d97706"><span class="nn">2</span>Normalize</a>
+      <a href="#s3" style="--c:#7c3aed"><span class="nn">3</span>Read&nbsp;&amp;&nbsp;plan</a>
+      <a href="#s4" style="--c:#be123c"><span class="nn">4</span>Guardrail</a>
+      <a href="#s5" style="--c:#ca8a04"><span class="nn">5</span>Create</a>
+      <a href="#s6" style="--c:#ca8a04"><span class="nn">6</span>Layers</a>
+      <a href="#s7" style="--c:#ca8a04"><span class="nn">7</span>Nodes</a>
+      <a href="#s8" style="--c:#ca8a04"><span class="nn">8</span>Edges</a>
+      <a href="#s9" style="--c:#dc2626"><span class="nn">9</span>Verify</a>
+      <a href="#s10" style="--c:#d97706"><span class="nn">10</span>Details</a>
+      <a href="#s11" style="--c:#ca8a04"><span class="nn">11</span>Embed</a>
+      <a href="#s12" style="--c:#16a34a"><span class="nn">12</span>Deliver</a>
+      <a href="#ref" style="--c:#0b57d0"><span class="nn">★</span>Reference</a>
+    </div>
+  </div>
+
+  <!-- LEGEND -->
+  <div class="legend">
+    <span class="lg"><i style="background:var(--json)"></i>JSON config</span>
+    <span class="lg"><i style="background:var(--py)"></i>Python · CLI</span>
+    <span class="lg"><i style="background:var(--tool)"></i>MCP tool</span>
+    <span class="lg"><i style="background:var(--store)"></i>Store / adapter</span>
+    <span class="lg"><i style="background:var(--md)"></i>Markdown</span>
+    <span class="lg"><i style="background:var(--asset)"></i>SVG asset</span>
+    <span class="lg"><i style="background:var(--gate)"></i>Gate</span>
+    <span class="lg"><i style="background:var(--llm)"></i>LLM call</span>
+  </div>
+
+  <!-- PLUMBING -->
+  <div class="plumb">
+    <div class="ph">⚙ MCP plumbing — every MCP tool call (stages 1,3,5,6,7,8,11) passes through these</div>
+    <div class="chain">
+      <span class="ck">per call</span>
+      <span class="cp">Copilot</span><span class="ar">▸</span>
+      <span class="cp">stdio JSON-RPC</span><span class="ar">▸</span>
+      <span class="cp">server._call_tool</span><span class="ar">▸</span>
+      <span class="cp">resolve_config</span><span class="ar">▸</span>
+      <span class="cp">dispatch_tool</span><span class="ar">▸</span>
+      <span class="cp t">handler(args, cfg)</span><span class="ar">▸</span>
+      <span class="cp">TextContent</span>
+    </div>
+    <div class="plumb-grid">
+      <div class="art" style="--ac:var(--py)">
+        <div class="art-h"><span class="fp">__main__.py</span><span class="b py">py</span><span class="one">launches the server process</span></div>
+        <div class="fns one-col"><div class="fn"><span class="fnn">main()</span><span class="fnd"><code>python -m drawio_mcp_server</code> → <code>asyncio.run(server.run())</code>.</span></div></div>
+      </div>
+      <div class="art" style="--ac:var(--py)">
+        <div class="art-h"><span class="fp">server.py</span><span class="b py">py</span><span class="one">stdio loop · dispatch · error wrapping</span></div>
+        <div class="fns one-col">
+          <div class="fn"><span class="fnn">run()</span><span class="fnd">Prints a stderr banner, opens stdio transport, runs the server.</span></div>
+          <div class="fn"><span class="fnn">_list_tools()</span><span class="fnd">Returns all 13 <code>Tool</code> schemas.</span></div>
+          <div class="fn"><span class="fnn">_call_tool()</span><span class="fnd">resolve_config → dispatch_tool → JSON/text; exceptions → <code>Error in &lt;tool&gt;: …</code>.</span></div>
+        </div>
+      </div>
+      <div class="art" style="--ac:var(--py)">
+        <div class="art-h"><span class="fp">tools/__init__.py</span><span class="b py">py</span><span class="one">the tool registry + dispatch</span></div>
+        <div class="fns one-col">
+          <div class="fn"><span class="fnn">TOOL_REGISTRY</span><span class="fnd">name → (Tool schema, async handler).</span></div>
+          <div class="fn"><span class="fnn">dispatch_tool()</span><span class="fnd">Look up handler, <code>await handler(args, cfg)</code>.</span></div>
+        </div>
+      </div>
+      <div class="art" style="--ac:var(--store)">
+        <div class="art-h"><span class="fp">util/config.py · natural_sort.py</span><span class="b store">util</span><span class="one">sandbox roots + ordering</span></div>
+        <div class="fns one-col">
+          <div class="fn"><span class="fnn">resolve_config()</span><span class="fnd"><code>DRAWIO_DIAGRAMS/STORIES/ICONS_DIR</code> → <code>ServerConfig</code>.</span></div>
+          <div class="fn"><span class="fnn">natural_key()</span><span class="fnd">Digits-as-int sort (PROJ-2 &lt; PROJ-10) for both stores.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ STAGES ============ -->
+
+  <!-- STAGE 0 -->
+  <div class="stage" id="s0" style="--sc:var(--human)">
+    <div class="stage-h"><span class="num">0</span><div><div class="nm">Prompt — plain-English shorthand</div><div class="ds">You type one line in GitHub Copilot Chat</div></div><span class="b human who">Human</span></div>
+    <div class="arts">
+      <div class="chain"><span class="ck">flow</span><span class="cp">Copilot Chat</span><span class="ar">▸</span><span class="cp json" style="border-color:var(--json);color:#075985">.vscode/mcp.json</span><span class="ar">▸</span><span class="cp">spawn venv python -m drawio_mcp_server</span><span class="ar">▸</span><span class="cp">stdio session</span></div>
+      <div class="art" style="--ac:var(--json)">
+        <div class="art-h"><span class="fp">.vscode/mcp.json</span><span class="b json">json</span><span class="arrow">→</span><span class="one">fetches the server launch recipe + sandbox roots</span></div>
+        <div class="one-full">How Copilot starts the server: <code>command</code> = the venv Python, <code>args</code> = <code>-m drawio_mcp_server</code>, <code>cwd</code> = workspace, and the <code>env</code> block pinning <code>DRAWIO_DIAGRAMS_DIR</code>, <code>DRAWIO_STORIES_DIR</code>, <code>DRAWIO_ICONS_DIR</code>, <code>PYTHONPATH</code>. Wires Copilot ⇄ server over stdio.</div>
+      </div>
+      <div class="art" style="--ac:var(--json)">
+        <div class="art-h"><span class="fp">.vscode/settings.json</span><span class="b json">json</span><span class="arrow">→</span><span class="one">fetches editor + Copilot toggles</span></div>
+        <div class="one-full"><code>github.copilot.chat.codeGeneration.useInstructionFiles:true</code> auto-attaches the repo rules every turn; <code>chat.mcp.access:"all"</code> permits MCP; <code>*.drawio → xml</code> for readable diffs.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 1 -->
+  <div class="stage" id="s1" style="--sc:#7c3aed">
+    <div class="stage-h"><span class="num">1</span><div><div class="nm">Intent routing</div><div class="ds">Derive action + story files + target, pick the backend prompt</div></div><span class="b llm who">AI · Copilot</span></div>
+    <div class="arts">
+      <div class="chain"><span class="ck">chain</span><span class="cp l">Copilot</span><span class="ar">▸</span><span class="cp">copilot-instructions.md</span><span class="ar">▸</span><span class="cp t">list_stories</span><span class="ar">/</span><span class="cp t">list_diagrams</span><span class="ar">▸</span><span class="cp">resolve target</span><span class="ar">▸</span><span class="cp">pick prompt</span></div>
+      <div class="art" style="--ac:var(--md)">
+        <div class="art-h"><span class="fp">.github/copilot-instructions.md</span><span class="b md">md</span><span class="arrow">→</span><span class="one">the always-on rulebook (auto-attached)</span></div>
+        <div class="one-full"><b>"Quick-command shorthand"</b>: detect <em>create</em> vs <em>update</em>; extract story file(s) (case/ext-insensitive); resolve update target (1→use · 0→offer create · many→ask); select the prompt. Also carries the guardrail, swimlanes-first, GCP-icon and zero-TBD rules.</div>
+      </div>
+      <div class="art" style="--ac:var(--tool)">
+        <div class="art-h"><span class="fp">tools/list_stories.py · list_diagrams.py</span><span class="b tool">tool</span><span class="arrow">→</span><span class="one">confirm story names / find candidate diagrams</span></div>
+        <div class="fns">
+          <div class="fn"><span class="fnn">list_stories()</span><span class="fnd">→ <code>StoryStore.list()</code> (natural-sorted).</span></div>
+          <div class="fn"><span class="fnn">list_diagrams()</span><span class="fnd">→ <code>DiagramStore.list()</code> (natural-sorted).</span></div>
+        </div>
+        <div class="ret"><span class="rk">returns</span><code>{ stories:[…] }</code><code>{ diagrams:[…] }</code></div>
+      </div>
+      <div class="art" style="--ac:var(--md)">
+        <div class="art-h"><span class="fp">prompts/create-diagram.md · update-diagram.md</span><span class="b md">md</span><span class="arrow">→</span><span class="one">the selected backend procedure</span></div>
+        <div class="one-full">Copilot opens the matching prompt and executes it verbatim, substituting <code>{{STORY_FILE}}</code> / <code>{{DIAGRAM_FILE}}</code>. The remaining stages are those steps.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 2 -->
+  <div class="stage" id="s2" style="--sc:var(--py)">
+    <div class="stage-h"><span class="num">2</span><div><div class="nm">Normalize story</div><div class="ds">Raw note → canonical surgical brief (prompt step 0)</div></div><span class="b py who">CLI</span></div>
+    <div class="arts">
+      <div class="chain"><span class="ck">chain</span><span class="cp p">normalize_jira_story.py</span><span class="ar">▸</span><span class="cp">is_canonical</span><span class="ar">▸</span><span class="cp">copy</span><span class="ar">|</span><span class="cp l">Claude rewrite</span><span class="ar">|</span><span class="cp g">delegate (exit 2)</span><span class="ar">▸</span><span class="cp f">&lt;KEY&gt;-surgical.txt</span></div>
+      <div class="art" style="--ac:var(--py)">
+        <div class="art-h"><span class="fp">scripts/normalize_jira_story.py</span><span class="b py">py</span><span class="one">writes <code>&lt;KEY&gt;-surgical.txt</code> from the raw story</span></div>
+        <div class="fns">
+          <div class="fn"><span class="fnn">main()</span><span class="fnd">Arg-parse, CREATE/UPDATE mode, orchestrate, exit 0 / 2.</span></div>
+          <div class="fn"><span class="fnn">_maybe_reexec_under_venv()</span><span class="fnd">Self-bootstrap under the project venv (OS-detected).</span></div>
+          <div class="fn"><span class="fnn">is_canonical()</span><span class="fnd">(ok, missing) → decide verbatim-copy vs LLM rewrite.</span></div>
+          <div class="fn"><span class="fnn">derive_jira_key()</span><span class="fnd"><code>PROJ-124.txt → PROJ-124</code>.</span></div>
+          <div class="fn"><span class="fnn">load_template()</span><span class="fnd">Loads the surgical reference template.</span></div>
+          <div class="fn"><span class="fnn">load_diagram_summary()</span><span class="fnd">UPDATE: embeds the live diagram summary into the prompt.</span></div>
+          <div class="fn"><span class="fnn">rewrite_with_anthropic()</span><span class="fnd">Calls Claude (prompt-cached system) → surgical doc.</span></div>
+          <div class="fn"><span class="fnn">emit_delegate_payload()</span><span class="fnd">No key → <code>NEEDS_NORMALIZATION</code> JSON, exit 2.</span></div>
+        </div>
+        <div class="reads"><b>reads</b> <code>jira-stories/&lt;KEY&gt;.txt</code> · <code>template/surgical-story-template.txt</code> &nbsp; <b>llm</b> <span class="llmy">Claude (optional)</span> &nbsp; <b>writes</b> <code>&lt;KEY&gt;-surgical.txt</code> (+<code>.bak</code>) &nbsp; <b>exit</b> 0 ok · 2 delegate</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 3 -->
+  <div class="stage" id="s3" style="--sc:#7c3aed">
+    <div class="stage-h"><span class="num">3</span><div><div class="nm">Read &amp; plan</div><div class="ds">Load the brief + current topology, identify components (steps 1–2)</div></div><span class="b llm who">AI · MCP</span></div>
+    <div class="arts">
+      <div class="chain"><span class="ck">chain</span><span class="cp t">read_diagram_summary</span><span class="ar">▸</span><span class="cp s">DiagramStore.load</span><span class="ar">▸</span><span class="cp s">parse_drawio</span><span class="ar">▸</span><span class="cp s">summarize</span><span class="ar">▸</span><span class="cp">DiagramSummary</span></div>
+      <div class="art" style="--ac:var(--tool)">
+        <div class="art-h"><span class="fp">tools/read_story.py</span><span class="b tool">tool</span><span class="arrow">→</span><span class="one">returns the surgical brief text</span></div>
+        <div class="fns one-col"><div class="fn"><span class="fnn">read_story()</span><span class="fnd">→ <code>StoryStore.read()</code>.</span></div></div>
+        <div class="ret"><span class="rk">returns</span><code>{ name, content }</code></div>
+      </div>
+      <div class="art" style="--ac:var(--store)">
+        <div class="art-h"><span class="fp">util/story_store.py</span><span class="b store">util</span><span class="arrow">→</span><span class="one">path-sandboxed reader for story files</span></div>
+        <div class="fns"><div class="fn"><span class="fnn">StoryStore.read()</span><span class="fnd">Reads a story; rejects paths outside the root.</span></div><div class="fn"><span class="fnn">StoryStore.list()</span><span class="fnd">Natural-sorted <code>.txt/.md/.json</code>.</span></div></div>
+      </div>
+      <div class="art" style="--ac:var(--tool)">
+        <div class="art-h"><span class="fp">tools/read_summary.py</span><span class="b tool">tool</span><span class="arrow">→</span><span class="one">token-cheap label-only topology (update path)</span></div>
+        <div class="fns one-col"><div class="fn"><span class="fnn">read_diagram_summary()</span><span class="fnd">load → parse → summarize → <code>.model_dump(by_alias=True)</code>.</span></div></div>
+        <div class="ret"><span class="rk">returns</span><code>{ name, node_count, edge_count, nodes[], edges[] }</code></div>
+      </div>
+      <div class="art" style="--ac:var(--store)">
+        <div class="art-h"><span class="fp">drawio/parser.py · summarize.py</span><span class="b store">adapter</span><span class="arrow">→</span><span class="one">.drawio XML → model → compact view</span></div>
+        <div class="fns"><div class="fn"><span class="fnn">parse_drawio()</span><span class="fnd">XML → <code>Diagram</code>; recovers waypoints, step prefixes, preserved styles.</span></div><div class="fn"><span class="fnn">_infer_shape()</span><span class="fnd">Style string → intent shape name.</span></div><div class="fn"><span class="fnn">summarize()</span><span class="fnd"><code>Diagram → DiagramSummary</code>.</span></div></div>
+        <div class="reads"><b>note</b> <code>tools/read_diagram.py → read_diagram()</code> returns the full geometry model (<code>{name,nodes[],edges[]}</code>) when the summary isn't enough.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 4 -->
+  <div class="stage" id="s4" style="--sc:var(--gate)">
+    <div class="stage-h"><span class="num">4</span><div><div class="nm">Restricted-service guardrail</div><div class="ds">Mandatory check before the first create/add call — stop &amp; ask (step 2a)</div></div><span class="b gate who">AI · Gate</span></div>
+    <div class="arts">
+      <div class="chain"><span class="ck">chain</span><span class="cp l">Copilot</span><span class="ar">▸</span><span class="cp">unavailable_services.md</span><span class="ar">▸</span><span class="cp">match (alias-aware)</span><span class="ar">▸</span><span class="cp">rank by scenario</span><span class="ar">▸</span><span class="cp">cascade-skip restricted</span><span class="ar">▸</span><span class="cp g">STOP · ask · wait</span></div>
+      <div class="art" style="--ac:var(--md)">
+        <div class="art-h"><span class="fp">policy/unavailable_services.md</span><span class="b md">md</span><span class="arrow">→</span><span class="one">disallowed list + alternatives the LLM reasons over</span></div>
+        <div class="one-full"><b>(1) Restricted services</b> — just <code>service name | aliases</code> (declares what is banned, nothing else); <b>(2) Service alternatives reference</b> — 94 rows of <code>alternate1–alternate4</code>, the <b>only</b> source of replacements; <b>(3) How alternatives are chosen</b> — look the banned service up in the reference table, scenario-rank its four candidates (else own-knowledge fallback only when it has no row), and the <b>cascade rule</b>: skip any alternate that is itself restricted, down the chain, until only allowed services remain.</div>
+        <div class="reads"><b>mandate</b> <span class="gatey">read &amp; run before the first create/add call — skipping is a defect</span> &nbsp; <b>llm</b> <span class="llmy">Copilot</span> ranks candidates &amp; presents every option &nbsp; <b>gate</b> <span class="gatey">no node created until you pick</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 5 -->
+  <div class="stage" id="s5" style="--sc:var(--tool)">
+    <div class="stage-h"><span class="num">5</span><div><div class="nm">Create diagram</div><div class="ds">A timestamped empty shell (step 3)</div></div><span class="b tool who">MCP</span></div>
+    <div class="arts">
+      <div class="chain"><span class="ck">chain</span><span class="cp t">create_diagram</span><span class="ar">▸</span><span class="cp">_JIRA_KEY_RE + UTC stamp</span><span class="ar">▸</span><span class="cp s">DiagramStore.save</span><span class="ar">▸</span><span class="cp s">_safe_path</span><span class="ar">▸</span><span class="cp s">build_drawio</span><span class="ar">▸</span><span class="cp f">&lt;KEY&gt;-&lt;ts&gt;.drawio</span></div>
+      <div class="art" style="--ac:var(--tool)">
+        <div class="art-h"><span class="fp">tools/create_diagram.py</span><span class="b tool">tool</span><span class="arrow">→</span><span class="one">new empty diagram</span></div>
+        <div class="fns one-col"><div class="fn"><span class="fnn">create_diagram()</span><span class="fnd">Validates <code>jira_key</code>, builds a UTC-stamped name, refuses overwrite, saves an empty <code>Diagram</code>.</span></div></div>
+        <div class="ret"><span class="rk">returns</span><code>{ name, path }</code></div>
+      </div>
+      <div class="art" style="--ac:var(--store)">
+        <div class="art-h"><span class="fp">util/diagram_store.py</span><span class="b store">util</span><span class="arrow">→</span><span class="one">sandboxed load / save</span></div>
+        <div class="fns"><div class="fn"><span class="fnn">DiagramStore.save()</span><span class="fnd">Serializes via builder; writes under the diagrams root.</span></div><div class="fn"><span class="fnn">_safe_path()</span><span class="fnd">Rejects any path escaping the root.</span></div></div>
+      </div>
+      <div class="art" style="--ac:var(--store)">
+        <div class="art-h"><span class="fp">drawio/builder.py · types.py</span><span class="b store">adapter</span><span class="arrow">→</span><span class="one">model → mxGraph XML</span></div>
+        <div class="fns"><div class="fn"><span class="fnn">build_drawio()</span><span class="fnd"><code>Diagram</code> → uncompressed <code>&lt;mxfile&gt;</code>.</span></div><div class="fn"><span class="fnn">Diagram/Node/Edge</span><span class="fnd">Pydantic model (<code>raw_style</code>, <code>step_index</code>, <code>waypoints</code>).</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 6 -->
+  <div class="stage" id="s6" style="--sc:var(--tool)">
+    <div class="stage-h"><span class="num">6</span><div><div class="nm">Layer swimlanes</div><div class="ds">4–6 colored columns, before any node (step 5)</div></div><span class="b tool who">MCP</span></div>
+    <div class="arts">
+      <div class="chain"><span class="ck">chain</span><span class="cp t">add_container</span><span class="ar">▸</span><span class="cp">_next_column_index</span><span class="ar">▸</span><span class="cp s">SWIMLANE_COLORS</span><span class="ar">▸</span><span class="cp s">DiagramStore.save</span></div>
+      <div class="art" style="--ac:var(--tool)">
+        <div class="art-h"><span class="fp">tools/add_container.py</span><span class="b tool">tool</span><span class="arrow">→</span><span class="one">one labeled swimlane per layer</span></div>
+        <div class="fns"><div class="fn"><span class="fnn">add_container()</span><span class="fnd">Palette from <code>color_hint</code>; x = origin + col×(w+gap).</span></div><div class="fn"><span class="fnn">_next_column_index()</span><span class="fnd">Auto L→R slot from swimlane count.</span></div></div>
+        <div class="ret"><span class="rk">returns</span><code>{ id, path, color_hint }</code></div>
+        <div class="reads"><b>const</b> <code>SWIMLANE_COLORS</code> · <code>_COLUMN_GAP = 140</code> · <code>DEFAULT_SIZE["swimlane"] = 240×1080</code></div>
+      </div>
+      <div class="art" style="--ac:var(--store)">
+        <div class="art-h"><span class="fp">drawio/shapes.py</span><span class="b store">adapter</span><span class="arrow">→</span><span class="one">style + palette + size tables</span></div>
+        <div class="fns"><div class="fn"><span class="fnn">SHAPE_STYLES</span><span class="fnd">Intent shape → mxGraph style.</span></div><div class="fn"><span class="fnn">SWIMLANE_COLORS · DEFAULT_SIZE</span><span class="fnd">Per-layer header colors; default sizes.</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 7 -->
+  <div class="stage" id="s7" style="--sc:var(--tool)">
+    <div class="stage-h"><span class="num">7</span><div><div class="nm">Place nodes + icons</div><div class="ds">Nest components, resolve official GCP icons (steps 6–7)</div></div><span class="b tool who">MCP</span></div>
+    <div class="arts">
+      <div class="chain"><span class="ck">chain</span><span class="cp t">add_node</span><span class="ar">▸</span><span class="cp s">detect_icon_from_label</span><span class="ar">▸</span><span class="cp s">resolve_icon</span><span class="ar">▸</span><span class="cp s">build_gcp_image_style</span><span class="ar">▸</span><span class="cp s">_auto_place_in_container</span><span class="ar">▸</span><span class="cp s">save</span></div>
+      <div class="art" style="--ac:var(--tool)">
+        <div class="art-h"><span class="fp">tools/add_node.py</span><span class="b tool">tool</span><span class="arrow">→</span><span class="one">one shape per component, inside its swimlane</span></div>
+        <div class="fns">
+          <div class="fn"><span class="fnn">add_node()</span><span class="fnd">Resolves icon/shape, auto-places, appends.</span></div>
+          <div class="fn"><span class="fnn">detect_icon_from_label()</span><span class="fnd">Safety net: infer icon from label.</span></div>
+          <div class="fn"><span class="fnn">_auto_place()</span><span class="fnd">4-col wrap grid (top-level).</span></div>
+          <div class="fn"><span class="fnn">_auto_place_in_container()</span><span class="fnd">Vertical stack inside a lane (stride 200).</span></div>
+        </div>
+        <div class="ret"><span class="rk">returns</span><code>{ id, path, auto_detected_gcp_icon? }</code></div>
+      </div>
+      <div class="art" style="--ac:var(--store)">
+        <div class="art-h"><span class="fp">drawio/gcp_icons.py</span><span class="b store">adapter</span><span class="arrow">→</span><span class="one">service name → embeddable SVG style</span></div>
+        <div class="fns">
+          <div class="fn"><span class="fnn">resolve_icon()</span><span class="fnd"><code>GCP_ICON_PATHS</code> alias map → else <code>&lt;snake&gt;/&lt;snake&gt;.svg</code> fallback.</span></div>
+          <div class="fn"><span class="fnn">build_gcp_image_style()</span><span class="fnd">URL-encode SVG → <code>data:image/svg+xml</code> style.</span></div>
+          <div class="fn"><span class="fnn">_canonical() · _snake()</span><span class="fnd">Name normalization for lookup.</span></div>
+          <div class="fn"><span class="fnn">detect_icon_from_label()</span><span class="fnd">Match <code>_LABEL_PATTERNS</code> against a label.</span></div>
+        </div>
+        <div class="reads"><b>reads</b> <code>logo_icon_gcp/&lt;svc&gt;/&lt;svc&gt;.svg</code> — 258 official + alias map + 9 generated placeholders</div>
+      </div>
+      <div class="art" style="--ac:var(--tool)">
+        <div class="art-h"><span class="fp">tools/update_node.py · add_title.py</span><span class="b tool">tool</span><span class="arrow">→</span><span class="one">fix a missed icon · optional banner</span></div>
+        <div class="fns"><div class="fn"><span class="fnn">update_node()</span><span class="fnd">Patch supplied fields; <code>gcp_icon</code> swaps style, <code>clear_icon</code> reverts.</span></div><div class="fn"><span class="fnn">add_title()</span><span class="fnd">Styled title/subtitle node (only when asked).</span></div></div>
+        <div class="ret"><span class="rk">returns</span><code>update_node → { path }</code><code>add_title → { id, path }</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 8 -->
+  <div class="stage" id="s8" style="--sc:var(--tool)">
+    <div class="stage-h"><span class="num">8</span><div><div class="nm">Connect edges</div><div class="ds">Directed, numbered connectors with obstacle-aware routing (step 8)</div></div><span class="b tool who">MCP</span></div>
+    <div class="arts">
+      <div class="chain"><span class="ck">4 passes</span><span class="cp t">add_edge</span><span class="ar">▸</span><span class="cp">_distribute_parallel_endpoints</span><span class="ar">▸</span><span class="cp">_compute_waypoints</span><span class="ar">▸</span><span class="cp">_deconflict_highway_lanes</span><span class="ar">▸</span><span class="cp">_frame_busy_nodes</span><span class="ar">▸</span><span class="cp s">build_drawio</span></div>
+      <div class="art" style="--ac:var(--tool)">
+        <div class="art-h"><span class="fp">tools/add_edge.py</span><span class="b tool">tool</span><span class="arrow">→</span><span class="one">one connector + 4 layout passes</span></div>
+        <div class="fns">
+          <div class="fn"><span class="fnn">add_edge()</span><span class="fnd">Resolve endpoints, auto-number, run passes, save.</span></div>
+          <div class="fn"><span class="fnn">_resolve()</span><span class="fnd">Match by id or exact label.</span></div>
+          <div class="fn"><span class="fnn">_distribute_parallel_endpoints()</span><span class="fnd">Pass 1 — fan shared-endpoint exit/entry.</span></div>
+          <div class="fn"><span class="fnn">_compute_waypoints()</span><span class="fnd">Pass 2 — route via empty row-gap highways.</span></div>
+          <div class="fn"><span class="fnn">_deconflict_highway_lanes()</span><span class="fnd">Pass 3 — push collisions onto sub-lanes.</span></div>
+          <div class="fn"><span class="fnn">_frame_busy_nodes()</span><span class="fnd">Pass 4 — card border at degree &gt; 3.</span></div>
+        </div>
+        <div class="ret"><span class="rk">returns</span><code>{ id, path, step }</code></div>
+        <div class="reads"><b>emits</b> step prefix <code>"N. label"</code> · <code>y=-22</code> label offset · <code>&lt;Array as="points"&gt;</code> waypoints &nbsp; <b>style</b> <code>DEFAULT_EDGE_STYLE</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 9 -->
+  <div class="stage" id="s9" style="--sc:var(--gate)">
+    <div class="stage-h"><span class="num">9</span><div><div class="nm">Verify gate</div><div class="ds">Hard pre-finalization health check (step 9)</div></div><span class="b gate who">CLI · Gate</span></div>
+    <div class="arts">
+      <div class="chain"><span class="ck">chain</span><span class="cp p">verify_mcp.py</span><span class="ar">▸</span><span class="cp">check_server_registry</span><span class="ar">▸</span><span class="cp">check_diagram</span><span class="ar">▸</span><span class="cp">_check_edges_in_xml</span><span class="ar">▸</span><span class="cp g">exit 0 | 2</span></div>
+      <div class="art" style="--ac:var(--py)">
+        <div class="art-h"><span class="fp">scripts/verify_mcp.py</span><span class="b py">py</span><span class="one">exit 0 = ship · exit 2 = stop</span></div>
+        <div class="fns">
+          <div class="fn"><span class="fnn">main()</span><span class="fnd">Run checks, print, return exit code.</span></div>
+          <div class="fn"><span class="fnn">check_server_registry()</span><span class="fnd">Import <code>TOOL_REGISTRY</code>, confirm all 13 tools.</span></div>
+          <div class="fn"><span class="fnn">check_diagram()</span><span class="fnd">Dangling edges · duplicate labels · GCP-icon coverage.</span></div>
+          <div class="fn"><span class="fnn">_check_edges_in_xml()</span><span class="fnd">Arrowhead keys present · parallel fan-out distinct.</span></div>
+        </div>
+        <div class="reads"><b>gate</b> <span class="gatey">exit 2 → fix via update_node / remove_element, re-run</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 10 -->
+  <div class="stage" id="s10" style="--sc:var(--py)">
+    <div class="stage-h"><span class="num">10</span><div><div class="nm">Connector details</div><div class="ds">Fill the 14-column integration contract, zero {TBD} (step 10)</div></div><span class="b py who">CLI</span></div>
+    <div class="arts">
+      <div class="chain"><span class="ck">chain</span><span class="cp p">generate_connector_details.py</span><span class="ar">▸</span><span class="cp">parse edges by step</span><span class="ar">▸</span><span class="cp">_rule_fill_row</span><span class="ar">▸</span><span class="cp l">Claude refine?</span><span class="ar">|</span><span class="cp g">delegate</span><span class="ar">▸</span><span class="cp f">&lt;KEY&gt;-connectors.md</span></div>
+      <div class="art" style="--ac:var(--py)">
+        <div class="art-h"><span class="fp">scripts/generate_connector_details.py</span><span class="b py">py</span><span class="one">writes <code>&lt;KEY&gt;-connectors.md</code></span></div>
+        <div class="fns">
+          <div class="fn"><span class="fnn">main() · generate()</span><span class="fnd">Parse, iterate edges in step order, build + optionally LLM-fill.</span></div>
+          <div class="fn"><span class="fnn">_rule_fill_row()</span><span class="fnd">Deterministically fill all 10 detail columns per connector.</span></div>
+          <div class="fn"><span class="fnn">_rule_protocol/auth/data/…()</span><span class="fnd">10 rule fns — GCP defaults per service/action.</span></div>
+          <div class="fn"><span class="fnn">_service_type() · _action_type()</span><span class="fnd">Classify a label / an action.</span></div>
+          <div class="fn"><span class="fnn">_render_table() · _assemble()</span><span class="fnd">Emit table + file header.</span></div>
+          <div class="fn"><span class="fnn">_fill_table_with_anthropic()</span><span class="fnd">Optional Claude refinement.</span></div>
+          <div class="fn"><span class="fnn">_emit_fill_delegate_payload()</span><span class="fnd">No key → <code>NEEDS_FILL</code> JSON, exit 2.</span></div>
+          <div class="fn"><span class="fnn">_count_unqualified_tbd()</span><span class="fnd">Guards that no <code>{TBD}</code> remains.</span></div>
+        </div>
+        <div class="reads"><b>reads</b> <code>&lt;KEY&gt;-surgical.txt</code> · <code>docs/connector-details-template.md</code> &nbsp; <b>llm</b> <span class="llmy">Claude (optional)</span> &nbsp; <b>writes</b> <code>&lt;KEY&gt;-connectors.md</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 11 -->
+  <div class="stage" id="s11" style="--sc:var(--tool)">
+    <div class="stage-h"><span class="num">11</span><div><div class="nm">Embed table</div><div class="ds">Render the contract in-canvas below the swimlanes (step 11)</div></div><span class="b tool who">MCP</span></div>
+    <div class="arts">
+      <div class="chain"><span class="ck">chain</span><span class="cp t">add_connector_table</span><span class="ar">▸</span><span class="cp">drop ctbl_ cells</span><span class="ar">▸</span><span class="cp">_parse_connectors_md</span><span class="ar">▸</span><span class="cp g">zero-TBD guard</span><span class="ar">▸</span><span class="cp s">save</span></div>
+      <div class="art" style="--ac:var(--tool)">
+        <div class="art-h"><span class="fp">tools/add_connector_table.py</span><span class="b tool">tool</span><span class="arrow">→</span><span class="one">14-column table of cells into the .drawio</span></div>
+        <div class="fns">
+          <div class="fn"><span class="fnn">add_connector_table()</span><span class="fnd">Idempotent (drop <code>ctbl_</code>), anchor below lowest lane, emit title+headers+rows.</span></div>
+          <div class="fn"><span class="fnn">_parse_connectors_md()</span><span class="fnd">Markdown table → <code>{step:{col:value}}</code>.</span></div>
+          <div class="fn"><span class="fnn">_resolve_md_path()</span><span class="fnd">Locate <code>&lt;KEY&gt;-connectors.md</code>.</span></div>
+          <div class="fn"><span class="fnn">_split_md_row()</span><span class="fnd">Pipe-split honoring escapes.</span></div>
+        </div>
+        <div class="ret"><span class="rk">returns</span><code>{ connectors, columns, anchor_x, anchor_y, table_width, md_source, path }</code></div>
+        <div class="reads"><b>reads</b> <code>&lt;KEY&gt;-connectors.md</code> &nbsp; <b>gate</b> <span class="gatey">zero-TBD pre-flight (<code>_MAX_ANY_TBD</code>) refuses a half-filled embed</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGE 12 -->
+  <div class="stage" id="s12" style="--sc:var(--asset)">
+    <div class="stage-h"><span class="num">12</span><div><div class="nm">Deliver</div><div class="ds">Summary + open in the renderer (step 12)</div></div><span class="b asset who">AI · MCP</span></div>
+    <div class="arts">
+      <div class="chain"><span class="ck">chain</span><span class="cp l">Copilot summary</span><span class="ar">▸</span><span class="cp f">.drawio</span><span class="ar">▸</span><span class="cp">draw.io extension renders inlined SVGs</span></div>
+      <div class="art" style="--ac:var(--asset)">
+        <div class="art-h"><span class="fp">draw.io VS Code extension</span><span class="b asset">render</span><span class="arrow">→</span><span class="one">opens the finished diagram</span></div>
+        <div class="one-full">Copilot posts a bullet summary (icons used, numbered flow, file paths). The <code>.drawio</code> opens with icons rendering because each is inlined as a URL-encoded data URI.</div>
+        <div class="reads"><b>artifacts</b> <code>&lt;KEY&gt;-surgical.txt</code> · <code>diagrams/&lt;KEY&gt;-&lt;ts&gt;.drawio</code> · <code>&lt;KEY&gt;-connectors.md</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ REFERENCE ============ -->
+  <div class="ref" id="ref">
+    <div class="ref-h"><span class="pin"></span><span class="tt">Tool Contract — 13 MCP verbs</span><span class="sub2">read-only ·  mutating · key inputs · return shape</span></div>
+    <table class="tools">
+      <thead><tr><th style="width:160px">Tool</th><th style="width:62px">Kind</th><th>Key inputs</th><th style="width:300px">Returns</th></tr></thead>
+      <tbody>
+        <tr><td class="tn">list_diagrams</td><td><span class="kind ro">RO</span></td><td><code>—</code></td><td class="rsh">{ diagrams[] }</td></tr>
+        <tr><td class="tn">read_diagram</td><td><span class="kind ro">RO</span></td><td><code>name</code></td><td class="rsh">{ name, nodes[], edges[] }</td></tr>
+        <tr><td class="tn">read_diagram_summary</td><td><span class="kind ro">RO</span></td><td><code>name</code></td><td class="rsh">{ name, node_count, edge_count, nodes[], edges[] }</td></tr>
+        <tr><td class="tn">list_stories</td><td><span class="kind ro">RO</span></td><td><code>—</code></td><td class="rsh">{ stories[] }</td></tr>
+        <tr><td class="tn">read_story</td><td><span class="kind ro">RO</span></td><td><code>name</code></td><td class="rsh">{ name, content }</td></tr>
+        <tr><td class="tn">create_diagram</td><td><span class="kind mut">MUT</span></td><td><code>jira_key, title</code></td><td class="rsh">{ name, path }</td></tr>
+        <tr><td class="tn">add_title</td><td><span class="kind mut">MUT</span></td><td><code>diagram, title, subtitle</code></td><td class="rsh">{ id, path }</td></tr>
+        <tr><td class="tn">add_container</td><td><span class="kind mut">MUT</span></td><td><code>diagram, label, color_hint</code></td><td class="rsh">{ id, path, color_hint }</td></tr>
+        <tr><td class="tn">add_node</td><td><span class="kind mut">MUT</span></td><td><code>diagram, label, gcp_icon, parent_id</code></td><td class="rsh">{ id, path, auto_detected_gcp_icon? }</td></tr>
+        <tr><td class="tn">add_edge</td><td><span class="kind mut">MUT</span></td><td><code>diagram, from, to, label, step</code></td><td class="rsh">{ id, path, step }</td></tr>
+        <tr><td class="tn">add_connector_table</td><td><span class="kind mut">MUT</span></td><td><code>diagram, connectors_md</code></td><td class="rsh">{ connectors, columns, anchor_x/y, table_width, path }</td></tr>
+        <tr><td class="tn">update_node</td><td><span class="kind mut">MUT</span></td><td><code>diagram, id, gcp_icon, clear_icon, …</code></td><td class="rsh">{ path }</td></tr>
+        <tr><td class="tn">remove_element</td><td><span class="kind mut">MUT</span></td><td><code>diagram, id</code></td><td class="rsh">{ removed, path }</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="ref">
+    <div class="ref-h"><span class="pin" style="background:linear-gradient(180deg,#0b57d0,#16a34a)"></span><span class="tt">Layout Constants — single source of truth</span><span class="sub2">all deterministic; change here, re-runs follow</span></div>
+    <div class="cgrid">
+      <div class="cu"><div class="name">_COLUMN_GAP</div><div class="val">140</div><div class="effect">px between swimlanes · add_container</div></div>
+      <div class="cu"><div class="name">_CONTAINER_CHILD_STRIDE</div><div class="val">200</div><div class="effect">px between stacked icons · add_node</div></div>
+      <div class="cu"><div class="name">_GRID_COL/ROW_STRIDE</div><div class="val">360/320</div><div class="effect">top-level wrap grid · add_node</div></div>
+      <div class="cu"><div class="name">_GCP_ICON_SIZE</div><div class="val">64</div><div class="effect">icon box px · add_node</div></div>
+      <div class="cu"><div class="name">_CORRIDOR_INSET</div><div class="val">70</div><div class="effect">half the column gap · add_edge</div></div>
+      <div class="cu"><div class="name">_LANE_BAND_HALF</div><div class="val">50</div><div class="effect">max sub-lane offset · add_edge</div></div>
+      <div class="cu"><div class="name">_BUSY_DEGREE_THRESHOLD</div><div class="val">3</div><div class="effect">edges → card border · add_edge</div></div>
+      <div class="cu"><div class="name">_FAN_OUT_SPREAD</div><div class="val">0.6</div><div class="effect">parallel spread · add_edge</div></div>
+      <div class="cu"><div class="name">label offset y</div><div class="val">−22</div><div class="effect">edge-label lift px · builder</div></div>
+      <div class="cu"><div class="name">swimlane size</div><div class="val">240×1080</div><div class="effect">default lane box · shapes</div></div>
+    </div>
+  </div>
+
+  <div class="ref">
+    <div class="ref-h"><span class="pin" style="background:linear-gradient(180deg,#64748b,#16a34a)"></span><span class="tt">Data Lineage — what produces what</span><span class="sub2">one prompt, fully reproducible</span></div>
+    <div class="lineage">
+      <div class="ln" style="--lc:#64748b"><div class="lf">jira-stories/&lt;KEY&gt;.txt</div><div class="lr">Raw business note (human input).</div></div>
+      <div class="lnar">▸</div>
+      <div class="ln" style="--lc:#d97706"><div class="lf">&lt;KEY&gt;-surgical.txt</div><div class="lr">Canonical brief · <code>normalize_jira_story.py</code>.</div></div>
+      <div class="lnar">▸</div>
+      <div class="ln" style="--lc:#16a34a"><div class="lf">diagrams/&lt;KEY&gt;-&lt;ts&gt;.drawio</div><div class="lr">Layered diagram · MCP tools (steps 5–8).</div></div>
+      <div class="lnar">▸</div>
+      <div class="ln" style="--lc:#d97706"><div class="lf">&lt;KEY&gt;-connectors.md</div><div class="lr">14-col contract · <code>generate_connector_details.py</code>.</div></div>
+      <div class="lnar">▸</div>
+      <div class="ln" style="--lc:#ca8a04"><div class="lf">table embedded in .drawio</div><div class="lr">In-canvas · <code>add_connector_table</code>.</div></div>
+    </div>
+  </div>
+
+  <div class="ref">
+    <div class="ref-h"><span class="pin" style="background:linear-gradient(180deg,#16a34a,#0891b2)"></span><span class="tt">Cross-Cutting Invariants</span><span class="sub2">hold across every stage</span></div>
+    <div class="inv">
+      <div class="ivc"><div class="ivt"><i></i>Round-trip fidelity</div><div class="ivd"><code>parser.py</code> preserves what <code>SHAPE_STYLES</code> can't rebuild: GCP image styles + swimlane colors (<code>raw_style</code>), edge <code>entry/exit</code> fractions, <code>&lt;Array&gt;</code> waypoints, and step badges — so load → mutate → save never loses prior work.</div></div>
+      <div class="ivc"><div class="ivt"><i style="background:#0891b2"></i>Path sandbox</div><div class="ivd"><code>DiagramStore</code> / <code>StoryStore</code> resolve every name against their root and raise on escape — Copilot can't read or write outside <code>diagrams/</code> &amp; <code>jira-stories/</code>.</div></div>
+      <div class="ivc"><div class="ivt"><i style="background:#ca8a04"></i>Idempotency</div><div class="ivd">The 4 <code>add_edge</code> passes clear stale keys before recomputing; <code>add_connector_table</code> drops <code>ctbl_</code> cells before re-laying — re-running converges, never duplicates.</div></div>
+      <div class="ivc"><div class="ivt"><i style="background:#be123c"></i>Two hard gates</div><div class="ivd"><code>verify_mcp.py</code> (exit 2 blocks delivery) and the <code>add_connector_table</code> zero-TBD pre-flight — a broken or half-documented diagram cannot ship.</div></div>
+      <div class="ivc"><div class="ivt"><i style="background:#7c3aed"></i>Transport hygiene</div><div class="ivd"><code>stdout</code> is reserved for MCP JSON-RPC; all logs/banners go to <code>stderr</code>. Handler exceptions are caught and returned as tool error text, never crashing the session.</div></div>
+      <div class="ivc"><div class="ivt"><i style="background:#64748b"></i>Determinism &amp; no-collide</div><div class="ivd">Layout is computed from the constants above; filenames carry a UTC timestamp so re-running a prompt never overwrites a prior diagram.</div></div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div><span class="author">Debajyoti Mukhopadhyay</span>&nbsp;·&nbsp;Low-Level Design&nbsp;·&nbsp;<a href="HLA.html">↗ High-Level Architecture</a></div>
+    <div class="stack">Python 3.13 · MCP · Pydantic · mxGraph XML · GitHub Copilot · GCP Icons · Shorthand Router · Policy Guardrail · Verifier</div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -19,6 +19,7 @@ GitHub Copilot Chat prompt.
 | `scripts/` | Cross-platform helpers | Install, verify, normalize Jira stories, generate connector-detail tables, retrofit existing diagrams |
 | `prompts/` | Copy-paste prompts | The 12-step `create-diagram.md` flow + the incremental `update-diagram.md` flow |
 | `logo_icon_gcp/` | 258 official GCP SVGs | Pluggable icon catalog — drop more SVG folders in to support AWS / Azure / on-prem |
+| `policy/unavailable_services.md` | Governance guardrail | Editable list of disallowed services — checked before any diagram is written; the assistant proposes an approved alternative and asks you to pick |
 | `.vscode/mcp.json` | VS Code wiring | Tells Copilot how to launch the local server |
 | `.github/copilot-instructions.md` | Repo-wide rules | Auto-attached to every Copilot Chat turn |
 
@@ -57,6 +58,27 @@ Full step-by-step is in [`docs/installation.md`](docs/installation.md).
 
 ## Day-to-day usage
 
+The fastest path is the **plain-English shorthand** — drop your story in
+`jira-stories/` and just tell Copilot Chat what you want, no long prompt
+to paste:
+
+```
+Jira: PROJ-123.txt, based on the jira pls create a diagram
+Jira: PROJ-123.txt, based on the jira pls update a diagram
+Jira: PROJ-123.txt, PROJ-124.txt, based on the jira pls create a diagram
+```
+
+Copilot recognizes the shorthand (rule lives in
+[`.github/copilot-instructions.md`](.github/copilot-instructions.md)),
+figures out **create vs. update**, **which story file(s)**, and (for an
+update) **which diagram** to patch, then runs the full backend flow
+(`prompts/create-diagram.md` or `prompts/update-diagram.md`) end-to-end.
+For an update with no diagram named, it auto-picks the one matching the
+Jira key, or asks if there's more than one.
+
+Under the hood that expands to the same pipeline you can also drive
+manually:
+
 ```
 1. Drop a business requirement into  jira-stories/<KEY>.txt
 2. Normalize it:                     ./scripts/linux/normalize.sh <KEY>
@@ -83,6 +105,8 @@ architecture_building_ai_solution/
 │   ├── src/drawio_mcp_server/      (server, tools, drawio adapter, util)
 │   └── tests/
 ├── logo_icon_gcp/                  (258 official GCP SVG icons)
+├── policy/
+│   └── unavailable_services.md     (disallowed services — checked before every diagram)
 ├── scripts/                        (cross-platform helpers + per-OS wrappers)
 │   ├── normalize_jira_story.py     (raw prose → 10-section surgical doc)
 │   ├── verify_mcp.py               (pre-finalization health check)

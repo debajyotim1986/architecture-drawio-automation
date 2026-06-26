@@ -76,6 +76,26 @@ Please:
 3. Compare the two and produce a short plan listing exactly what should be
    added, renamed, removed, or reconnected. **Wait for me to approve the
    plan** before making changes.
+   - **Restricted-service guardrail (MANDATORY).** Before presenting the
+     plan, check every **newly added** component (its label AND the
+     `gcp_icon` you intend to use) against
+     [`policy/unavailable_services.md`](../policy/unavailable_services.md)
+     (case/space/underscore-insensitive, alias-aware). If any newly added
+     component matches a restricted service, do NOT put it in the plan —
+     instead offer alternatives drawn **only** from the
+     `alternate1`–`alternate4` candidates in the **Service alternatives
+     reference** table in that same file (the restricted list itself has no
+     alternatives), **ranked by how well each fits this Jira story's
+     scenario**, best fit first;
+     **drop any candidate that is itself restricted** and take the next
+     allowed one, continuing down the chain if all four are restricted so
+     only non-restricted services are ever offered)
+     and **ask me which replacement to use** (one numbered option group per
+     restricted service). STOP and wait for my choice, then build the plan
+     with the approved service substituted in. Never place a restricted
+     service and never pick the alternative for me. (Existing nodes already
+     in the diagram are out of scope for this gate unless the plan adds or
+     swaps them.)
 4. After I approve, apply the plan one tool call at a time:
    - `add_node` for new components,
    - `add_edge` for new connections,

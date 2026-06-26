@@ -8,7 +8,149 @@ diagram so it reflects the requirement in that story.
 You have access to the `drawio` MCP server. Use **only** its tools to read
 and write `.drawio` files — never hand-edit the XML.
 
+## Quick-command shorthand (preferred entry point)
+
+Most of the time the user will **not** paste a long prompt. They will type a
+short, natural-language instruction that names one or more Jira story files
+and says whether to create or update a diagram. Examples:
+
+- `Jira: PROJ-123.txt, based on the jira pls create a diagram`
+- `Jira: PROJ-123.txt, based on the jira pls update a diagram`
+- `Jira: PROJ-123.txt, PROJ-124.txt, based on the jira pls create a diagram`
+
+When a message looks like this, **do not** ask the user for the long prompt.
+Parse the instruction yourself and run the matching backend flow. The rest
+of the pipeline (normalize → read_story → create/patch → verify → connector
+table) is unchanged — you are only auto-selecting which prompt to run and
+filling in its placeholders.
+
+**1. Detect the action.**
+- Words like "create", "new", "build", "make", "generate" → **CREATE** flow.
+- Words like "update", "modify", "change", "edit", "patch", "revise" →
+  **UPDATE** flow.
+- If it is genuinely ambiguous (both or neither appear), ask one short
+  question: *"Create a new diagram or update an existing one?"* — then proceed.
+
+**2. Extract the story file(s).**
+- Take every Jira-story filename in the message (comma- or space-separated).
+  Accept them with or without the `.txt` extension and in any case —
+  `PROJ-123.TXT`, `PROJ-123.txt`, and `PROJ-123` all mean the same file.
+- Normalize each to the real filename under `jira-stories/` (call
+  `list_stories` if you need to confirm exact casing). These are the **raw**
+  input stories — never the generated `-surgical.txt` / `-connectors.md`.
+- If a named story file does not exist under `jira-stories/`, stop and tell
+  the user exactly which one is missing.
+
+**3. (UPDATE only) Resolve the target diagram.**
+- If the message names a `.drawio` file, use it.
+- Otherwise call `list_diagrams` and match by Jira key (story `PROJ-123` →
+  diagrams whose name starts with `PROJ-123-`):
+  - **Exactly one match** → use it.
+  - **No match** → tell the user there is no existing diagram for that key
+    and offer to run the CREATE flow instead.
+  - **Several matches** → list them and ask which one to update.
+
+**4. Expand to the full backend flow and execute it as-is.**
+Open the matching prompt file in this repo and follow it end-to-end exactly
+as if the user had pasted it:
+- **CREATE, one story** → follow [`prompts/create-diagram.md`](../prompts/create-diagram.md)
+  (the single-story body between the `COPY FROM HERE` / `STOP COPYING HERE`
+  markers), substituting `{{STORY_FILE}}` with the resolved filename.
+- **CREATE, multiple stories** → follow `prompts/create-diagram.md`, but
+  apply it to **exactly the listed stories** (not "every story in
+  `jira-stories/`"): normalize each, `read_story` each `-surgical.txt`,
+  synthesise the combined component/flow set across all of them, then call
+  `create_diagram` **once** with `jira_key` set to the lowest key in the batch.
+- **UPDATE, one story** → follow [`prompts/update-diagram.md`](../prompts/update-diagram.md)
+  (single-story body), substituting `{{STORY_FILE}}` and `{{DIAGRAM_FILE}}`.
+- **UPDATE, multiple stories** → follow the multi-story flow in
+  `prompts/update-diagram.md` against the resolved diagram, applying exactly
+  the listed stories in natural-ascending key order.
+
+Echo your interpretation in one line before the first mutating call — e.g.
+*"Interpreting: CREATE a new diagram from PROJ-123.txt — normalizing now."*
+Then proceed. (UPDATE still pauses for plan approval per `update-diagram.md`
+step 3.) Whichever flow you run, the **Restricted-service guardrail** below
+is mandatory before any node is written.
+
+## Restricted-service guardrail (run BEFORE writing any diagram)
+
+> ⛔ **HARD MANDATE — do not skip, ever.** You MUST open and read
+> [`policy/unavailable_services.md`](../policy/unavailable_services.md) and
+> run this check **before the first `create_diagram` / `add_container` /
+> `add_node` / `add_edge` call** in every create or update flow. Building a
+> diagram without having run the guardrail, or placing a restricted service
+> without the user's **explicit** replacement choice, is a defect — not a
+> shortcut. If any planned component is restricted, you must **stop, present
+> every candidate replacement, and WAIT for the user to pick** before you
+> create anything. Do not assume, do not pick for them, do not proceed on
+> "it's probably fine".
+
+Some cloud services are **not allowed** in diagrams produced by this repo.
+The disallowed list lives in
+[`policy/unavailable_services.md`](../policy/unavailable_services.md). This
+gate runs in **both** the create and update flows, **after** you have
+identified the components implied by the story and **before** you write any
+node (i.e. before `create_diagram` in the create flow, and as part of the
+change plan in the update flow).
+
+**Procedure — every time, no exceptions:**
+
+1. **Read** `policy/unavailable_services.md` and build the set of
+   restricted service names (include each entry's **Aliases**).
+2. **Check** every planned component — its label AND the `gcp_icon` you
+   intend to use — against that set. Matching is **case / space /
+   underscore-insensitive** (`Cloud Functions` = `cloud_functions` =
+   `CLOUDFUNCTIONS`), and matches on the restricted name or any alias.
+3. **If nothing matches → proceed silently.** This gate is invisible for a
+   compliant design; do not mention it.
+4. **If one or more planned components match a restricted service:**
+   - Do **not** create, place, or write a node for the restricted service.
+   - Gather alternatives **only** from the **Service alternatives
+     reference** table in `policy/unavailable_services.md` — the restricted
+     list itself carries no alternatives:
+     1. Look the matched service up in that table; its
+        `alternate1`–`alternate4` are the candidates. **Use the Jira story
+        scenario** (data volume, latency, batch vs. streaming, statefulness,
+        compliance, components already chosen) to **rank those four** and
+        recommend the best fit, with a one-line reason.
+     2. Only if the matched service has no row at all in that table, propose
+        2–3 similar in-scope services from your own knowledge.
+   - **Drop any candidate that is itself restricted** (check every
+     candidate against the restricted list, alias-aware) — both reference-
+     table entries and own-knowledge fallbacks alike. Skip a restricted
+     candidate and take the next one; if all four table candidates are
+     restricted, keep going down the chain (alternates of the adjacent
+     allowed services in the same reference table) until you have **only
+     non-restricted** options. Never present a restricted service as
+     an alternative. If no allowed replacement exists, say so and ask the
+     user how to proceed.
+   - **Ask the user to choose**, in one clear prompt. List each restricted
+     service with its numbered candidate alternatives (best fit first), e.g.:
+
+         "Cloud Functions (1st gen)" is restricted by policy. Pick a
+         replacement:
+           1. Cloud Run
+           2. Cloud Functions (2nd gen)
+         (reply with a number, or name another approved service)
+
+   - **STOP and wait** for the user's selection. Do not continue the flow,
+     create the diagram, or add any node until they reply.
+   - Once they choose, substitute the approved service (label + `gcp_icon`)
+     into your plan and proceed with the rest of the flow as normal.
+5. **Never** silently place a restricted service, and **never** silently
+   pick an alternative on the user's behalf. The substitution is always the
+   user's explicit choice.
+
+If multiple restricted services are detected, list them all in a single
+prompt (one numbered option group per restricted service) so the user makes
+all choices at once, then proceed.
+
 ## Decision flow
+
+If the user used the **Quick-command shorthand** above, the action and inputs
+are already decided — jump straight to the matching prompt flow. Otherwise,
+fall back to the general flow:
 
 1. **Read the requirement.** If the user attached a story file path under
    `jira-stories/`, call `read_story` with that filename. If they pasted the

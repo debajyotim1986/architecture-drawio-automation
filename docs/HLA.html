@@ -173,11 +173,11 @@
 
   .track { position: relative; }
   .track-line {
-    position: absolute; left: 7.143%; right: 7.143%; top: 90px; height: 4px; border-radius: 2px;
-    background: linear-gradient(90deg,#64748b 0%,#d97706 20%,#7c3aed 38%,#ca8a04 55%,#dc2626 68%,#d97706 82%,#16a34a 100%);
+    position: absolute; left: 5.556%; right: 5.556%; top: 90px; height: 4px; border-radius: 2px;
+    background: linear-gradient(90deg,#64748b 0%,#7c3aed 14%,#d97706 28%,#7c3aed 42%,#dc2626 52%,#ca8a04 66%,#dc2626 78%,#d97706 88%,#16a34a 100%);
     z-index: 0;
   }
-  .stations { display: grid; grid-template-columns: repeat(7,1fr); position: relative; z-index: 1; }
+  .stations { display: grid; grid-template-columns: repeat(9,1fr); position: relative; z-index: 1; }
   .st-col { display: flex; flex-direction: column; align-items: center; padding: 0 7px; }
   .plain { height: 72px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; text-align: center; }
   .plain .em { font-size: 21px; line-height: 1; }
@@ -246,6 +246,38 @@
   .fstack { margin-top:16px; display:flex; gap:6px; flex-wrap:wrap; position:relative; z-index:1; }
   .ftag { font-size:10px; font-weight:700; color:#bfe9ff; background:rgba(34,211,238,0.10); border:1px solid rgba(125,211,252,0.32); border-radius:6px; padding:3px 9px; }
 
+  /* ===== Technical Flow (prompt → delivery, exhaustive) ===== */
+  .tflow { margin-top: 18px; background: var(--glass); border-radius: 18px; padding: 18px 22px 22px; box-shadow: 0 18px 38px -20px rgba(2,6,23,0.85); border: 1px solid rgba(255,255,255,0.6); }
+  .tflow-h { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .tflow-h .pin { width:6px; height:18px; border-radius:3px; background:linear-gradient(180deg,#0b57d0,#dc2626); }
+  .tflow-h .tt { font-size:16px; font-weight:800; color:var(--ink); letter-spacing:-0.2px; }
+  .tflow-h .stats { margin-left:auto; display:flex; gap:8px; }
+  .tflow-h .tstat { background:linear-gradient(135deg,#0f172a,#334155); color:#fff; border-radius:10px; padding:7px 12px; text-align:center; min-width:60px; box-shadow:0 8px 18px -10px rgba(2,6,23,0.7); }
+  .tflow-h .tstat .v { font-size:17px; font-weight:800; line-height:1; }
+  .tflow-h .tstat .l { font-size:8.5px; letter-spacing:1px; text-transform:uppercase; opacity:0.85; margin-top:3px; }
+  .tflow-sub { font-size:11.5px; color:var(--muted); margin:6px 0 14px; max-width:990px; }
+  .tflow-legend { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; }
+  .tflow-legend .tl2 { display:inline-flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700; color:#334155; border:1px solid var(--line); border-radius:999px; padding:3px 10px; background:#f8fafc; }
+  .tflow-legend .tl2 i { width:9px; height:9px; border-radius:3px; display:inline-block; }
+  .tsteps { display:flex; flex-direction:column; }
+  .tstep { display:grid; grid-template-columns:34px 1fr; gap:14px; position:relative; }
+  .tstep:not(:last-child)::before { content:""; position:absolute; left:16px; top:30px; bottom:-4px; width:2px; background:linear-gradient(180deg,var(--sc,#0b57d0),rgba(148,163,184,0.30)); }
+  .tstep .tnum { width:34px; height:34px; border-radius:50%; background:var(--sc,#0b57d0); color:#fff; font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center; z-index:1; box-shadow:0 4px 10px -4px rgba(2,6,23,0.6); }
+  .tcard { border:1px solid var(--line); border-left:3px solid var(--sc,#0b57d0); border-radius:12px; padding:11px 14px; margin-bottom:14px; background:#fff; box-shadow:0 8px 22px -16px rgba(2,6,23,0.5); }
+  .tcard .th { display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+  .tcard .th .nm { font-size:13px; font-weight:800; color:var(--ink); letter-spacing:-0.2px; }
+  .tcard .th .who { font-size:8.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; color:#fff; padding:2px 8px; border-radius:999px; background:var(--sc,#0b57d0); }
+  .tcard .th .stepref { margin-left:auto; font-size:9.5px; color:var(--muted); font-weight:700; white-space:nowrap; }
+  .tcard .tdesc { font-size:10.5px; color:#475569; line-height:1.45; margin:6px 0 9px; }
+  .tmeta { display:grid; grid-template-columns:repeat(2,1fr); gap:5px 18px; }
+  .tmeta .mrow { display:grid; grid-template-columns:60px 1fr; gap:8px; align-items:baseline; font-size:10px; }
+  .tmeta .mrow.full { grid-column:1 / -1; }
+  .tmeta .mk { font-size:8.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); padding-top:1px; }
+  .tmeta .mv { color:#475569; line-height:1.45; }
+  .tmeta .mv code { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:9.5px; color:#1e293b; background:#f1f5f9; padding:1px 5px; border-radius:4px; }
+  .tmeta .mv.gate { color:#b91c1c; font-weight:700; }
+  .tmeta .mv.llm { color:#0369a1; font-weight:700; }
+
   /* ===== Complete component map ===== */
   .cmap { margin-top: 18px; background: var(--glass); border-radius: 18px; padding: 18px 22px 22px; box-shadow: 0 18px 38px -20px rgba(2,6,23,0.85); border: 1px solid rgba(255,255,255,0.6); }
   .cmap-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -295,9 +327,11 @@
       <div class="eyebrow">High-Level Architecture · MCP · GitHub Copilot</div>
       <h1 class="h1">AI Architecture-Diagram <span class="glow">Copilot</span></h1>
       <p class="sub">A local Model-Context-Protocol server that turns a Jira requirement into a deck-quality
-      draw.io diagram. GitHub Copilot in VS Code speaks MCP over stdio to a registry of 13 intent-level tools; a domain
-      adapter renders mxGraph XML; everything is written through a path-sandboxed file store. An offline CLI
-      toolchain normalizes the requirement, fills the connector contract, and gates quality before delivery.</p>
+      draw.io diagram. A one-line plain-English instruction routes to the right backend prompt; a policy
+      guardrail swaps out restricted services before anything is drawn. GitHub Copilot in VS Code speaks MCP
+      over stdio to a registry of 13 intent-level tools; a domain adapter renders mxGraph XML; everything is
+      written through a path-sandboxed file store. An offline CLI toolchain normalizes the requirement, fills
+      the connector contract, and gates quality before delivery.</p>
       <div class="legend-top">
         <span class="lt"><i style="background:#3b82f6"></i>Client plane</span>
         <span class="lt"><i style="background:#d97706"></i>Server core</span>
@@ -469,9 +503,23 @@
         </div>
       </div>
 
+      <div class="panel rail-gov">
+        <h3><span class="pin" style="background:#be123c"></span>Governance — Restricted Services</h3>
+        <div class="scard">
+          <div class="st">policy/unavailable_services.md</div>
+          <div class="sd"><code>service name · aliases</code> ban list + a separate 94-row <code>alternate1–4</code> reference table — the only source of replacements.</div>
+        </div>
+        <ul class="xlist" style="margin-top:8px">
+          <li><b>Hard mandate</b> — read &amp; checked before the first tool call (create &amp; update)</li>
+          <li>Alternates <b>ranked by the Jira scenario</b>; restricted ones skipped</li>
+          <li><b>Stops &amp; asks</b> — presents every option and waits for your pick</li>
+        </ul>
+      </div>
+
       <div class="panel rail-x">
         <h3><span class="pin"></span>Cross-Cutting Guarantees</h3>
         <ul class="xlist">
+          <li><b>Restricted-service guardrail</b> — mandatory pre-build gate; stops to ask which approved service to use before any node is drawn</li>
           <li><b>Path sandbox</b> — stores reject any path outside their root</li>
           <li><b>Verifier gate</b> — exit-2 blocks delivery of a broken diagram</li>
           <li><b>Zero-TBD guard</b> — table refuses to embed if any cell is unfilled</li>
@@ -510,8 +558,19 @@
 
         <!-- 2 -->
         <div class="st-col">
+          <div class="plain"><span class="em">⚡</span><span class="pt">You ask in one short line</span></div>
+          <div class="dot" style="border-color:#7c3aed">2</div>
+          <div class="tech" style="border-top-color:#7c3aed">
+            <div class="tl">Route</div>
+            <div class="tw">copilot-instructions → create / update prompt</div>
+            <span class="ac" style="background:#7c3aed">AI</span>
+          </div>
+        </div>
+
+        <!-- 3 -->
+        <div class="st-col">
           <div class="plain"><span class="em">📝</span><span class="pt">It becomes a clear technical brief</span></div>
-          <div class="dot" style="border-color:#d97706">2</div>
+          <div class="dot" style="border-color:#d97706">3</div>
           <div class="tech" style="border-top-color:#d97706">
             <div class="tl">Normalize</div>
             <div class="tw">normalize_jira_story.py → &lt;KEY&gt;-surgical.txt</div>
@@ -519,10 +578,10 @@
           </div>
         </div>
 
-        <!-- 3 -->
+        <!-- 4 -->
         <div class="st-col">
           <div class="plain"><span class="em">🧠</span><span class="pt">The AI reads it and plans the layout</span></div>
-          <div class="dot" style="border-color:#7c3aed">3</div>
+          <div class="dot" style="border-color:#7c3aed">4</div>
           <div class="tech" style="border-top-color:#7c3aed">
             <div class="tl">Understand</div>
             <div class="tw">read_story · read_diagram_summary</div>
@@ -530,10 +589,21 @@
           </div>
         </div>
 
-        <!-- 4 -->
+        <!-- 5 -->
+        <div class="st-col">
+          <div class="plain"><span class="em">🛡️</span><span class="pt">Restricted services? It stops and asks you to pick</span></div>
+          <div class="dot" style="border-color:#be123c">5</div>
+          <div class="tech" style="border-top-color:#be123c">
+            <div class="tl">Guardrail · mandatory gate</div>
+            <div class="tw">policy/unavailable_services.md → STOP · present options · wait</div>
+            <span class="ac" style="background:#be123c">AI · Gate</span>
+          </div>
+        </div>
+
+        <!-- 6 -->
         <div class="st-col">
           <div class="plain"><span class="em">🎨</span><span class="pt">The diagram is drawn — layers, icons, arrows</span></div>
-          <div class="dot" style="border-color:#ca8a04">4</div>
+          <div class="dot" style="border-color:#ca8a04">6</div>
           <div class="tech" style="border-top-color:#ca8a04">
             <div class="tl">Build</div>
             <div class="tw">create_diagram → add_container → add_node(gcp_icon) → add_edge</div>
@@ -541,10 +611,10 @@
           </div>
         </div>
 
-        <!-- 5 -->
+        <!-- 7 -->
         <div class="st-col">
-          <div class="plain"><span class="em">🛡️</span><span class="pt">An automatic check catches any mistakes</span></div>
-          <div class="dot" style="border-color:#dc2626">5</div>
+          <div class="plain"><span class="em">🔎</span><span class="pt">An automatic check catches any mistakes</span></div>
+          <div class="dot" style="border-color:#dc2626">7</div>
           <div class="tech" style="border-top-color:#dc2626">
             <div class="tl">Verify · gate</div>
             <div class="tw">verify_mcp.py &nbsp;(exit 2 = stop)</div>
@@ -552,10 +622,10 @@
           </div>
         </div>
 
-        <!-- 6 -->
+        <!-- 8 -->
         <div class="st-col">
           <div class="plain"><span class="em">📋</span><span class="pt">Connection details are documented in a table</span></div>
-          <div class="dot" style="border-color:#d97706">6</div>
+          <div class="dot" style="border-color:#d97706">8</div>
           <div class="tech" style="border-top-color:#d97706">
             <div class="tl">Document</div>
             <div class="tw">generate_connector_details.py → &lt;KEY&gt;-connectors.md</div>
@@ -563,10 +633,10 @@
           </div>
         </div>
 
-        <!-- 7 -->
+        <!-- 9 -->
         <div class="st-col">
           <div class="plain"><span class="em">✅</span><span class="pt">You get a polished, ready-to-present diagram</span></div>
-          <div class="dot" style="border-color:#16a34a">7</div>
+          <div class="dot" style="border-color:#16a34a">9</div>
           <div class="tech" style="border-top-color:#16a34a">
             <div class="tl">Deliver</div>
             <div class="tw">add_connector_table → &lt;KEY&gt;-&lt;ts&gt;.drawio</div>
@@ -575,6 +645,213 @@
         </div>
 
       </div>
+    </div>
+  </div>
+
+  <!-- ===== TECHNICAL FLOW (prompt → delivery, exhaustive) ===== -->
+  <div class="tflow">
+    <div class="tflow-h">
+      <span class="pin"></span>
+      <span class="tt">Technical Flow — Prompt to Delivery, Every Stage</span>
+      <div class="stats">
+        <div class="tstat"><div class="v">13</div><div class="l">stages</div></div>
+        <div class="tstat"><div class="v">13</div><div class="l">MCP tools</div></div>
+        <div class="tstat"><div class="v">2</div><div class="l">LLMs</div></div>
+      </div>
+    </div>
+    <p class="tflow-sub">The complete chain from a one-line chat prompt to the finished <code>.drawio</code> — every code file, MCP tool, CLI script, LLM call and Markdown document that participates, in order. Stage numbers mirror the steps in <code>prompts/create-diagram.md</code> so nothing is skipped.</p>
+    <div class="tflow-legend">
+      <span class="tl2"><i style="background:#64748b"></i>Human</span>
+      <span class="tl2"><i style="background:#7c3aed"></i>AI · GitHub Copilot</span>
+      <span class="tl2"><i style="background:#0369a1"></i>LLM · Claude (optional)</span>
+      <span class="tl2"><i style="background:#ca8a04"></i>MCP tool</span>
+      <span class="tl2"><i style="background:#d97706"></i>CLI script</span>
+      <span class="tl2"><i style="background:#be123c"></i>Gate / guardrail</span>
+    </div>
+
+    <div class="tsteps">
+
+      <!-- 0 -->
+      <div class="tstep" style="--sc:#64748b">
+        <div class="tnum">0</div>
+        <div class="tcard">
+          <div class="th"><span class="nm">Prompt — plain-English shorthand</span><span class="who">Human</span><span class="stepref">entry point</span></div>
+          <div class="tdesc">You type one line in GitHub Copilot Chat — e.g. <code>Jira: PROJ-123.txt, … create a diagram</code>. No long prompt is pasted.</div>
+          <div class="tmeta">
+            <div class="mrow"><span class="mk">Wiring</span><span class="mv"><code>.vscode/mcp.json</code></span></div>
+            <div class="mrow"><span class="mk">Enables</span><span class="mv"><code>.vscode/settings.json</code> · useInstructionFiles</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1 -->
+      <div class="tstep" style="--sc:#7c3aed">
+        <div class="tnum">1</div>
+        <div class="tcard">
+          <div class="th"><span class="nm">Intent routing</span><span class="who">AI · Copilot</span><span class="stepref">shorthand rule</span></div>
+          <div class="tdesc">Copilot matches the shorthand, derives the action (create vs. update), the story file(s) and — for an update — the target diagram, then selects the backend prompt to follow.</div>
+          <div class="tmeta">
+            <div class="mrow full"><span class="mk">Reads</span><span class="mv"><code>.github/copilot-instructions.md</code> → "Quick-command shorthand"</span></div>
+            <div class="mrow"><span class="mk">Runs</span><span class="mv"><code>list_stories</code> · <code>list_diagrams</code></span></div>
+            <div class="mrow"><span class="mk">Update tgt</span><span class="mv">1 match → use · 0 → offer create · many → ask</span></div>
+            <div class="mrow full"><span class="mk">Picks</span><span class="mv"><code>prompts/create-diagram.md</code> or <code>prompts/update-diagram.md</code></span></div>
+            <div class="mrow"><span class="mk">LLM</span><span class="mv llm">GitHub Copilot</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2 -->
+      <div class="tstep" style="--sc:#d97706">
+        <div class="tnum">2</div>
+        <div class="tcard">
+          <div class="th"><span class="nm">Normalize story</span><span class="who">CLI</span><span class="stepref">prompt step 0</span></div>
+          <div class="tdesc">Raw note → canonical surgical brief. UPDATE mode embeds the live diagram summary so the brief quotes current node/edge labels verbatim.</div>
+          <div class="tmeta">
+            <div class="mrow"><span class="mk">Runs</span><span class="mv"><code>scripts/normalize_jira_story.py</code></span></div>
+            <div class="mrow full"><span class="mk">Reads</span><span class="mv"><code>jira-stories/&lt;KEY&gt;.txt</code> · <code>template/surgical-story-template.txt</code></span></div>
+            <div class="mrow full"><span class="mk">LLM</span><span class="mv llm">Anthropic Claude if <code>ANTHROPIC_API_KEY</code> — else verbatim copy / delegate to Copilot</span></div>
+            <div class="mrow full"><span class="mk">Writes</span><span class="mv"><code>jira-stories/&lt;KEY&gt;-surgical.txt</code> (+ <code>.bak</code>)</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3 -->
+      <div class="tstep" style="--sc:#7c3aed">
+        <div class="tnum">3</div>
+        <div class="tcard">
+          <div class="th"><span class="nm">Read &amp; plan</span><span class="who">AI · MCP</span><span class="stepref">prompt steps 1–2</span></div>
+          <div class="tdesc">Loads the surgical brief (and current topology on an update) and identifies components, layers and the data flow.</div>
+          <div class="tmeta">
+            <div class="mrow full"><span class="mk">Runs</span><span class="mv"><code>read_story</code> → read_story.py → story_store.py</span></div>
+            <div class="mrow full"><span class="mk">Runs</span><span class="mv"><code>read_diagram_summary</code> → read_summary.py → parser.py → summarize.py</span></div>
+            <div class="mrow"><span class="mk">LLM</span><span class="mv llm">GitHub Copilot</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 -->
+      <div class="tstep" style="--sc:#be123c">
+        <div class="tnum">4</div>
+        <div class="tcard">
+          <div class="th"><span class="nm">Restricted-service guardrail</span><span class="who">AI · Gate</span><span class="stepref">prompt step 2a</span></div>
+          <div class="tdesc">Every planned component + <code>gcp_icon</code> is checked against policy. On a hit, allowed alternates are ranked for the Jira scenario, any alternate that is itself restricted is skipped (cascades to the next allowed one), and the flow pauses for your pick.</div>
+          <div class="tmeta">
+            <div class="mrow full"><span class="mk">Reads</span><span class="mv"><code>policy/unavailable_services.md</code> — restricted list + Service alternatives reference (94 services × 4)</span></div>
+            <div class="mrow"><span class="mk">LLM</span><span class="mv llm">GitHub Copilot — ranks &amp; asks</span></div>
+            <div class="mrow"><span class="mk">Gate</span><span class="mv gate">no node written until you confirm</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5 -->
+      <div class="tstep" style="--sc:#ca8a04">
+        <div class="tnum">5</div>
+        <div class="tcard">
+          <div class="th"><span class="nm">Create diagram</span><span class="who">MCP</span><span class="stepref">prompt step 3</span></div>
+          <div class="tdesc">A new, timestamped, empty diagram shell is created so re-runs never overwrite prior diagrams.</div>
+          <div class="tmeta">
+            <div class="mrow full"><span class="mk">Runs</span><span class="mv"><code>create_diagram(jira_key=…)</code> → create_diagram.py → diagram_store.save → builder.py</span></div>
+            <div class="mrow full"><span class="mk">Writes</span><span class="mv"><code>diagrams/&lt;KEY&gt;-&lt;ts&gt;.drawio</code> (empty)</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6 -->
+      <div class="tstep" style="--sc:#ca8a04">
+        <div class="tnum">6</div>
+        <div class="tcard">
+          <div class="th"><span class="nm">Layer swimlanes</span><span class="who">MCP</span><span class="stepref">prompt step 5</span></div>
+          <div class="tdesc">4–6 colored swimlanes, left-to-right, one per architectural layer — built before any node.</div>
+          <div class="tmeta">
+            <div class="mrow full"><span class="mk">Runs</span><span class="mv"><code>add_container</code> ×N → add_container.py → shapes.py</span></div>
+            <div class="mrow full"><span class="mk">Const</span><span class="mv"><code>SWIMLANE_COLORS</code> · <code>_COLUMN_GAP = 140</code></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7 -->
+      <div class="tstep" style="--sc:#ca8a04">
+        <div class="tnum">7</div>
+        <div class="tcard">
+          <div class="th"><span class="nm">Place nodes + icons</span><span class="who">MCP</span><span class="stepref">prompt steps 6–7</span></div>
+          <div class="tdesc">Each component nests in its swimlane; GCP services resolve to the official SVG icon. Forgotten icons auto-detect from the label; remaining misses are fixed with <code>update_node</code>.</div>
+          <div class="tmeta">
+            <div class="mrow full"><span class="mk">Runs</span><span class="mv"><code>add_node(gcp_icon, parent_id)</code> · <code>update_node</code> → add_node.py → gcp_icons.py</span></div>
+            <div class="mrow full"><span class="mk">Reads</span><span class="mv"><code>logo_icon_gcp/</code> — 258 official SVGs + alias map + 9 placeholders → URL-encoded data-URI</span></div>
+            <div class="mrow"><span class="mk">Const</span><span class="mv"><code>DEFAULT_SIZE</code> · <code>_CHILD_STRIDE = 200</code></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8 -->
+      <div class="tstep" style="--sc:#ca8a04">
+        <div class="tnum">8</div>
+        <div class="tcard">
+          <div class="th"><span class="nm">Connect edges</span><span class="who">MCP</span><span class="stepref">prompt step 8</span></div>
+          <div class="tdesc">Directed, auto-numbered connectors. Four routing passes keep arrows off icons and fan out parallels.</div>
+          <div class="tmeta">
+            <div class="mrow full"><span class="mk">Runs</span><span class="mv"><code>add_edge</code> → add_edge.py → types.py</span></div>
+            <div class="mrow full"><span class="mk">Passes</span><span class="mv">parallel endpoints · waypoints · lane deconflict · busy-node card</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 9 -->
+      <div class="tstep" style="--sc:#dc2626">
+        <div class="tnum">9</div>
+        <div class="tcard">
+          <div class="th"><span class="nm">Verify gate</span><span class="who">CLI · Gate</span><span class="stepref">prompt step 9</span></div>
+          <div class="tdesc">Hard pre-finalization gate; nothing ships on a failure.</div>
+          <div class="tmeta">
+            <div class="mrow full"><span class="mk">Runs</span><span class="mv"><code>scripts/verify_mcp.py --diagram &lt;file&gt;</code></span></div>
+            <div class="mrow full"><span class="mk">Checks</span><span class="mv">13-tool registry · dangling edges · duplicate labels · GCP-icon coverage · arrowheads · parallel fan-out</span></div>
+            <div class="mrow"><span class="mk">Gate</span><span class="mv gate">exit 0 → go · exit 2 → fix &amp; re-run</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 10 -->
+      <div class="tstep" style="--sc:#d97706">
+        <div class="tnum">10</div>
+        <div class="tcard">
+          <div class="th"><span class="nm">Connector details</span><span class="who">CLI</span><span class="stepref">prompt step 10</span></div>
+          <div class="tdesc">Fills the 14-column integration contract — every cell concrete, zero <code>{TBD}</code>.</div>
+          <div class="tmeta">
+            <div class="mrow full"><span class="mk">Runs</span><span class="mv"><code>scripts/generate_connector_details.py --diagram &lt;file&gt; --story &lt;KEY&gt;-surgical.txt</code></span></div>
+            <div class="mrow full"><span class="mk">Reads</span><span class="mv"><code>&lt;KEY&gt;-surgical.txt</code> · <code>docs/connector-details-template.md</code> (schema)</span></div>
+            <div class="mrow full"><span class="mk">LLM</span><span class="mv llm">Anthropic Claude (optional refine) — else rule-fill / delegate to Copilot</span></div>
+            <div class="mrow full"><span class="mk">Writes</span><span class="mv"><code>jira-stories/&lt;KEY&gt;-connectors.md</code></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 11 -->
+      <div class="tstep" style="--sc:#ca8a04">
+        <div class="tnum">11</div>
+        <div class="tcard">
+          <div class="th"><span class="nm">Embed table</span><span class="who">MCP</span><span class="stepref">prompt step 11</span></div>
+          <div class="tdesc">Renders the same contract as an in-canvas 14-column table below the swimlanes.</div>
+          <div class="tmeta">
+            <div class="mrow full"><span class="mk">Runs</span><span class="mv"><code>add_connector_table</code> → add_connector_table.py → diagram_store</span></div>
+            <div class="mrow full"><span class="mk">Reads</span><span class="mv"><code>jira-stories/&lt;KEY&gt;-connectors.md</code> — zero-TBD pre-flight guard</span></div>
+            <div class="mrow"><span class="mk">Writes</span><span class="mv">table cells into the <code>.drawio</code></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 12 -->
+      <div class="tstep" style="--sc:#16a34a">
+        <div class="tnum">12</div>
+        <div class="tcard">
+          <div class="th"><span class="nm">Deliver</span><span class="who">AI · MCP</span><span class="stepref">prompt step 12</span></div>
+          <div class="tdesc">Copilot posts a bullet summary of what it built; you open the diagram in the draw.io extension.</div>
+          <div class="tmeta">
+            <div class="mrow"><span class="mk">Renders</span><span class="mv">VS Code draw.io extension</span></div>
+            <div class="mrow full"><span class="mk">Artifacts</span><span class="mv"><code>&lt;KEY&gt;-surgical.txt</code> · <code>&lt;KEY&gt;-&lt;ts&gt;.drawio</code> · <code>&lt;KEY&gt;-connectors.md</code></span></div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -680,8 +957,8 @@
       <span class="pin"></span>
       <span class="tt">Complete Component Map — every file, by layer</span>
       <div class="stats">
-        <div class="cstat"><div class="v">73</div><div class="l">files</div></div>
-        <div class="cstat"><div class="v">11</div><div class="l">layers</div></div>
+        <div class="cstat"><div class="v">74</div><div class="l">files</div></div>
+        <div class="cstat"><div class="v">12</div><div class="l">layers</div></div>
         <div class="cstat"><div class="v">13</div><div class="l">MCP tools</div></div>
       </div>
     </div>
@@ -724,7 +1001,7 @@
           <div class="crow"><div class="cfn">parser.py</div><div class="cdesc">Reads .drawio XML → <strong>Diagram model</strong> (waypoints, step prefix, styles).</div></div>
           <div class="crow"><div class="cfn">builder.py</div><div class="cdesc">Serializes Diagram → mxGraph XML. Emits <strong>y=-22 label offset</strong>.</div></div>
           <div class="crow"><div class="cfn">shapes.py</div><div class="cdesc">Style catalog — <strong>DEFAULT_EDGE_STYLE, SWIMLANE_COLORS, DEFAULT_SIZE</strong>.</div></div>
-          <div class="crow"><div class="cfn">gcp_icons.py</div><div class="cdesc">Service name → SVG + <strong>URL-encoded data URI</strong> style builder.</div></div>
+          <div class="crow"><div class="cfn">gcp_icons.py</div><div class="cdesc">Service name → SVG + <strong>URL-encoded data URI</strong>. Curated <strong>alias map</strong> + snake fallback; newer AI/agent services aliased onto official icons.</div></div>
           <div class="crow"><div class="cfn">summarize.py</div><div class="cdesc">Converts Diagram → <strong>DiagramSummary</strong> (id+label only).</div></div>
         </div>
         <div class="ccard">
@@ -781,13 +1058,17 @@
         </div>
         <div class="ccard">
           <h4 class="indigo"><span class="pin"></span>Prompts<span class="count">3</span></h4>
-          <div class="crow"><div class="cfn">create-diagram.md</div><div class="cdesc"><strong>Primary prompt.</strong> 12-step copy-paste flow for a new diagram.</div></div>
-          <div class="crow"><div class="cfn">update-diagram.md</div><div class="cdesc">Incremental update of an existing diagram.</div></div>
+          <div class="crow"><div class="cfn">create-diagram.md</div><div class="cdesc"><strong>Primary prompt.</strong> 12-step flow + <strong>step 2a guardrail</strong>; runs from the shorthand router.</div></div>
+          <div class="crow"><div class="cfn">update-diagram.md</div><div class="cdesc">Incremental update; guardrail folded into the plan step.</div></div>
           <div class="crow"><div class="cfn">prompt.md</div><div class="cdesc">Prompt cookbook — additional self-contained recipes.</div></div>
         </div>
         <div class="ccard">
           <h4 class="red"><span class="pin"></span>GitHub / Copilot Configuration<span class="count">1</span></h4>
-          <div class="crow"><div class="cfn">.github/copilot-instructions.md</div><div class="cdesc">Auto-attached repo-wide rules. Swimlanes-first, GCP icon rule, <strong>zero-TBD</strong> rule.</div></div>
+          <div class="crow"><div class="cfn">.github/copilot-instructions.md</div><div class="cdesc">Auto-attached repo-wide rules. <strong>Shorthand router</strong>, <strong>restricted-service guardrail</strong>, swimlanes-first, GCP icon rule, <strong>zero-TBD</strong> rule.</div></div>
+        </div>
+        <div class="ccard">
+          <h4 class="red"><span class="pin"></span>Governance / Policy<span class="count">1</span></h4>
+          <div class="crow"><div class="cfn">policy/unavailable_services.md</div><div class="cdesc"><strong>service&nbsp;name·aliases</strong> ban list + <strong>94-row alternatives table</strong> (only source of replacements). <strong>Mandatory</strong> pre-build gate; stops to ask, <strong>cascade-skips</strong> restricted alternates.</div></div>
         </div>
       </div>
 
@@ -809,7 +1090,7 @@
   <!-- ===== FOOTER ===== -->
   <div class="footer">
     <div><span class="author">Debajyoti Mukhopadhyay</span>&nbsp;·&nbsp;Architecture &amp; Tooling</div>
-    <div class="stack">Python 3.13 · MCP · Pydantic · mxGraph XML · GitHub Copilot · GCP Icons · Verifier</div>
+    <div class="stack">Python 3.13 · MCP · Pydantic · mxGraph XML · GitHub Copilot · GCP Icons · Shorthand Router · Policy Guardrail · Verifier</div>
   </div>
 
 </div>

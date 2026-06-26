@@ -122,6 +122,28 @@ capability. Please:
    file is the canonical requirement; the original is left untouched.
 2. Identify the components implied by the story: services, databases,
    queues, external systems, and the actors that interact with them.
+2a. **Restricted-service guardrail (MANDATORY — before you write anything).**
+   Read [`policy/unavailable_services.md`](../policy/unavailable_services.md)
+   and check every component you identified in step 2 — its label AND the
+   `gcp_icon` you plan to use — against the restricted list (matching is
+   case/space/underscore-insensitive and covers each entry's aliases).
+   - If nothing matches, proceed to step 3 silently.
+   - If one or more components match a restricted service: do NOT create
+     the diagram or any node yet. For each match, offer alternatives drawn
+     **only** from the `alternate1`–`alternate4` candidates in the
+     **Service alternatives reference** table in that same file (the
+     restricted list itself has no alternatives), **ranked by how well each
+     fits this Jira story's scenario** (best fit first, with a one-line
+     reason).
+     **Drop any candidate that is itself restricted** (alias-aware) and
+     take the next allowed one; if all four are restricted, keep going down
+     the chain until only non-restricted services remain. Never offer a
+     restricted service as an alternative. Then **ask the user, in one
+     prompt, which replacement to use** (one
+     numbered option group per restricted service). **STOP and wait** for
+     their choice. Once they pick, substitute the approved service
+     (label + `gcp_icon`) into your plan, then continue. Never place a
+     restricted service and never pick the alternative for them.
 3. Call `create_diagram` with **`jira_key`** set to the story's Jira key
    (e.g. `jira_key="PROJ-123"` — derive it from the story filename you
    passed to `read_story`) and a descriptive `title`. **Do not pass

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated placeholder icon (not an official Google asset). Replace with
+     the official SVG when available; the resolver picks it up automatically. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Sensitive Data Protection">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EA4335"/>
+      <stop offset="1" stop-color="#C5221F"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="12" ry="12" fill="url(#g)"/>
+  <rect x="4" y="4" width="56" height="56" rx="12" ry="12" fill="none" stroke="#ffffff" stroke-opacity="0.25" stroke-width="2"/>
+  <text x="32" y="33" text-anchor="middle" dominant-baseline="central"
+        font-family="Arial, Helvetica, sans-serif" font-weight="700"
+        font-size="16" fill="#ffffff" letter-spacing="0.5">DLP</text>
+</svg>

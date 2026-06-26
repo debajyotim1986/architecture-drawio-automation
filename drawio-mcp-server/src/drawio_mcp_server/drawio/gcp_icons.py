@@ -69,6 +69,29 @@ GCP_ICON_PATHS: dict[str, str] = {
     "dialogflow": "dialogflow/dialogflow.svg",
     "documentai": "document_ai/document_ai.svg",
     "automl": "automl/automl.svg",
+    # AI / ML — newer Vertex AI family + agents. These reuse the official
+    # Vertex AI ("AI Platform unified") icon since they are all Vertex AI
+    # surfaces; drop a dedicated SVG under logo_icon_gcp/<name>/ later to
+    # give any of them a distinct glyph.
+    "gemini": "ai_platform_unified/ai_platform_unified.svg",
+    "modelgarden": "ai_platform_unified/ai_platform_unified.svg",
+    "vectorsearch": "ai_platform_unified/ai_platform_unified.svg",
+    "vertexaistudio": "ai_platform_unified/ai_platform_unified.svg",
+    "vertexaisearch": "ai_platform_unified/ai_platform_unified.svg",
+    "vertexaiagentengine": "ai_platform_unified/ai_platform_unified.svg",
+    "vertexaiagentbuilder": "ai_platform_unified/ai_platform_unified.svg",
+    "vertexaipipelines": "ai_platform_unified/ai_platform_unified.svg",
+    "vertexaifeaturestore": "ai_platform_unified/ai_platform_unified.svg",
+    "speechtotext": "speech-to-text/speech-to-text.svg",
+    # Aliases onto existing official icons whose folder name doesn't match
+    # the friendly service name (so resolve_icon's snake heuristic misses).
+    "cloudrunjobs": "cloud_run/cloud_run.svg",
+    "lookerstudio": "data_studio/data_studio.svg",
+    "baremetalsolution": "bare_metal_solutions/bare_metal_solutions.svg",
+    "cloudservicemesh": "anthos_service_mesh/anthos_service_mesh.svg",
+    "servicemesh": "anthos_service_mesh/anthos_service_mesh.svg",
+    "identityawareproxy": "identity-aware_proxy/identity-aware_proxy.svg",
+    "iap": "identity-aware_proxy/identity-aware_proxy.svg",
     # Networking / security
     "apigee": "apigee_api_platform/apigee_api_platform.svg",
     "cloudloadbalancing": "cloud_load_balancing/cloud_load_balancing.svg",
