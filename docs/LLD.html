@@ -350,6 +350,13 @@
         <div class="one-full"><b>(1) Restricted services</b> — just <code>service name | aliases</code> (declares what is banned, nothing else); <b>(2) Service alternatives reference</b> — 94 rows of <code>alternate1–alternate4</code>, the <b>only</b> source of replacements; <b>(3) How alternatives are chosen</b> — look the banned service up in the reference table, scenario-rank its four candidates (else own-knowledge fallback only when it has no row), and the <b>cascade rule</b>: skip any alternate that is itself restricted, down the chain, until only allowed services remain.</div>
         <div class="reads"><b>mandate</b> <span class="gatey">read &amp; run before the first create/add call — skipping is a defect</span> &nbsp; <b>llm</b> <span class="llmy">Copilot</span> ranks candidates &amp; presents every option &nbsp; <b>gate</b> <span class="gatey">no node created until you pick</span></div>
       </div>
+<<<<<<< HEAD
+=======
+      <div class="art" style="--ac:var(--gate)">
+        <div class="art-h"><span class="fp">Worked example</span><span class="b gate">restricted today</span><span class="one">how a match resolves</span></div>
+        <div class="one-full"><b>Banned now:</b> <code>Cloud Functions</code> · <code>Container Registry</code> · <code>Datastore</code> · <code>Cloud SQL</code>. &nbsp; A planned <b>Cloud Functions</b> object-arrival trigger matches → the reference row gives <code>Cloud Run · App Engine · GKE · Compute Engine</code>, ranked for the scenario → the assistant <b>STOPS and asks</b>; you pick <b>Cloud Run</b> → only then is the node placed. (PROJ-126 worked exactly this way.)</div>
+      </div>
+>>>>>>> fa1114a (Update files)
     </div>
   </div>
 
