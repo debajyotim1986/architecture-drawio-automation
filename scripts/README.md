@@ -107,7 +107,7 @@ Useful flags (forwarded by the wrappers):
 | `--dry-run` | Print the rewrite to stdout without writing any file. |
 | `--force` | Re-run the LLM rewrite even if the surgical file is already canonical (useful when the target diagram has drifted). |
 | `--output <path>` | Override the auto-derived `<KEY>-surgical.txt` destination. |
-| `--model <id>` | Anthropic model id (default `claude-sonnet-4-6`; override via env var `NORMALIZER_MODEL`). |
+| `--model <id>` | Anthropic model id (default `claude-sonnet-5`; override via env var `NORMALIZER_MODEL`). |
 | `--template <path>` | Reference template that the rewrite must match structurally (default `jira-stories/DEMO-001.txt`). |
 | `--diagrams-dir <path>` | Diagrams root (default `<repo>/diagrams`). |
 

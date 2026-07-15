@@ -358,7 +358,7 @@ capability. Please:
 
     in a terminal. **Default `--fill auto` behavior:**
     - If `ANTHROPIC_API_KEY` is set, the script calls Claude (model
-      `claude-sonnet-4-6` by default) with the surgical story +
+      `claude-sonnet-5` by default) with the surgical story +
       schema reference + skeleton table and **writes back a FULLY
       FILLED `jira-stories/<KEY>-connectors.md`** — every detail
       cell carries a real value from the Always-Fill priority list

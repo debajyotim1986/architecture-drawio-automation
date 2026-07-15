@@ -12,6 +12,7 @@ code change.
 
 from __future__ import annotations
 
+import re
 import urllib.parse
 from pathlib import Path
 
@@ -180,6 +181,141 @@ def build_gcp_image_style(svg_path: Path) -> str:
 def known_icons() -> list[str]:
     """Sorted canonical service names (for tool descriptions / diagnostics)."""
     return sorted(GCP_ICON_PATHS.keys())
+
+
+# ---------------------------------------------------------------------------
+# Service-name labelling.
+#
+# An icon on its own does not tell the reader *which* Google Cloud service it
+# is — the label under the icon is whatever component name the caller passed
+# ("Order Events", "Raw Landing", ...), which frequently never states the
+# service. To make every diagram self-describing we append the canonical GCP
+# service name to the icon's label, e.g. "Order Events" -> "Order Events
+# (Pub/Sub)". `resolve_icon` returns the SVG path; its parent folder is the
+# canonical service key, so we map folder -> display name here (with the
+# special casings a naive title-case would get wrong: SQL, Pub/Sub, BigQuery,
+# GKE, VPC, IAM, ...).
+# ---------------------------------------------------------------------------
+GCP_SERVICE_NAMES: dict[str, str] = {
+    "cloud_run": "Cloud Run",
+    "cloud_functions": "Cloud Functions",
+    "app_engine": "App Engine",
+    "compute_engine": "Compute Engine",
+    "google_kubernetes_engine": "GKE",
+    "kuberun": "KubeRun",
+    "batch": "Batch",
+    "anthos": "Anthos",
+    "cloud_tpu": "Cloud TPU",
+    "bigquery": "BigQuery",
+    "cloud_sql": "Cloud SQL",
+    "cloud_spanner": "Cloud Spanner",
+    "bigtable": "Bigtable",
+    "firestore": "Firestore",
+    "datastore": "Datastore",
+    "memorystore": "Memorystore",
+    "cloud_storage": "Cloud Storage",
+    "filestore": "Filestore",
+    "persistent_disk": "Persistent Disk",
+    "pubsub": "Pub/Sub",
+    "dataflow": "Dataflow",
+    "dataproc": "Dataproc",
+    "cloud_data_fusion": "Data Fusion",
+    "cloud_composer": "Cloud Composer",
+    "eventarc": "Eventarc",
+    "workflows": "Workflows",
+    "cloud_tasks": "Cloud Tasks",
+    "cloud_scheduler": "Cloud Scheduler",
+    "datastream": "Datastream",
+    "vertexai": "Vertex AI",
+    "ai_platform_unified": "Vertex AI",
+    "dialogflow": "Dialogflow",
+    "document_ai": "Document AI",
+    "automl": "AutoML",
+    "speech-to-text": "Speech-to-Text",
+    "data_studio": "Looker Studio",
+    "bare_metal_solutions": "Bare Metal Solution",
+    "anthos_service_mesh": "Cloud Service Mesh",
+    "identity-aware_proxy": "Identity-Aware Proxy",
+    "apigee_api_platform": "Apigee",
+    "cloud_load_balancing": "Cloud Load Balancing",
+    "cloud_cdn": "Cloud CDN",
+    "cloud_armor": "Cloud Armor",
+    "cloud_nat": "Cloud NAT",
+    "cloud_dns": "Cloud DNS",
+    "cloud_vpn": "Cloud VPN",
+    "virtual_private_cloud": "VPC",
+    "identity_and_access_management": "IAM",
+    "identity_platform": "Identity Platform",
+    "secret_manager": "Secret Manager",
+    "key_management_service": "Cloud KMS",
+    "cloud_api_gateway": "API Gateway",
+    "cloud_logging": "Cloud Logging",
+    "cloud_monitoring": "Cloud Monitoring",
+    "trace": "Cloud Trace",
+    "error_reporting": "Error Reporting",
+    "cloud_build": "Cloud Build",
+    "cloud_deploy": "Cloud Deploy",
+    "artifact_registry": "Artifact Registry",
+    "container_registry": "Container Registry",
+    "cloud_generic": "Google Cloud",
+    "alloydb": "AlloyDB",
+}
+
+# Kept uppercase when we have to title-case an unmapped folder name.
+_ACRONYMS = {
+    "sql", "cdn", "dns", "vpn", "nat", "iam", "kms", "api", "tpu", "gcs",
+    "vpc", "ai", "ml", "gke", "hsm", "gpu", "ids", "ekm", "vm", "dlp",
+}
+
+_SERVICE_NAME_SET = {v.lower() for v in GCP_SERVICE_NAMES.values()}
+_TRAILING_PAREN = re.compile(r"\s*\(([^()]+)\)\s*$")
+
+
+def _titlecase_folder(stem: str) -> str:
+    words = [w for w in stem.replace("-", "_").split("_") if w]
+    if not words:
+        return stem
+    return " ".join(w.upper() if w in _ACRONYMS else w.capitalize() for w in words)
+
+
+def service_name_for_svg(svg_path: Path) -> str:
+    """Canonical GCP service display name for a resolved icon SVG.
+
+    Uses the icon's parent folder as the service key; falls back to a
+    title-cased folder name (with acronym handling) for icons not in the map.
+    """
+    stem = svg_path.parent.name
+    return GCP_SERVICE_NAMES.get(stem) or _titlecase_folder(stem)
+
+
+def strip_service_suffix(label: str) -> str:
+    """Remove a trailing ' (<Known GCP service>)' the server previously added.
+
+    Lets `update_node` swap a node's icon without stacking service names
+    ("Order Events (Pub/Sub) (Cloud Run)"). Leaves author-written
+    parentheticals that are not GCP service names untouched.
+    """
+    m = _TRAILING_PAREN.search(label)
+    if m and m.group(1).strip().lower() in _SERVICE_NAME_SET:
+        return label[: m.start()].rstrip()
+    return label
+
+
+def label_with_service(label: str, svg_path: Path) -> tuple[str, str]:
+    """Return ``(labelled, service_name)`` for a GCP-icon node.
+
+    Appends ' (<Service>)' to `label` so the diagram names the service beside
+    the logo — but only when the label does not already mention it (so
+    "BigQuery analytics" or "Orders DB (Cloud SQL)" are left as-is). Plain
+    text only: the stored label stays semantically clean for the verifier,
+    the connector-details table, and diagram summaries.
+    """
+    service = service_name_for_svg(svg_path)
+    canon_label = "".join(c for c in label.lower() if c.isalnum())
+    canon_service = "".join(c for c in service.lower() if c.isalnum())
+    if canon_service and canon_service in canon_label:
+        return label, service
+    return f"{label} ({service})", service
 
 
 # Patterns matched against a node label to detect GCP services automatically.

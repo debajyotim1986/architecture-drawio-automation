@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tableau → Power BI · Agentic Migration Lifecycle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Instrument+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#14181D;
+    --ink-2:#3C434B;
+    --ink-3:#6B7178;
+    --porcelain:#F5F4F0;
+    --card:#FFFFFF;
+    --hair:#DAD7CE;
+    --hair-2:#E9E7E0;
+    --gold:#B07D2B;
+    --gold-soft:#E9DCC3;
+    --src:#34618E;            /* Tableau steel   */
+    --tgt:#B07D2B;            /* Power BI bronze */
+    --a1:#34618E; --a2:#2C7A73; --a3:#5B4B8A; --a4:#3E7048; --a5:#A13D52;
+    --a6:#B25B2E; --a7:#A34D74; --a8:#B07D2B; --a9:#7A6A2E;
+    --mcp-tab:#E3ECF4; --mcp-mod:#F2E8D3; --mcp-rem:#F3E4D6; --mcp-ado:#E8E4F1; --mcp-db:#E2EEE4;
+    --none:#EDECE7;
+    --mono:'Spline Sans Mono',ui-monospace,monospace;
+    --sans:'Instrument Sans',system-ui,sans-serif;
+    --disp:'Fraunces',Georgia,serif;
+    --shadow:0 1px 2px rgba(20,24,29,.06),0 6px 20px rgba(20,24,29,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--porcelain);color:var(--ink);font-family:var(--sans);font-size:15px;-webkit-font-smoothing:antialiased}
+
+  .page{max-width:1240px;margin:0 auto;padding:34px 26px 56px}
+
+  .rule{height:1px;background:var(--hair);border:none}
+  .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-3)}
+  .eyebrow b{color:var(--gold);font-weight:600}
+
+  /* ---------- masthead ---------- */
+  .mast{border-top:2px solid var(--ink);border-bottom:1px solid var(--hair);padding:26px 2px 24px;
+    display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap}
+  .mast h1{font-family:var(--disp);font-weight:600;font-size:clamp(26px,3.4vw,40px);letter-spacing:-.01em;line-height:1.08;margin-top:10px}
+  .mast h1 em{font-style:italic;font-weight:500}
+  .mast h1 .src{color:var(--src)} .mast h1 .tgt{color:var(--tgt)}
+  .mast .sub{margin-top:8px;color:var(--ink-2);font-size:14px;max-width:60ch}
+  .mast .legend-key{font-family:var(--mono);font-size:11px;color:var(--ink-2);border:1px solid var(--hair);
+    background:var(--card);border-radius:100px;padding:8px 16px;box-shadow:var(--shadow);white-space:nowrap}
+  .mast .legend-key b{color:var(--gold)}
+
+  /* ---------- cycle ---------- */
+  .cycle-wrap{position:relative;margin:34px auto 4px;width:min(96vw,1120px);aspect-ratio:1120/1000}
+  svg.ring{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+
+  .hub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:24.5%;min-width:210px;
+    background:var(--ink);color:#F3F1EA;border-radius:14px;padding:20px 20px 18px;text-align:center;
+    box-shadow:0 12px 34px rgba(20,24,29,.28)}
+  .hub::after{content:"";position:absolute;inset:6px;border:1px solid rgba(233,220,195,.35);border-radius:9px;pointer-events:none}
+  .hub .h-eyebrow{font-family:var(--mono);font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--gold-soft)}
+  .hub h2{font-family:var(--disp);font-weight:600;font-size:clamp(15px,1.7vw,21px);margin:8px 0 8px;line-height:1.16}
+  .hub p{font-size:11.5px;color:#C9C5B8;line-height:1.55}
+  .hub p b{color:var(--gold-soft);font-weight:500}
+  .hub .loop{margin-top:9px;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:#9FB8A5}
+
+  .agent{position:absolute;transform:translate(-50%,-50%);width:21%;min-width:198px;
+    background:var(--card);border:1px solid var(--hair);border-top:3px solid var(--c);border-radius:10px;
+    box-shadow:var(--shadow);overflow:hidden}
+  .agent .bar{display:flex;align-items:center;gap:9px;padding:9px 12px 7px}
+  .agent .num{flex:none;width:24px;height:24px;border-radius:50%;background:var(--c);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:600;font-size:12.5px}
+  .agent .bar h3{font-family:var(--disp);font-weight:600;font-size:14.5px;color:var(--ink);line-height:1.1;letter-spacing:.005em}
+  .agent .does{padding:0 12px 8px;font-size:11.6px;line-height:1.5;color:var(--ink-2)}
+  .agent .does b{color:var(--ink);font-weight:600}
+
+  .conv{margin:0 12px 8px;border:1px solid var(--hair);border-radius:7px;overflow:hidden;background:#FBFAF7}
+  .conv .row{display:flex;align-items:center;gap:6px;padding:4px 9px;font-family:var(--mono);font-size:9.4px;line-height:1.5;border-bottom:1px solid var(--hair-2)}
+  .conv .row:last-child{border-bottom:none}
+  .conv .from{color:var(--src);font-weight:500}
+  .conv .to{color:var(--tgt);font-weight:500}
+  .conv .arr{color:var(--ink-3)}
+  .why{margin:0 12px 9px;font-size:10.4px;line-height:1.5;color:var(--ink-2);border-left:2px solid var(--gold);padding:2px 0 2px 9px}
+  .why b{color:var(--ink);font-weight:600}
+
+  .mcps{display:flex;flex-wrap:wrap;gap:5px;padding:0 12px 11px}
+  .mcp{font-family:var(--mono);font-size:9.3px;font-weight:500;letter-spacing:.03em;border:1px solid var(--hair);
+    border-radius:100px;padding:2.5px 9px;line-height:1.5;white-space:nowrap;color:var(--ink-2)}
+  .mcp::before{content:"⚡ ";color:var(--gold)}
+  .mcp.tab{background:var(--mcp-tab)} .mcp.mod{background:var(--mcp-mod)} .mcp.rem{background:var(--mcp-rem)}
+  .mcp.ado{background:var(--mcp-ado)} .mcp.db{background:var(--mcp-db)}
+  .mcp.none{background:var(--none)} .mcp.none::before{content:"— ";color:var(--ink-3)}
+
+  .wide{width:24%;min-width:224px}
+  .p1{left:50%;   top:8%}
+  .p2{left:76.4%; top:16.6%}
+  .p3{left:90.4%; top:42.4%}
+  .p4{left:85.5%; top:75.5%}
+  .p5{left:64%;   top:91%}
+  .p6{left:36%;   top:91%}
+  .p7{left:14.5%; top:73%}
+  .p8{left:9.6%;  top:42.4%}
+  .p9{left:23.6%; top:16.6%}
+
+  /* ---------- shared section panel ---------- */
+  .panel{margin-top:34px;background:var(--card);border:1px solid var(--hair);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+  .p-head{display:flex;align-items:baseline;gap:12px;padding:15px 22px 13px;border-bottom:1px solid var(--hair)}
+  .p-head .n{font-family:var(--disp);font-style:italic;font-weight:500;color:var(--gold);font-size:15px}
+  .p-head h2{font-family:var(--disp);font-weight:600;font-size:19px;letter-spacing:.005em}
+  .p-head span{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-left:auto;text-align:right}
+  .p-body{padding:20px 22px 24px}
+
+  /* ---------- Tableau vs Power BI mapping ---------- */
+  .map-grid{display:grid;grid-template-columns:1fr 40px 1fr;gap:7px 0;align-items:stretch}
+  .map-col-head{font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;
+    padding:9px 14px;border-radius:7px;text-align:center;color:#fff}
+  .map-col-head.tb{background:var(--src)} .map-col-head.pb{background:var(--tgt)}
+  .map-cell{border:1px solid var(--hair);border-radius:7px;padding:8px 13px;font-size:12.4px;line-height:1.45;
+    display:flex;flex-direction:column;justify-content:center;background:#FDFCFA}
+  .map-cell b{font-weight:600;color:var(--ink)}
+  .map-cell small{color:var(--ink-3);font-family:var(--mono);font-size:9.6px;margin-top:2px}
+  .map-cell.tb{border-left:3px solid var(--src)} .map-cell.pb{border-left:3px solid var(--tgt)}
+  .map-arr{display:flex;align-items:center;justify-content:center;color:var(--gold);font-size:14px}
+
+  /* ---------- repo tree ---------- */
+  .repo-flex{display:grid;grid-template-columns:1.15fr 1fr;gap:22px}
+  .tree{background:var(--ink);color:#D9DDE2;border-radius:10px;padding:16px 18px;font-family:var(--mono);
+    font-size:11.4px;line-height:1.66;overflow-x:auto;box-shadow:0 10px 28px rgba(20,24,29,.22)}
+  .tree .d{color:#8FB4D9;font-weight:500}
+  .tree .f{color:#D9DDE2}
+  .tree .cm{color:#7C858E}
+  .tree .hl{color:#E4C173;font-weight:600}
+  .repo-notes{display:grid;gap:12px;align-content:start}
+  .repo-note{border:1px solid var(--hair);border-left:3px solid var(--nc);border-radius:8px;padding:11px 14px;
+    font-size:12.4px;line-height:1.55;background:#FDFCFA;color:var(--ink-2)}
+  .repo-note b{color:var(--ink);font-weight:600}
+  .repo-note code{font-family:var(--mono);font-size:.85em;background:var(--hair-2);border-radius:3px;padding:1px 5px}
+  .rn1{--nc:var(--src)}.rn2{--nc:var(--gold)}.rn3{--nc:#3E7048}.rn4{--nc:#A34D74}
+
+  /* ---------- side-by-side mock dashboards ---------- */
+  .dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .same-banner{grid-column:1/-1;text-align:center;font-family:var(--mono);font-size:10.6px;letter-spacing:.05em;
+    color:var(--ink-2);border:1px dashed var(--gold);border-radius:8px;padding:9px;background:#FBF7EE;margin-bottom:2px}
+  .same-banner b{color:var(--gold)}
+  .dash{border:1px solid var(--hair);border-radius:10px;overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column;background:#fff}
+  .dash .chrome{display:flex;align-items:center;gap:8px;padding:8px 13px;font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.05em}
+  .dash.tb .chrome{background:var(--src);color:#EAF1F7}
+  .dash.pb .chrome{background:#F2C811;color:#3A3323}
+  .dash .chrome .dots{display:flex;gap:4px}
+  .dash .chrome .dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.75);display:block}
+  .dash.pb .chrome .dots i{background:rgba(0,0,0,.5)}
+  .canvas{padding:13px;display:grid;gap:10px;flex:1}
+  .dash.tb .canvas{background:#FFFFFF;font-family:Arial,Helvetica,sans-serif}
+  .dash.pb .canvas{background:#EAEAEA;font-family:'Segoe UI',var(--sans)}
+  .dash h4{font-size:13.5px;font-weight:700;margin:0}
+  .dash.tb h4{color:#1B3A57;border-bottom:2px solid var(--src);padding-bottom:5px}
+  .dash.pb h4{color:#252423;background:#fff;border-radius:6px;padding:7px 10px;box-shadow:0 1px 3px rgba(0,0,0,.16)}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .kpi{padding:7px 9px;text-align:center}
+  .kpi .v{font-size:16.5px;font-weight:700;line-height:1.15}
+  .kpi .l{font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:#666}
+  .dash.tb .kpi{border:1px solid #C9D6E2;background:#F5F8FB}
+  .dash.tb .kpi .v{color:var(--src)}
+  .dash.pb .kpi{background:#fff;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.16)}
+  .dash.pb .kpi .v{color:#118DFF}
+  .viz{padding:9px 11px}
+  .dash.tb .viz{border:1px solid #C9D6E2;background:#fff}
+  .dash.pb .viz{background:#fff;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.16)}
+  .viz .vt{font-size:10.5px;font-weight:600;color:#444;margin-bottom:6px}
+  .hbars{display:grid;gap:6px}
+  .hbar{display:grid;grid-template-columns:86px 1fr 44px;align-items:center;gap:7px;font-size:10.5px}
+  .hbar .track{height:13px;background:#EFEFEF;border-radius:2px;overflow:hidden}
+  .hbar .fill{height:100%}
+  .dash.tb .fill{background:#4E79A7}
+  .dash.pb .fill{background:#118DFF;border-radius:2px}
+  .hbar .n{font-family:var(--mono);font-size:9.3px;text-align:right;color:#555}
+  .viz svg{width:100%;height:auto;display:block}
+  .legend-mini{display:flex;gap:12px;font-size:9.5px;color:#555;margin-top:4px}
+  .legend-mini i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+  .dash-note{padding:9px 13px;border-top:1px solid var(--hair);font-size:11.2px;line-height:1.55;background:#FBFAF7;color:var(--ink-2)}
+  .dash-note b{color:var(--ink);font-weight:600}
+
+  /* ---------- MCP legend ---------- */
+  .l-grid{display:grid;grid-template-columns:repeat(5,1fr)}
+  .l-item{padding:15px 17px;border-right:1px solid var(--hair);font-size:12.2px;line-height:1.55;color:var(--ink-2)}
+  .l-item:last-child{border-right:none}
+  .l-item .mcp{font-size:9.8px;margin-bottom:8px;display:inline-block}
+  .l-item .who{font-family:var(--mono);font-size:10px;color:var(--gold);display:block;margin-top:7px;letter-spacing:.04em}
+  .l-item b{color:var(--ink);font-weight:600}
+
+  /* ---------- operating model ---------- */
+  .op-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0}
+  .op-col{padding:17px 19px;border-right:1px solid var(--hair)}
+  .op-col:last-child{border-right:none}
+  .op-col h3{font-family:var(--disp);font-weight:600;font-size:15px;margin-bottom:10px}
+  .op-col h3 i{font-style:normal;color:var(--gold);margin-right:7px}
+  .op-item{display:flex;gap:9px;font-size:12.2px;line-height:1.5;color:var(--ink-2);padding:6px 0;border-bottom:1px solid var(--hair-2)}
+  .op-item:last-child{border-bottom:none}
+  .op-item .k{flex:none;font-family:var(--mono);font-size:10px;color:var(--gold);font-weight:600;min-width:52px;padding-top:2px}
+  .op-item b{color:var(--ink);font-weight:600}
+  .pbix-flow{display:grid;gap:7px}
+  .pbix-step{display:flex;gap:9px;align-items:baseline;font-size:12.2px;line-height:1.5;color:var(--ink-2)}
+  .pbix-step .st{flex:none;font-family:var(--mono);font-size:9.6px;letter-spacing:.06em;color:#fff;background:var(--ink);border-radius:100px;padding:2px 9px}
+  .pbix-step b{color:var(--ink)}
+
+  /* ---------- glossary ---------- */
+  .gloss{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--hair-2)}
+  .g-item{padding:13px 17px;border-bottom:1px solid var(--hair-2);border-right:1px solid var(--hair-2);font-size:12px;line-height:1.55}
+  .g-item:nth-child(3n){border-right:none}
+  .g-item dt{font-family:var(--mono);font-weight:600;font-size:11.2px;color:var(--ink);margin-bottom:3px}
+  .g-item dt::before{content:"◆ ";color:var(--gold);font-size:8px;vertical-align:2px}
+  .g-item dd{color:var(--ink-2)}
+
+  .foot{margin-top:26px;border-top:2px solid var(--ink);padding-top:14px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--ink-3)}
+
+  @media (max-width:880px){
+    .cycle-wrap{width:100%;aspect-ratio:auto;display:flex;flex-direction:column;gap:14px;align-items:stretch}
+    svg.ring{display:none}
+    .hub{position:static;transform:none;width:100%;order:0}
+    .agent{position:static;transform:none;width:100%;min-width:0}
+    .agent::after{content:"↓";display:block;text-align:center;font-size:15px;color:var(--gold);padding:5px 0 3px}
+    .p1{order:1}.p2{order:2}.p3{order:3}.p4{order:4}.p5{order:5}.p6{order:6}.p7{order:7}.p8{order:8}.p9{order:9}
+    .map-grid{grid-template-columns:1fr 26px 1fr}
+    .repo-flex,.dash-grid{grid-template-columns:1fr}
+    .l-grid,.op-grid{grid-template-columns:1fr}
+    .l-item,.op-col{border-right:none;border-bottom:1px solid var(--hair)}
+    .gloss{grid-template-columns:1fr}
+    .g-item{border-right:none}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- masthead -->
+  <header class="mast">
+    <div>
+      <div class="eyebrow">Enterprise BI Migration · <b>Reference One-Pager</b> · 1,000+ report scale</div>
+      <h1>The Agentic Lifecycle — <span class="src">Tableau</span> <em>to</em> <span class="tgt">Power&nbsp;BI</span></h1>
+      <p class="sub">Nine VS Code Copilot agents industrializing the accelerator's last mile — discovery, remediation, proof, and delivery.</p>
+    </div>
+    <div class="legend-key"><b>⚡</b> = MCP server the agent calls</div>
+  </header>
+
+  <!-- cycle -->
+  <div class="cycle-wrap">
+    <svg class="ring" viewBox="0 0 1120 1000" aria-hidden="true">
+      <defs>
+        <marker id="arw" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#B07D2B"/>
+        </marker>
+      </defs>
+      <ellipse cx="560" cy="500" rx="452" ry="405" fill="none" stroke="#14181D" stroke-width="1.5" stroke-dasharray="1 9" stroke-linecap="round" opacity=".55"/>
+      <ellipse cx="560" cy="500" rx="466" ry="419" fill="none" stroke="#B07D2B" stroke-width="1" opacity=".28"/>
+      <path d="M 715 112 A 452 405 0 0 1 788 158" fill="none" stroke="#14181D" stroke-width="1.6" marker-end="url(#arw)"/>
+      <path d="M 960 268 A 452 405 0 0 1 990 328" fill="none" stroke="#14181D" stroke-width="1.6" marker-end="url(#arw)"/>
+      <path d="M 1006 582 A 452 405 0 0 1 986 648" fill="none" stroke="#14181D" stroke-width="1.6" marker-end="url(#arw)"/>
+      <path d="M 850 816 A 452 405 0 0 1 800 860" fill="none" stroke="#14181D" stroke-width="1.6" marker-end="url(#arw)"/>
+      <path d="M 590 904 A 452 405 0 0 1 530 904" fill="none" stroke="#14181D" stroke-width="1.6" marker-end="url(#arw)"/>
+      <path d="M 320 860 A 452 405 0 0 1 270 816" fill="none" stroke="#14181D" stroke-width="1.6" marker-end="url(#arw)"/>
+      <path d="M 134 648 A 452 405 0 0 1 114 582" fill="none" stroke="#14181D" stroke-width="1.6" marker-end="url(#arw)"/>
+      <path d="M 130 328 A 452 405 0 0 1 160 268" fill="none" stroke="#14181D" stroke-width="1.6" marker-end="url(#arw)"/>
+      <path d="M 332 158 A 452 405 0 0 1 405 112" fill="none" stroke="#14181D" stroke-width="1.6" marker-end="url(#arw)"/>
+    </svg>
+
+    <!-- hub -->
+    <div class="hub">
+      <div class="h-eyebrow">Agentic Lifecycle</div>
+      <h2>Tableau → Power BI Migration</h2>
+      <p><b>Shared substrate:</b> PBIP repo in Git (TMDL + PBIR). Every agent reads &amp; writes text-based projects; humans approve every diff via PR.</p>
+      <div class="loop">↺ defects route back · parity gates forward</div>
+    </div>
+
+    <!-- 1 -->
+    <div class="agent p1 wide" style="--c:var(--a1)">
+      <div class="bar"><span class="num">1</span><h3>Inventory &amp; Triage</h3></div>
+      <div class="does">Reads the whole Tableau estate <b>before anything converts</b> — every workbook parsed, scored &amp; wave-planned.</div>
+      <div class="conv">
+        <div class="row"><span class="from">.twb / .twbx XML</span><span class="arr">→</span><span class="to">asset catalog (SQLite)</span></div>
+        <div class="row"><span class="from">calcs · LODs · table calcs</span><span class="arr">→</span><span class="to">complexity score / tier</span></div>
+        <div class="row"><span class="from">blends · custom SQL · user filters</span><span class="arr">→</span><span class="to">risk flags → agent routing</span></div>
+        <div class="row"><span class="from">Server usage stats</span><span class="arr">→</span><span class="to">wave plan + decommission list</span></div>
+      </div>
+      <div class="mcps"><span class="mcp tab">Tableau MCP</span></div>
+    </div>
+
+    <!-- 2 -->
+    <div class="agent p2 wide" style="--c:var(--a2)">
+      <div class="bar"><span class="num">2</span><h3>Bulk Conversion</h3></div>
+      <div class="does">Runs the accelerator in batches, then turns its <b>binary output into agent-editable source code</b>.</div>
+      <div class="conv">
+        <div class="row"><span class="from">wave of .twb/.twbx</span><span class="arr">→</span><span class="to">Pulse Convert (batch API) → .pbix</span></div>
+        <div class="row"><span class="from">.pbix (binary, per asset)</span><span class="arr">→</span><span class="to">PBIP: TMDL model + PBIR JSON</span></div>
+        <div class="row"><span class="from">PBIP folders</span><span class="arr">→</span><span class="to">Git repo · branch per wave</span></div>
+        <div class="row"><span class="from">catalog vs converted diff</span><span class="arr">→</span><span class="to">defect work items → Agents 3–7</span></div>
+      </div>
+      <div class="why"><b>Why Git/ADO MCP?</b> The agent must do repo &amp; project ops itself — create branches, commit PBIP, open PRs, raise one work item per defect and route it — without hand-written REST glue. It's what turns conversion gaps into a tracked, assignable queue.</div>
+      <div class="mcps"><span class="mcp ado">ADO / GitHub MCP</span></div>
+    </div>
+
+    <!-- 3 -->
+    <div class="agent p3" style="--c:var(--a3)">
+      <div class="bar"><span class="num">3</span><h3>Data Layer</h3></div>
+      <div class="does">Custom SQL &amp; joins → <b>Power Query M</b>; Tableau blends → <b>model relationships</b>; refresh strategy per source.</div>
+      <div class="mcps"><span class="mcp db">Database MCP (RO)</span></div>
+    </div>
+
+    <!-- 4 -->
+    <div class="agent p4 wide" style="--c:var(--a4)">
+      <div class="bar"><span class="num">4</span><h3>Semantic Model Builder</h3></div>
+      <div class="does">Turns the converter's <b>raw table dump into a governed model</b> — in bulk, across hundreds of TMDL files.</div>
+      <div class="conv">
+        <div class="row"><span class="from">raw converter TMDL</span><span class="arr">→</span><span class="to">governed model (names · formats · folders)</span></div>
+        <div class="row"><span class="from">Tableau hierarchies + date parts</span><span class="arr">→</span><span class="to">model hierarchies + date dimension</span></div>
+        <div class="row"><span class="from">Tableau parameters</span><span class="arr">→</span><span class="to">field / what-if / dynamic M params</span></div>
+        <div class="row"><span class="from">repeated calc families (YTD·PY·Δ%)</span><span class="arr">→</span><span class="to">one calculation group</span></div>
+      </div>
+      <div class="why"><b>Why:</b> the accelerator translates literally — no standards, no hierarchies, hundreds of duplicated measures. Governance here makes every later fix cheaper and every model BPA-clean before DAX work starts.</div>
+      <div class="mcps"><span class="mcp mod">PBI Modeling MCP</span></div>
+    </div>
+
+    <!-- 5 -->
+    <div class="agent p5" style="--c:var(--a5)">
+      <div class="bar"><span class="num">5</span><h3>Calc → DAX Remediation</h3></div>
+      <div class="does">Fixes what the accelerator missed: <b>LODs &amp; table calcs → DAX</b>, every fix proven by an <b>executed query</b>.</div>
+      <div class="mcps"><span class="mcp mod">PBI Modeling MCP</span><span class="mcp rem">PBI Remote MCP</span></div>
+    </div>
+
+    <!-- 6 -->
+    <div class="agent p6" style="--c:var(--a6)">
+      <div class="bar"><span class="num">6</span><h3>Report Layout &amp; Fidelity</h3></div>
+      <div class="does">Repairs <b>PBIR JSON</b>: dual-axis, actions → <b>bookmarks/drillthrough</b>, tooltip pages, one org theme.</div>
+      <div class="mcps"><span class="mcp none">No MCP — direct file edits</span></div>
+    </div>
+
+    <!-- 7 -->
+    <div class="agent p7 wide" style="--c:var(--a7)">
+      <div class="bar"><span class="num">7</span><h3>RLS Migration</h3></div>
+      <div class="does">Rebuilds <b>who-sees-what</b> — Tableau security constructs become Power BI roles, then <b>proven per role</b>.</div>
+      <div class="conv">
+        <div class="row"><span class="from">manual user filters</span><span class="arr">→</span><span class="to">static RLS roles (per region/team)</span></div>
+        <div class="row"><span class="from">USERNAME() / ISMEMBEROF() calcs</span><span class="arr">→</span><span class="to">dynamic RLS · USERPRINCIPALNAME() DAX</span></div>
+        <div class="row"><span class="from">entitlement-table joins</span><span class="arr">→</span><span class="to">one dynamic role + lookup filter</span></div>
+        <div class="row"><span class="from">Tableau users &amp; groups</span><span class="arr">→</span><span class="to">Entra ID UPNs &amp; security groups</span></div>
+      </div>
+      <div class="why"><b>Why:</b> security never migrates automatically — accelerators skip it entirely. Every role ships with an impersonated test suite, because a wrong RLS filter is a data breach, not a display bug.</div>
+      <div class="mcps"><span class="mcp mod">PBI Modeling MCP</span></div>
+    </div>
+
+    <!-- 8 -->
+    <div class="agent p8" style="--c:var(--a8)">
+      <div class="bar"><span class="num">8</span><h3>Validation &amp; Parity Gate</h3></div>
+      <div class="does">Compares Tableau golden data vs Power BI DAX results + visual diffs → issues the <b>parity certificate</b>. Nothing ships without it.</div>
+      <div class="mcps"><span class="mcp tab">Tableau MCP</span><span class="mcp rem">PBI Remote MCP</span></div>
+    </div>
+
+    <!-- 9 -->
+    <div class="agent p9" style="--c:var(--a9)">
+      <div class="bar"><span class="num">9</span><h3>CI/CD &amp; Cutover</h3></div>
+      <div class="does">PR gates → <b>Dev→Test→Prod</b> via Fabric pipelines, auto-docs from TMDL, parallel-run &amp; <b>Tableau decommission</b>.</div>
+      <div class="mcps"><span class="mcp ado">ADO / GitHub MCP</span></div>
+    </div>
+  </div>
+
+  <!-- MCP legend -->
+  <section class="panel">
+    <div class="p-head"><span class="n">i.</span><h2>MCP Servers in the Loop</h2><span>who calls what</span></div>
+    <div class="l-grid">
+      <div class="l-item">
+        <span class="mcp tab">Tableau MCP</span>
+        <div>Official Tableau server (npx / mcp.tableau.com). Workbook &amp; datasource access, view data for golden datasets.</div>
+        <span class="who">Called by Agents 1 · 8</span>
+      </div>
+      <div class="l-item">
+        <span class="mcp mod">PBI Modeling MCP</span>
+        <div>Microsoft local server. Bulk TMDL/PBIP edits — measures, relationships, roles — with transactions + BPA.</div>
+        <span class="who">Called by Agents 4 · 5 · 7</span>
+      </div>
+      <div class="l-item">
+        <span class="mcp rem">PBI Remote MCP</span>
+        <div>Hosted Fabric endpoint (preview, tenant setting required). Executes DAX &amp; reads model metadata for proof queries.</div>
+        <span class="who">Called by Agents 5 · 8</span>
+      </div>
+      <div class="l-item">
+        <span class="mcp ado">ADO / GitHub MCP</span>
+        <div><b>What it does:</b> branches, commits, PRs, work items, pipeline runs as agent-callable tools. <b>Why needed:</b> agents write only to branches with human PR review — the MCP is how they operate that Git workflow and route every defect as a tracked work item, with no custom REST glue.</div>
+        <span class="who">Called by Agents 2 · 9</span>
+      </div>
+      <div class="l-item">
+        <span class="mcp db">Database MCP (read-only)</span>
+        <div>Schema introspection so generated SQL / M is validated against real columns. Optional but cheap insurance.</div>
+        <span class="who">Called by Agent 3</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- operating model (new) -->
+  <section class="panel">
+    <div class="p-head"><span class="n">ii.</span><h2>Operating the Factory</h2><span>humans · files · numbers</span></div>
+    <div class="op-grid">
+      <div class="op-col">
+        <h3><i>◆</i>Human-in-the-loop checkpoints</h3>
+        <div class="op-item"><span class="k">GATE 1</span><div><b>Wave plan sign-off</b> — business owners confirm scope, consolidation &amp; decommission list (after Agent 1).</div></div>
+        <div class="op-item"><span class="k">GATE 2</span><div><b>Every PR diff</b> — a human reviews each agent remediation before merge; agents never touch <code style="font-family:var(--mono);font-size:.85em">main</code>.</div></div>
+        <div class="op-item"><span class="k">GATE 3</span><div><b>RLS owner approval</b> — data owner signs the security pack per asset (after Agent 7).</div></div>
+        <div class="op-item"><span class="k">GATE 4</span><div><b>UAT + business sign-off</b> — visual diff gallery reviewed before Prod promotion (Agents 8 → 9).</div></div>
+      </div>
+      <div class="op-col">
+        <h3><i>◆</i>The .pbix lifecycle</h3>
+        <div class="pbix-flow">
+          <div class="pbix-step"><span class="st">Stage 2</span><div><b>Born</b> — Pulse Convert returns a .pbix per dashboard.</div></div>
+          <div class="pbix-step"><span class="st">Stage 2</span><div><b>Dissolved</b> — immediately decompiled to PBIP text (TMDL + PBIR) and committed to Git.</div></div>
+          <div class="pbix-step"><span class="st">3 – 8</span><div><b>Absent by design</b> — all remediation &amp; validation happens on diffable text, never binary.</div></div>
+          <div class="pbix-step"><span class="st">Stage 9</span><div><b>Optional return</b> — published straight from PBIP; compile an archive .pbix per release only if a file deliverable is required.</div></div>
+        </div>
+      </div>
+      <div class="op-col">
+        <h3><i>◆</i>Metrics that steer the program</h3>
+        <div class="op-item"><span class="k">QUALITY</span><div><b>Parity pass rate</b> — % of checks green per asset on first validation run.</div></div>
+        <div class="op-item"><span class="k">SPEED</span><div><b>Cycle time per dashboard</b> — convert → certified; baseline vs agent-assisted.</div></div>
+        <div class="op-item"><span class="k">LEVERAGE</span><div><b>Auto-remediation rate</b> — % of defects closed by agents without human rewrite.</div></div>
+        <div class="op-item"><span class="k">SCOPE</span><div><b>Estate reduction</b> — dashboards decommissioned or consolidated instead of migrated.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tableau vs Power BI mapping -->
+  <section class="panel">
+    <div class="p-head"><span class="n">iii.</span><h2>Tableau ↔ Power BI</h2><span>what maps to what</span></div>
+    <div class="p-body">
+      <div class="map-grid">
+        <div class="map-col-head tb">Tableau · source</div><div></div><div class="map-col-head pb">Power BI · target</div>
+
+        <div class="map-cell tb"><b>Workbook (.twb / .twbx)</b><small>.twb = Tableau Workbook · .twbx = packaged workbook (sheets + dashboards + data)</small></div>
+        <div class="map-arr">→</div>
+        <div class="map-cell pb"><b>PBIP (Power BI Project)</b><small>TMDL (Tabular Model Definition Language) model + PBIR (Power BI enhanced Report) JSON, separable</small></div>
+
+        <div class="map-cell tb"><b>Data source / Extract (.hyper)</b><small>.hyper = Tableau's extract engine format · live or extracted</small></div>
+        <div class="map-arr">→</div>
+        <div class="map-cell pb"><b>Semantic model · Import / DirectQuery / Direct Lake</b><small>refresh &amp; incremental policies</small></div>
+
+        <div class="map-cell tb"><b>Calculated field</b><small>Tableau formula language</small></div>
+        <div class="map-arr">→</div>
+        <div class="map-cell pb"><b>DAX (Data Analysis Expressions) measure / calculated column</b><small>filter-context based</small></div>
+
+        <div class="map-cell tb"><b>LOD (Level of Detail) expression — FIXED / INCLUDE / EXCLUDE</b><small>grain override</small></div>
+        <div class="map-arr">→</div>
+        <div class="map-cell pb"><b>CALCULATE + REMOVEFILTERS / ALLEXCEPT patterns</b><small>Agent 5's specialty</small></div>
+
+        <div class="map-cell tb"><b>Table calc (RUNNING_SUM, WINDOW_AVG, RANK…)</b><small>compute-using scope</small></div>
+        <div class="map-arr">→</div>
+        <div class="map-cell pb"><b>DAX WINDOW / OFFSET / RANKX</b><small>or visual-level equivalents</small></div>
+
+        <div class="map-cell tb"><b>Data blend</b><small>post-aggregation join across sources</small></div>
+        <div class="map-arr">→</div>
+        <div class="map-cell pb"><b>Model relationship / composite model</b><small>semantics differ — Agent 3 documents the delta</small></div>
+
+        <div class="map-cell tb"><b>Custom SQL / RAWSQL</b><small>RAWSQL = raw SQL pass-through inside a calc</small></div>
+        <div class="map-arr">→</div>
+        <div class="map-cell pb"><b>Power Query M (data mashup language) / native query</b><small>folding-safe</small></div>
+
+        <div class="map-cell tb"><b>Parameter</b></div>
+        <div class="map-arr">→</div>
+        <div class="map-cell pb"><b>Field parameter / what-if / dynamic M parameter</b><small>picked by usage</small></div>
+
+        <div class="map-cell tb"><b>Dashboard actions (filter · highlight · URL · sheet swap)</b></div>
+        <div class="map-arr">→</div>
+        <div class="map-cell pb"><b>Cross-filter · drillthrough · buttons · bookmarks</b></div>
+
+        <div class="map-cell tb"><b>Viz-in-tooltip</b></div>
+        <div class="map-arr">→</div>
+        <div class="map-cell pb"><b>Report tooltip page</b></div>
+
+        <div class="map-cell tb"><b>User filter / USERNAME() calc</b><small>row-level security</small></div>
+        <div class="map-arr">→</div>
+        <div class="map-cell pb"><b>RLS (Row-Level Security) role + DAX filter — USERPRINCIPALNAME()</b></div>
+
+        <div class="map-cell tb"><b>Tableau Server / Cloud project</b><small>publish &amp; permissions</small></div>
+        <div class="map-arr">→</div>
+        <div class="map-cell pb"><b>Fabric workspace + app audiences</b><small>Entra ID groups</small></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- repo structure -->
+  <section class="panel">
+    <div class="p-head"><span class="n">iv.</span><h2>The Git Repo</h2><span>one PBIP project per migrated asset</span></div>
+    <div class="p-body repo-flex">
+      <pre class="tree"><span class="d">bi-migration-sales/</span>                      <span class="cm">← repo per domain/workspace</span>
+├── <span class="d">.github/</span>
+│   ├── <span class="f">copilot-instructions.md</span>       <span class="cm">← agent charter (scope, guardrails)</span>
+│   ├── <span class="d">prompts/</span>
+│   │   ├── <span class="f">calc-remediation.prompt.md</span>
+│   │   └── <span class="f">rls-migration.prompt.md</span>
+│   └── <span class="d">workflows/</span>
+│       └── <span class="f">ci.yml</span>                    <span class="cm">← schema check · BPA · DAX tests · parity gate</span>
+├── <span class="d">assets/</span>
+│   └── <span class="d">sales-overview/</span>               <span class="cm">← one folder per Tableau workbook</span>
+│       ├── <span class="d">SalesOverview.SemanticModel/</span>
+│       │   ├── <span class="f">definition.pbism</span>
+│       │   └── <span class="d">definition/</span>
+│       │       ├── <span class="hl">model.tmdl</span>        <span class="cm">← Agents 3 · 4 edit here</span>
+│       │       ├── <span class="d">tables/</span>*.tmdl      <span class="cm">← M partitions + columns</span>
+│       │       ├── <span class="hl">measures/</span>*.tmdl   <span class="cm">← Agent 5 writes proven DAX</span>
+│       │       ├── <span class="f">relationships.tmdl</span>
+│       │       └── <span class="hl">roles/</span>*.tmdl      <span class="cm">← Agent 7 RLS roles</span>
+│       ├── <span class="d">SalesOverview.Report/</span>
+│       │   ├── <span class="f">definition.pbir</span>
+│       │   └── <span class="d">definition/pages/</span>*    <span class="cm">← Agent 6 repairs visuals here</span>
+│       ├── <span class="d">tests/</span>
+│       │   ├── <span class="f">parity-spec.yaml</span>       <span class="cm">← KPI checks + tolerances</span>
+│       │   └── <span class="f">golden-dataset.parquet</span> <span class="cm">← frozen Tableau baseline</span>
+│       └── <span class="hl">parity-certificate.json</span>   <span class="cm">← Agent 8's gate artifact</span>
+├── <span class="d">defects/</span>*.json                    <span class="cm">← Agent 2's routed conversion gaps</span>
+├── <span class="d">patterns/</span>
+│   ├── <span class="d">tableau-dax/</span>*.md              <span class="cm">← grows with every Agent-5 fix</span>
+│   └── <span class="d">tableau-m/</span>*.md
+├── <span class="f">theme.json</span>                        <span class="cm">← one org theme, applied by Agent 6</span>
+└── <span class="f">wave-plan.yaml</span>                    <span class="cm">← from Agent 1</span></pre>
+      <div class="repo-notes">
+        <div class="repo-note rn1"><b>Why text, not .pbix:</b> TMDL + PBIR are plain files — agents can edit them, Git can diff them, and every change is a reviewable PR. A binary .pbix allows none of that.</div>
+        <div class="repo-note rn2"><b>Branching:</b> <code>wave/&lt;n&gt;</code> per conversion batch, <code>fix/&lt;asset&gt;/&lt;defect-id&gt;</code> per agent remediation. Agents never touch <code>main</code>.</div>
+        <div class="repo-note rn3"><b>Merge gates (CI):</b> TMDL/PBIR schema validation → Best Practice Analyzer → DAX unit tests → parity certificate present. All green or no merge.</div>
+        <div class="repo-note rn4"><b>Institutional memory:</b> the <code>patterns/</code> folder is the estate's growing Tableau→DAX/M knowledge base — every solved defect makes the next one cheaper.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- side-by-side sample dashboards -->
+  <section class="panel">
+    <div class="p-head"><span class="n">v.</span><h2>Same Dashboard, Both Worlds</h2><span>identical data &amp; features · native look &amp; feel</span></div>
+    <div class="p-body">
+      <div class="dash-grid">
+        <div class="same-banner"><b>Same data everywhere</b> — Sales $2.40M · Profit $412K · Orders 9,842 · Jan–Jun trend · category bars — this equality is exactly what Agent 8 certifies</div>
+
+        <!-- Tableau mock -->
+        <div class="dash tb">
+          <div class="chrome"><span class="dots"><i></i><i></i></span> TABLEAU · Sales Overview.twbx · Sheet: Dashboard</div>
+          <div class="canvas">
+            <h4>Sales Overview — FY26 H1</h4>
+            <div class="kpis">
+              <div class="kpi"><div class="v">$2.40M</div><div class="l">Sales</div></div>
+              <div class="kpi"><div class="v">$412K</div><div class="l">Profit</div></div>
+              <div class="kpi"><div class="v">9,842</div><div class="l">Orders</div></div>
+            </div>
+            <div class="viz">
+              <div class="vt">Monthly Sales Trend (with 3-mo WINDOW_AVG table calc)</div>
+              <svg viewBox="0 0 300 92">
+                <line x1="8" y1="80" x2="292" y2="80" stroke="#C9D6E2" stroke-width="1"/>
+                <polyline points="20,62 72,56 124,52 176,40 228,33 280,21" fill="none" stroke="#4E79A7" stroke-width="2.5"/>
+                <polyline points="20,60 72,58 124,55 176,48 228,41 280,31" fill="none" stroke="#F28E2B" stroke-width="2" stroke-dasharray="4 3"/>
+                <g fill="#4E79A7"><circle cx="20" cy="62" r="3"/><circle cx="72" cy="56" r="3"/><circle cx="124" cy="52" r="3"/><circle cx="176" cy="40" r="3"/><circle cx="228" cy="33" r="3"/><circle cx="280" cy="21" r="3"/></g>
+                <g font-size="8" fill="#666"><text x="16" y="90">Jan</text><text x="68" y="90">Feb</text><text x="120" y="90">Mar</text><text x="172" y="90">Apr</text><text x="224" y="90">May</text><text x="276" y="90">Jun</text></g>
+              </svg>
+              <div class="legend-mini"><span><i style="background:#4E79A7"></i>Sales</span><span><i style="background:#F28E2B"></i>3-mo moving avg</span></div>
+            </div>
+            <div class="viz">
+              <div class="vt">Sales by Category (filter action → other sheets)</div>
+              <div class="hbars">
+                <div class="hbar"><span>Technology</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="n">$980K</span></div>
+                <div class="hbar"><span>Furniture</span><div class="track"><div class="fill" style="width:78%"></div></div><span class="n">$760K</span></div>
+                <div class="hbar"><span>Office Supplies</span><div class="track"><div class="fill" style="width:67%"></div></div><span class="n">$660K</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="dash-note"><b>Tableau-isms in play:</b> moving avg is a <b>table calc</b>, category click is a <b>filter action</b>, profit ratio is an <b>LOD</b>, region security is a <b>user filter</b>.</div>
+        </div>
+
+        <!-- Power BI mock -->
+        <div class="dash pb">
+          <div class="chrome"><span class="dots"><i></i><i></i></span> POWER BI · SalesOverview.pbip · Page 1</div>
+          <div class="canvas">
+            <h4>Sales Overview — FY26 H1</h4>
+            <div class="kpis">
+              <div class="kpi"><div class="v">$2.40M</div><div class="l">Sales</div></div>
+              <div class="kpi"><div class="v">$412K</div><div class="l">Profit</div></div>
+              <div class="kpi"><div class="v">9,842</div><div class="l">Orders</div></div>
+            </div>
+            <div class="viz">
+              <div class="vt">Monthly Sales Trend (3-mo avg via DAX WINDOW measure)</div>
+              <svg viewBox="0 0 300 92">
+                <line x1="8" y1="80" x2="292" y2="80" stroke="#DDD" stroke-width="1"/>
+                <polyline points="20,62 72,56 124,52 176,40 228,33 280,21" fill="none" stroke="#118DFF" stroke-width="2.5"/>
+                <polyline points="20,60 72,58 124,55 176,48 228,41 280,31" fill="none" stroke="#12239E" stroke-width="2" stroke-dasharray="4 3"/>
+                <g fill="#118DFF"><circle cx="20" cy="62" r="3"/><circle cx="72" cy="56" r="3"/><circle cx="124" cy="52" r="3"/><circle cx="176" cy="40" r="3"/><circle cx="228" cy="33" r="3"/><circle cx="280" cy="21" r="3"/></g>
+                <g font-size="8" fill="#666"><text x="16" y="90">Jan</text><text x="68" y="90">Feb</text><text x="120" y="90">Mar</text><text x="172" y="90">Apr</text><text x="224" y="90">May</text><text x="276" y="90">Jun</text></g>
+              </svg>
+              <div class="legend-mini"><span><i style="background:#118DFF"></i>Sales</span><span><i style="background:#12239E"></i>3-mo moving avg</span></div>
+            </div>
+            <div class="viz">
+              <div class="vt">Sales by Category (cross-filters other visuals)</div>
+              <div class="hbars">
+                <div class="hbar"><span>Technology</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="n">$980K</span></div>
+                <div class="hbar"><span>Furniture</span><div class="track"><div class="fill" style="width:78%"></div></div><span class="n">$760K</span></div>
+                <div class="hbar"><span>Office Supplies</span><div class="track"><div class="fill" style="width:67%"></div></div><span class="n">$660K</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="dash-note"><b>Migrated equivalents:</b> moving avg is a <b>DAX WINDOW measure</b> (Agent 5), click is <b>cross-filtering</b> (Agent 6), profit ratio is <b>CALCULATE + REMOVEFILTERS</b>, region security is an <b>RLS role</b> (Agent 7).</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- glossary -->
+  <section class="panel">
+    <div class="p-head"><span class="n">vi.</span><h2>Glossary</h2><span>the vocabulary of this migration</span></div>
+    <dl class="gloss">
+      <div class="g-item"><dt>PBIP</dt><dd>Power BI Project — save format that stores a report + semantic model as plain text folders instead of a binary .pbix. The substrate all agents edit.</dd></div>
+      <div class="g-item"><dt>TMDL</dt><dd>Tabular Model Definition Language — human-readable text files defining the semantic model: tables, measures, relationships, roles.</dd></div>
+      <div class="g-item"><dt>PBIR</dt><dd>Power BI enhanced Report format — each page/visual as schema-validated JSON. What Agent 6 repairs.</dd></div>
+      <div class="g-item"><dt>Semantic model</dt><dd>Power BI's dataset layer: tables, relationships, and DAX measures that reports connect to. Replaces Tableau's embedded data source.</dd></div>
+      <div class="g-item"><dt>DAX</dt><dd>Data Analysis Expressions — Power BI's calculation language. Target of every Tableau calculated field.</dd></div>
+      <div class="g-item"><dt>Power Query M</dt><dd>Power BI's data-shaping language. Target for Tableau custom SQL, joins, and data prep.</dd></div>
+      <div class="g-item"><dt>LOD expression</dt><dd>Tableau Level-of-Detail calc (FIXED/INCLUDE/EXCLUDE) that overrides visual grain. The #1 source of migration defects.</dd></div>
+      <div class="g-item"><dt>Table calculation</dt><dd>Tableau calc computed over the visible result set (RUNNING_SUM, RANK, WINDOW_AVG). Maps to DAX WINDOW/OFFSET/RANKX.</dd></div>
+      <div class="g-item"><dt>Data blend</dt><dd>Tableau's post-aggregation join across data sources. Becomes a model relationship or composite model — with documented semantic deltas.</dd></div>
+      <div class="g-item"><dt>RLS</dt><dd>Row-Level Security — Power BI roles with DAX filters controlling which rows each user sees. Replaces Tableau user filters.</dd></div>
+      <div class="g-item"><dt>Calculation group</dt><dd>One reusable set of time-intelligence/variance logic applied across measures — collapses hundreds of duplicated Tableau calcs.</dd></div>
+      <div class="g-item"><dt>Query folding</dt><dd>Power Query pushing transformations back to the source database. Preserving it keeps refreshes fast at scale.</dd></div>
+      <div class="g-item"><dt>Direct Lake / Import / DirectQuery</dt><dd>Power BI storage modes — the decision that replaces Tableau's extract-vs-live choice.</dd></div>
+      <div class="g-item"><dt>BPA</dt><dd>Best Practice Analyzer (Tabular Editor) — rule engine that audits models; a CI merge gate in this pipeline.</dd></div>
+      <div class="g-item"><dt>Golden dataset</dt><dd>Frozen, timestamped snapshot of Tableau-side numbers used as the stable comparison baseline for every remediation iteration.</dd></div>
+      <div class="g-item"><dt>Parity certificate</dt><dd>Agent 8's signed evidence pack (numeric + visual checks) — the artifact that gates promotion to production.</dd></div>
+      <div class="g-item"><dt>MCP</dt><dd>Model Context Protocol — open standard exposing external systems (Power BI, Tableau, Git) as tools AI agents can call directly.</dd></div>
+      <div class="g-item"><dt>Copilot Agent Mode</dt><dd>VS Code mode where Copilot plans and executes multi-step work — editing files, running tasks, calling MCP tools — under human review.</dd></div>
+      <div class="g-item"><dt>Fabric deployment pipeline</dt><dd>Microsoft Fabric's Dev→Test→Prod promotion mechanism with per-stage parameter rules; Agent 9's delivery rail.</dd></div>
+      <div class="g-item"><dt>XMLA endpoint</dt><dd>The programmatic connection to published semantic models — fallback path (Tabular Editor) when MCP auth to the service is unavailable.</dd></div>
+      <div class="g-item"><dt>Wave</dt><dd>A migration batch grouped by shared data source and owner, so each model migrates once and many reports ride on it.</dd></div>
+    </dl>
+  </section>
+
+  <footer class="foot">
+    <span>CYCLE · 1 INVENTORY → 2 CONVERT → 3 DATA → 4 MODEL → 5 DAX → 6 LAYOUT → 7 RLS → 8 VALIDATE → 9 SHIP → ↺ NEXT WAVE</span>
+    <span>MCPS ARE ACCELERANTS — TABULAR EDITOR CLI &amp; REST APIS REMAIN THE DETERMINISTIC FALLBACK</span>
+  </footer>
+
+</div>
+</body>
+</html>

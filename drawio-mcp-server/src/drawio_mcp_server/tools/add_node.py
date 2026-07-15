@@ -7,6 +7,7 @@ from mcp.types import Tool
 from ..drawio.gcp_icons import (
     build_gcp_image_style,
     detect_icon_from_label,
+    label_with_service,
     resolve_icon,
 )
 from ..drawio.shapes import DEFAULT_SIZE
@@ -107,6 +108,7 @@ async def add_node(args: dict[str, Any], cfg: ServerConfig) -> dict[str, str]:
     raw_style = args.get("style")
     shape = args.get("shape")
     auto_detected = False
+    gcp_service: str | None = None
 
     # Auto-detect: when the caller didn't explicitly request a GCP icon or a
     # raw style, scan the label for a known GCP service name. This is the
@@ -147,6 +149,11 @@ async def add_node(args: dict[str, Any], cfg: ServerConfig) -> dict[str, str]:
                 f"'Cloud Run', 'pubsub') or omit gcp_icon and use `shape`."
             )
         raw_style = build_gcp_image_style(svg)
+        # Name the service beside the logo: append the canonical GCP service
+        # name to the label unless it is already mentioned. Keeps the diagram
+        # self-describing when the caller's label ("Order Events") never says
+        # which service the icon is.
+        label, gcp_service = label_with_service(label, svg)
         default_w, default_h = _GCP_ICON_SIZE, _GCP_ICON_SIZE
         # shape is irrelevant when raw_style is set, but the Pydantic model
         # still requires a literal — pick the closest neutral.
@@ -180,6 +187,10 @@ async def add_node(args: dict[str, Any], cfg: ServerConfig) -> dict[str, str]:
     result: dict[str, str] = {"id": node_id, "path": store.save(diagram_name, diagram)}
     if auto_detected and gcp_icon:
         result["auto_detected_gcp_icon"] = str(gcp_icon)
+    if gcp_service:
+        # Surface the service name added to the label so the caller sees it.
+        result["gcp_service"] = gcp_service
+        result["label"] = label
     return result
 
 

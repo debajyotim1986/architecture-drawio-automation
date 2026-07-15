@@ -4,7 +4,12 @@ from typing import Any
 
 from mcp.types import Tool
 
-from ..drawio.gcp_icons import build_gcp_image_style, resolve_icon
+from ..drawio.gcp_icons import (
+    build_gcp_image_style,
+    label_with_service,
+    resolve_icon,
+    strip_service_suffix,
+)
 from ..drawio.shapes import DEFAULT_SIZE
 from ..util.config import ServerConfig
 from ..util.diagram_store import DiagramStore
@@ -65,6 +70,8 @@ async def update_node(args: dict[str, Any], cfg: ServerConfig) -> dict[str, str]
     if node is None:
         raise ValueError(f"No node with id '{node_id}'.")
 
+    gcp_service: str | None = None
+
     if "label" in args:
         node.label = str(args["label"])
     if "shape" in args:
@@ -83,6 +90,12 @@ async def update_node(args: dict[str, Any], cfg: ServerConfig) -> dict[str, str]
                 f"{cfg.icons_dir}."
             )
         node.raw_style = build_gcp_image_style(svg)
+        # Name the service beside the logo. Strip any service suffix the
+        # server added for a previous icon first, so swapping the icon
+        # replaces the name rather than stacking ("... (Pub/Sub) (Cloud Run)").
+        node.label, gcp_service = label_with_service(
+            strip_service_suffix(node.label), svg
+        )
         # Default to icon-friendly size if caller didn't override.
         if "width" not in args:
             node.width = 64.0
@@ -91,4 +104,8 @@ async def update_node(args: dict[str, Any], cfg: ServerConfig) -> dict[str, str]
     elif "style" in args:
         node.raw_style = str(args["style"])
 
-    return {"path": store.save(diagram_name, diagram)}
+    result: dict[str, str] = {"path": store.save(diagram_name, diagram)}
+    if gcp_service:
+        result["gcp_service"] = gcp_service
+        result["label"] = node.label
+    return result

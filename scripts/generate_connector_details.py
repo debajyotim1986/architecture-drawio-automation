@@ -42,7 +42,7 @@ MCP_SRC = REPO_ROOT / "drawio-mcp-server" / "src"
 if MCP_SRC.exists() and str(MCP_SRC) not in sys.path:
     sys.path.insert(0, str(MCP_SRC))
 
-MODEL_DEFAULT = "claude-sonnet-4-6"
+MODEL_DEFAULT = "claude-sonnet-5"
 
 # How many `{TBD}` cells (of ANY form — plain `{TBD}` OR qualified
 # `{TBD: <hint>}`) we tolerate in the final filled output. Zero

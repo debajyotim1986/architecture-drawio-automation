@@ -57,8 +57,21 @@ pip download --only-binary=:all: \
   --platform win_amd64 --python-version 3.14 --implementation cp --abi cp314 \
   --dest wheels \
   "anthropic>=0.40" "mcp>=1.0.0" "pydantic>=2.0" \
-  hatchling editables pip setuptools wheel
+  hatchling editables pip setuptools wheel \
+  colorama pywin32
 ```
+
+**Why `colorama` and `pywin32` are listed explicitly:** they are Windows-only
+transitive deps — `click` declares `colorama; platform_system == "Windows"` and
+`mcp` declares `pywin32>=310; sys_platform == "win32"`. `pip download
+--platform win_amd64` sets only the *wheel-compatibility* tag — it still
+evaluates environment markers like `platform_system` / `sys_platform` against
+the **host** machine. When the download host is macOS/Linux those markers are
+False, so both wheels are silently skipped and the offline install then fails on
+Windows with `Could not find a version that satisfies the requirement ...`.
+Listing them by name forces them in. (`colorama` is a universal
+`py2.py3-none-any` wheel; `pywin32` is a `cp314 / win_amd64` wheel matched to
+the target — regenerate it if you change the Python version or platform.)
 
 For a different target, change `--platform` (e.g. `manylinux2014_x86_64`,
 `macosx_11_0_arm64`), `--python-version`, and `--abi` (e.g. `cp311`) to match.

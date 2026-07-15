@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Architecture-Diagram Copilot — Field Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0e1a;
+    --paper:#f7f5ef;
+    --ink:#0b0e1a;
+    --muted:#5b6472;
+    --line:#d8d3c6;
+
+    /* stage palette */
+    --s1:#2563eb; /* Entry & Routing — Cobalt */
+    --s2:#d97706; /* Story Normalization — Amber */
+    --s3:#dc2626; /* Governance & Guardrails — Crimson */
+    --s4:#7c3aed; /* MCP Core & Tool Layer — Violet */
+    --s5:#0d9488; /* Domain Model & drawio Adapter — Teal */
+    --s6:#16a34a; /* Sandboxed Storage — Emerald */
+    --s7:#0891b2; /* Verification & Delivery — Cyan */
+    --s8:#4f46e5; /* Docs, Templates & Cross-OS Tooling — Indigo */
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Inter",-apple-system,Segoe UI,Roboto,sans-serif;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px);
+    background-size:34px 34px;
+  }
+  h1,h2,h3,h4{font-family:"Space Grotesk",sans-serif; margin:0;}
+  code, .mono{font-family:"JetBrains Mono", ui-monospace, Menlo, monospace;}
+  mark{background:none; color:inherit; padding:0 3px; border-radius:3px; font-weight:700;}
+  a{color:inherit;}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 20px 60px;}
+  img,svg{max-width:100%;}
+
+  /* ===== Hero ===== */
+  .hero{padding:52px 20px 26px; max-width:1180px; margin:0 auto;}
+  .eyebrow{text-transform:uppercase; letter-spacing:3px; font-size:11px; font-weight:700; color:#93c5fd; margin-bottom:14px;}
+  .h1{font-size:clamp(28px,4.4vw,46px); font-weight:800; letter-spacing:-1px; color:#f8fafc; line-height:1.08; margin-bottom:14px; max-width:900px;}
+  .h1 .glow{background:linear-gradient(90deg,#60a5fa,#34d399); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;}
+  .sub{color:#cbd5e1; font-size:15px; line-height:1.6; max-width:760px; margin-bottom:22px;}
+
+  .legend-bar{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  .lg-tag{display:inline-flex; align-items:center; gap:7px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.18); border-radius:999px; padding:6px 13px; font-size:12px; font-weight:700; color:#e2e8f0;}
+  .lg-tag b{font-family:"JetBrains Mono",monospace; font-weight:700; padding:1px 7px; border-radius:5px; font-size:10.5px; letter-spacing:0.4px;}
+  .lg-tag.a b{background:#1d4ed8; color:#fff;}
+  .lg-tag.b b{background:#0f172a; color:#67e8f9; border:1px solid #334155;}
+
+  /* ===== Landing menu grid ===== */
+  .landing{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin:30px auto 0; max-width:1180px; padding:0 20px;}
+  .lcard{
+    display:block; text-decoration:none; border-radius:14px; padding:16px 15px 15px;
+    background:linear-gradient(160deg, rgba(255,255,255,0.09), rgba(255,255,255,0.02));
+    border:2px solid var(--sc); box-shadow:5px 5px 0 var(--sc);
+    transition:transform .15s ease;
+  }
+  .lcard:hover{transform:translate(-2px,-2px);}
+  .lcard .ln{font-family:"Space Grotesk",sans-serif; font-size:22px; font-weight:800; color:var(--sc);}
+  .lcard .lt{color:#f1f5f9; font-size:13.5px; font-weight:700; margin-top:6px; line-height:1.3;}
+  .lcard .ls{color:#9fb0c3; font-size:11px; margin-top:5px; line-height:1.4;}
+
+  /* ===== Sticky nav ===== */
+  .stickynav{position:sticky; top:0; z-index:50; margin-top:22px; background:rgba(11,14,26,0.92); backdrop-filter:blur(8px); border-top:1px solid rgba(255,255,255,0.12); border-bottom:1px solid rgba(255,255,255,0.12);}
+  .stickynav .snrow{max-width:1180px; margin:0 auto; padding:0 20px; display:flex; gap:4px; overflow-x:auto; scrollbar-width:thin;}
+  .stickynav a{white-space:nowrap; font-size:12px; font-weight:700; color:#cbd5e1; padding:11px 12px; border-bottom:3px solid transparent; text-decoration:none;}
+  .stickynav a:hover{color:#fff; border-bottom-color:var(--sc,#60a5fa);}
+
+  /* ===== Stage sections ===== */
+  .stage{padding-top:46px; scroll-margin-top:52px;}
+  .stage-head{display:flex; gap:16px; align-items:flex-start; margin-bottom:8px;}
+  .stage-badge{
+    flex:none; width:52px; height:52px; border-radius:14px; background:var(--sc); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-family:"Space Grotesk",sans-serif;
+    font-size:22px; font-weight:800; box-shadow:5px 5px 0 rgba(0,0,0,0.55);
+  }
+  .stage-title{font-size:clamp(20px,3vw,28px); font-weight:800; color:#f8fafc; letter-spacing:-0.4px;}
+  .stage-label{text-transform:uppercase; letter-spacing:1.6px; font-size:10.5px; font-weight:700; color:var(--sc); margin-bottom:4px;}
+  .stage-why{color:#b9c2cf; font-size:13.5px; line-height:1.6; max-width:880px; margin:10px 0 22px 68px;}
+
+  .rule{height:5px; background:var(--sc); border-radius:3px; margin:44px 0 0; opacity:0.9;}
+
+  /* ===== Topic cards ===== */
+  .cards{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-left:0;}
+  .card{
+    background:var(--paper); border:2.5px solid #0b0e1a; border-radius:12px; padding:16px 16px 15px;
+    box-shadow:6px 6px 0 var(--sc); position:relative;
+  }
+  .card .lvl{display:inline-block; font-family:"JetBrains Mono",monospace; font-size:9.5px; font-weight:700; letter-spacing:0.4px; padding:2px 8px; border-radius:5px; margin-bottom:9px;}
+  .card .lvl.a{background:var(--sc); color:#fff;}
+  .card .lvl.b{background:#0b0e1a; color:#fff;}
+  .card h4{font-size:14px; font-weight:700; color:#1f2430; line-height:1.35; margin-bottom:9px;}
+  .card h4 b, .card h4 strong{color:#0b0e1a;}
+  .card ul{margin:0; padding-left:18px; color:#3f4757; font-size:12px; line-height:1.55;}
+  .card ul li{margin-bottom:3px;}
+  .card code{font-size:10.5px; background:rgba(11,14,26,0.06); padding:1px 5px; border-radius:4px; color:#1f2430;}
+
+  /* ===== Deep dive ===== */
+  .deepdive{margin-top:18px; border:2.5px solid #0b0e1a; border-radius:12px; padding:16px 18px; background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)); border-left-width:10px; border-left-color:var(--sc);}
+  .deepdive .dd-h{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+  .deepdive .dd-tag{font-family:"JetBrains Mono",monospace; font-size:9.5px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; background:var(--sc); color:#fff; padding:3px 9px; border-radius:999px;}
+  .deepdive .dd-t{font-size:13.5px; font-weight:700; color:#f1f5f9;}
+  .deepdive p{margin:0; font-size:12.5px; line-height:1.6; color:#cbd5e1;}
+  .deepdive code{font-size:11px; background:rgba(255,255,255,0.08); color:#e0f2fe; padding:1px 6px; border-radius:4px;}
+
+  /* ===== Glossary ===== */
+  .glossary{margin-top:64px;}
+  .g-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px 22px; margin-top:18px;}
+  .g-item{border-bottom:1px dashed rgba(255,255,255,0.18); padding:9px 0; display:grid; grid-template-columns:150px 1fr; gap:12px;}
+  .g-term{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:12px; color:#67e8f9;}
+  .g-def{font-size:12.5px; color:#cbd5e1; line-height:1.5;}
+
+  /* ===== Study path ===== */
+  .studypath{margin-top:56px; border:2.5px solid #0b0e1a; border-radius:14px; padding:22px 24px; background:var(--paper); box-shadow:7px 7px 0 #60a5fa;}
+  .studypath h3{font-size:19px; font-weight:800; color:#0b0e1a; margin-bottom:14px;}
+  .studypath ol{margin:0; padding-left:22px; color:#1f2430; font-size:13px; line-height:2;}
+  .studypath ol li strong{color:#0b0e1a;}
+  .studypath ol code{background:rgba(11,14,26,0.07); padding:1px 6px; border-radius:4px; font-size:11.5px;}
+
+  /* ===== Footer ===== */
+  .footer{margin-top:60px; padding:22px 20px 0; border-top:1px solid rgba(255,255,255,0.14); display:flex; flex-wrap:wrap; gap:14px; justify-content:space-between; align-items:center; color:#93a1b3; font-size:11.5px;}
+  .footer .fchips{display:flex; gap:8px; flex-wrap:wrap;}
+  .footer .fchip{border:1px solid rgba(255,255,255,0.2); border-radius:999px; padding:4px 11px; font-weight:700; color:#cbd5e1;}
+
+  a:focus-visible, .lcard:focus-visible, .stickynav a:focus-visible{outline:3px solid #67e8f9; outline-offset:2px;}
+
+  @media (max-width:900px){
+    .landing{grid-template-columns:repeat(2,1fr);}
+    .cards{grid-template-columns:1fr 1fr;}
+    .g-grid{grid-template-columns:1fr;}
+  }
+  @media (max-width:600px){
+    .landing{grid-template-columns:1fr;}
+    .cards{grid-template-columns:1fr;}
+    .stage-why{margin-left:0;}
+    .stage-head{flex-wrap:wrap;}
+    .g-item{grid-template-columns:1fr;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto;}
+    .lcard{transition:none;}
+  }
+</style>
+</head>
+<body>
+
+  <div class="hero">
+    <div class="eyebrow">Field Reference · Solution Architecture</div>
+    <h1 class="h1">AI Architecture-Diagram Copilot <span class="glow">— System Map</span></h1>
+    <p class="sub">A complete reference for the <b>drawio-mcp-server</b> pipeline: how a one-line chat prompt in GitHub Copilot becomes a verified, presentation-ready <code>.drawio</code> file. Organized as an <b>8-stage lifecycle</b> that mirrors the system's own prompt-to-delivery pipeline — covering the client entry point, the MCP tool layer, the domain model, storage, governance, verification, and documentation.</p>
+    <div class="legend-bar">
+      <span class="lg-tag a"><b>HIGH-LEVEL</b> concept, flow, or decision a solution architect reasons about</span>
+      <span class="lg-tag b"><b>LOW-LEVEL</b> file, function, or mechanism an engineer implements</span>
+    </div>
+  </div>
+
+  <div class="landing">
+    <a class="lcard" style="--sc:var(--s1)" href="#stage-1"><div class="ln">01</div><div class="lt">Entry &amp; Routing</div><div class="ls">Chat prompt → shorthand router</div></a>
+    <a class="lcard" style="--sc:var(--s2)" href="#stage-2"><div class="ln">02</div><div class="lt">Story Normalization</div><div class="ls">Raw note → surgical brief</div></a>
+    <a class="lcard" style="--sc:var(--s3)" href="#stage-3"><div class="ln">03</div><div class="lt">Governance &amp; Guardrails</div><div class="ls">Restricted-service gate</div></a>
+    <a class="lcard" style="--sc:var(--s4)" href="#stage-4"><div class="ln">04</div><div class="lt">MCP Core &amp; Tool Layer</div><div class="ls">13 intent-level verbs</div></a>
+    <a class="lcard" style="--sc:var(--s5)" href="#stage-5"><div class="ln">05</div><div class="lt">Domain Model &amp; Adapter</div><div class="ls">Diagram model ⇄ mxGraph XML</div></a>
+    <a class="lcard" style="--sc:var(--s6)" href="#stage-6"><div class="ln">06</div><div class="lt">Sandboxed Storage</div><div class="ls">File-backed, path-safe stores</div></a>
+    <a class="lcard" style="--sc:var(--s7)" href="#stage-7"><div class="ln">07</div><div class="lt">Verification &amp; Delivery</div><div class="ls">Hard gate before shipping</div></a>
+    <a class="lcard" style="--sc:var(--s8)" href="#stage-8"><div class="ln">08</div><div class="lt">Docs, Templates &amp; Tooling</div><div class="ls">Cross-OS scripts &amp; markdown</div></a>
+  </div>
+
+  <nav class="stickynav" aria-label="Section navigation">
+    <div class="snrow">
+      <a href="#stage-1">01 Entry</a>
+      <a href="#stage-2">02 Normalize</a>
+      <a href="#stage-3">03 Governance</a>
+      <a href="#stage-4">04 MCP Core</a>
+      <a href="#stage-5">05 Domain Model</a>
+      <a href="#stage-6">06 Storage</a>
+      <a href="#stage-7">07 Verify</a>
+      <a href="#stage-8">08 Docs</a>
+      <a href="#glossary">Glossary</a>
+      <a href="#studypath">Study Path</a>
+    </div>
+  </nav>
+
+  <div class="wrap">
+
+    <!-- ============ STAGE 1 ============ -->
+    <section class="stage" id="stage-1" style="--sc:var(--s1)">
+      <div class="stage-head">
+        <div class="stage-badge">01</div>
+        <div>
+          <div class="stage-label">Stage 01 · Cobalt</div>
+          <div class="stage-title">Entry &amp; Routing</div>
+        </div>
+      </div>
+      <p class="stage-why"><mark style="background:rgba(37,99,235,0.18)">GitHub Copilot Chat is the only client</mark> — there is no custom UI. Every one of the 13 MCP tools is reached from a single typed line, so the router that decides <em>create vs. update</em> is the first thing a new engineer needs to trust.</p>
+      <div class="cards">
+        <div class="card">
+          <span class="lvl b">LOW-LEVEL</span>
+          <h4><strong>.vscode/mcp.json wires Copilot to the server over stdio</strong></h4>
+          <ul>
+            <li>Transport is <code>MCP · stdio · JSON-RPC</code></li>
+            <li>Exposes <code>tools/list</code> and <code>tools/call</code></li>
+            <li><code>.vscode/settings.json</code> sets <mark style="background:rgba(37,99,235,0.18)">useInstructionFiles</mark> so repo rules auto-attach</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl a">HIGH-LEVEL</span>
+          <h4><strong>One short line routes to create or update</strong></h4>
+          <ul>
+            <li>Shorthand matched against <code>.github/copilot-instructions.md</code></li>
+            <li>Runs <code>list_stories</code> / <code>list_diagrams</code> to disambiguate</li>
+            <li>1 match → use it · 0 → offer create · many → ask</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl a">HIGH-LEVEL</span>
+          <h4><strong>The client plane has exactly one member</strong></h4>
+          <ul>
+            <li>GitHub Copilot Chat drives the whole pipeline</li>
+            <li>No dashboards, no web app — chat is the interface</li>
+            <li>Every downstream tool call originates here</li>
+          </ul>
+        </div>
+      </div>
+      <div class="deepdive">
+        <div class="dd-h"><span class="dd-tag">Worked example</span><span class="dd-t">From one line to a chosen prompt file</span></div>
+        <p>A person types <code>Jira: PROJ-123.txt … create a diagram</code>. Copilot matches the shorthand rule, calls <code>list_stories</code>, finds no existing diagram tied to <code>PROJ-123</code>, and picks <code>prompts/create-diagram.md</code> as the backend prompt to follow for the rest of the run.</p>
+      </div>
+    </section>
+
+    <div class="rule" style="background:var(--s2)"></div>
+
+    <!-- ============ STAGE 2 ============ -->
+    <section class="stage" id="stage-2" style="--sc:var(--s2)">
+      <div class="stage-head">
+        <div class="stage-badge">02</div>
+        <div>
+          <div class="stage-label">Stage 02 · Amber</div>
+          <div class="stage-title">Story Normalization</div>
+        </div>
+      </div>
+      <p class="stage-why">Business prose is inconsistent; diagrams need a <mark style="background:rgba(217,119,6,0.22)">deterministic technical brief</mark>. This stage turns a raw Jira note into a canonical document the AI can plan a layout from without guessing.</p>
+      <div class="cards">
+        <div class="card">
+          <span class="lvl b">LOW-LEVEL</span>
+          <h4><strong>normalize_jira_story.py builds the surgical brief</strong></h4>
+          <ul>
+            <li>CREATE mode vs. diagram-aware UPDATE mode</li>
+            <li>Reads <code>jira-stories/&lt;KEY&gt;.txt</code> + <code>surgical-story-template.txt</code></li>
+            <li>Writes <code>&lt;KEY&gt;-surgical.txt</code> plus a <code>.bak</code> backup</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl b">LOW-LEVEL</span>
+          <h4><strong>The LLM call degrades gracefully</strong></h4>
+          <ul>
+            <li>Uses <mark style="background:rgba(217,119,6,0.22)">Anthropic Claude</mark> if <code>ANTHROPIC_API_KEY</code> is set</li>
+            <li>Otherwise verbatim copy, or delegates to Copilot</li>
+            <li>Pipeline stays usable with zero external keys</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl a">HIGH-LEVEL</span>
+          <h4><strong>Updates quote the live diagram, not memory</strong></h4>
+          <ul>
+            <li>UPDATE mode embeds the current diagram summary</li>
+            <li>Node and edge labels are copied verbatim</li>
+            <li>Prevents drift between the story text and the <code>.drawio</code> file</li>
+          </ul>
+        </div>
+      </div>
+      <div class="deepdive">
+        <div class="dd-h"><span class="dd-tag">Worked example</span><span class="dd-t">Raw note → surgical brief</span></div>
+        <p>A three-paragraph Jira description at <code>jira-stories/PROJ-123.txt</code> is condensed into <code>PROJ-123-surgical.txt</code> — a numbered list of components, their relationships, and the target swimlanes — ready for the planning stage to consume directly.</p>
+      </div>
+    </section>
+
+    <div class="rule" style="background:var(--s3)"></div>
+
+    <!-- ============ STAGE 3 ============ -->
+    <section class="stage" id="stage-3" style="--sc:var(--s3)">
+      <div class="stage-head">
+        <div class="stage-badge">03</div>
+        <div>
+          <div class="stage-label">Stage 03 · Crimson</div>
+          <div class="stage-title">Governance &amp; Guardrails</div>
+        </div>
+      </div>
+      <p class="stage-why">This is a <mark style="background:rgba(220,38,38,0.20)">mandatory pre-build gate</mark> — it runs before a single node is drawn, on both create and update paths, and it never guesses on your behalf.</p>
+      <div class="cards">
+        <div class="card">
+          <span class="lvl a">HIGH-LEVEL</span>
+          <h4><strong>One file is the entire source of truth</strong></h4>
+          <ul>
+            <li><code>policy/unavailable_services.md</code></li>
+            <li>Service name + alias ban list</li>
+            <li>Separate 94-row <code>alternate1–4</code> reference table</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl b">LOW-LEVEL</span>
+          <h4><strong>Cascading substitution, never silent failure</strong></h4>
+          <ul>
+            <li>Alternates ranked by the specific Jira scenario</li>
+            <li>A restricted alternate <mark style="background:rgba(220,38,38,0.20)">cascade-skips</mark> to the next allowed one</li>
+            <li>The flow always stops and asks</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl a">HIGH-LEVEL</span>
+          <h4><strong>The gate is checked at prompt step 2a</strong></h4>
+          <ul>
+            <li>Applies to every planned component + <code>gcp_icon</code></li>
+            <li>Mandatory for both create and update runs</li>
+            <li>Presents every option and waits for a human pick</li>
+          </ul>
+        </div>
+      </div>
+      <div class="deepdive">
+        <div class="dd-h"><span class="dd-tag">Worked example</span><span class="dd-t">A restricted service, resolved live</span></div>
+        <p><code>Cloud Functions</code> is restricted today. The guardrail offers <code>Cloud Run</code>, App Engine, GKE, and Compute Engine, ranked for the scenario, and the build pauses until a person picks one.</p>
+      </div>
+    </section>
+
+    <div class="rule" style="background:var(--s4)"></div>
+
+    <!-- ============ STAGE 4 ============ -->
+    <section class="stage" id="stage-4" style="--sc:var(--s4)">
+      <div class="stage-head">
+        <div class="stage-badge">04</div>
+        <div>
+          <div class="stage-label">Stage 04 · Violet</div>
+          <div class="stage-title">MCP Core &amp; Tool Layer</div>
+        </div>
+      </div>
+      <p class="stage-why">The LLM only ever <mark style="background:rgba(124,58,237,0.20)">names intent</mark> — the server owns every pixel of geometry. Thirteen small, composable tools sit behind a single dispatch registry.</p>
+      <div class="cards">
+        <div class="card">
+          <span class="lvl b">LOW-LEVEL</span>
+          <h4><strong>server.py runs the stdio dispatch loop</strong></h4>
+          <ul>
+            <li><code>@list_tools</code> / <code>@call_tool</code> decorators</li>
+            <li><code>TOOL_REGISTRY</code>: name → (schema, handler)</li>
+            <li>Errors surface as text, not crashes</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl a">HIGH-LEVEL</span>
+          <h4><strong>Five tools only read, never mutate</strong></h4>
+          <ul>
+            <li><code>list_diagrams</code> · <code>read_diagram</code></li>
+            <li><code>read_diagram_summary</code></li>
+            <li><code>list_stories</code> · <code>read_story</code></li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl a">HIGH-LEVEL</span>
+          <h4><strong>Eight verbs build and edit the diagram</strong></h4>
+          <ul>
+            <li><code>create_diagram</code> · <code>add_title</code></li>
+            <li><code>add_container</code> (swimlane layers)</li>
+            <li><code>add_node</code> (gcp_icon, auto-place) · <code>add_edge</code> (fan-out)</li>
+            <li><code>add_connector_table</code> (zero-TBD) · <code>update_node</code> · <code>remove_element</code></li>
+          </ul>
+        </div>
+      </div>
+      <div class="deepdive">
+        <div class="dd-h"><span class="dd-tag">Worked example</span><span class="dd-t">Four calls build a layered diagram</span></div>
+        <p><code>create_diagram</code> → <code>add_container</code> ×N (one per swimlane) → <code>add_node(gcp_icon=…)</code> for each component → <code>add_edge</code> to connect them. The server resolves layout; the model never specifies coordinates.</p>
+      </div>
+    </section>
+
+    <div class="rule" style="background:var(--s5)"></div>
+
+    <!-- ============ STAGE 5 ============ -->
+    <section class="stage" id="stage-5" style="--sc:var(--s5)">
+      <div class="stage-head">
+        <div class="stage-badge">05</div>
+        <div>
+          <div class="stage-label">Stage 05 · Teal</div>
+          <div class="stage-title">Domain Model &amp; drawio Adapter</div>
+        </div>
+      </div>
+      <p class="stage-why">An intent-level Pydantic model sits between the tool layer and raw mxGraph XML, so <mark style="background:rgba(13,148,136,0.20)">layout stays deterministic</mark> instead of depending on manual dragging.</p>
+      <div class="cards">
+        <div class="card">
+          <span class="lvl b">LOW-LEVEL</span>
+          <h4><strong>Diagram / Node / Edge model every intent</strong></h4>
+          <ul>
+            <li><code>parser.py</code> ⇄ <code>builder.py</code> round-trip the XML</li>
+            <li><code>summarize.py</code> strips to id + label only</li>
+            <li><code>shapes.py</code> holds the style catalog</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl b">LOW-LEVEL</span>
+          <h4><strong>Deterministic constants replace manual dragging</strong></h4>
+          <ul>
+            <li><code>_COLUMN_GAP</code> = 140px between swimlanes</li>
+            <li><code>_CONTAINER_CHILD_STRIDE</code> = 200px between stacked icons</li>
+            <li><code>_BUSY_DEGREE_THRESHOLD</code> = 3 edges → bordered card</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl a">HIGH-LEVEL</span>
+          <h4><strong>Service names resolve to real icons automatically</strong></h4>
+          <ul>
+            <li><code>gcp_icons.py</code>: name → SVG data URI</li>
+            <li>Curated alias map + snake-case fallback</li>
+            <li>New AI/agent services aliased onto official icons</li>
+          </ul>
+        </div>
+      </div>
+      <div class="deepdive">
+        <div class="dd-h"><span class="dd-tag">Worked example</span><span class="dd-t">A node becomes "busy" automatically</span></div>
+        <p>When <code>add_edge</code> pushes a node past <code>_BUSY_DEGREE_THRESHOLD</code> (3 edges), the layout engine promotes it from a plain icon into a bordered card — no manual style edit required.</p>
+      </div>
+    </section>
+
+    <div class="rule" style="background:var(--s6)"></div>
+
+    <!-- ============ STAGE 6 ============ -->
+    <section class="stage" id="stage-6" style="--sc:var(--s6)">
+      <div class="stage-head">
+        <div class="stage-badge">06</div>
+        <div>
+          <div class="stage-label">Stage 06 · Emerald</div>
+          <div class="stage-title">Sandboxed Storage</div>
+        </div>
+      </div>
+      <p class="stage-why">Every store <mark style="background:rgba(22,163,74,0.20)">refuses to read or write outside its configured root</mark> — path traversal is rejected before a file handle ever opens.</p>
+      <div class="cards">
+        <div class="card">
+          <span class="lvl a">HIGH-LEVEL</span>
+          <h4><strong>Diagrams live under a natural-sorted root</strong></h4>
+          <ul>
+            <li><code>diagrams/*.drawio</code></li>
+            <li><code>PROJ-2</code> sorts before <code>PROJ-10</code> via <code>natural_sort.py</code></li>
+            <li>Any escaping path is rejected outright</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl a">HIGH-LEVEL</span>
+          <h4><strong>Stories are read-only from the server's view</strong></h4>
+          <ul>
+            <li><code>jira-stories/*</code> — markdown, JSON, plain text</li>
+            <li>No MCP tool ever mutates a story file</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl b">LOW-LEVEL</span>
+          <h4><strong>The icon catalog is a pluggable folder</strong></h4>
+          <ul>
+            <li><code>logo_icon_gcp/</code> today</li>
+            <li><code>config.py</code> reads env vars for all three roots</li>
+          </ul>
+        </div>
+      </div>
+      <div class="deepdive">
+        <div class="dd-h"><span class="dd-tag">Worked example</span><span class="dd-t">A path-escape attempt is stopped cold</span></div>
+        <p>A crafted diagram name like <code>../../etc/passwd</code> is checked against the sandbox root inside <code>diagram_store.py</code> and rejected before any read or write is attempted.</p>
+      </div>
+    </section>
+
+    <div class="rule" style="background:var(--s7)"></div>
+
+    <!-- ============ STAGE 7 ============ -->
+    <section class="stage" id="stage-7" style="--sc:var(--s7)">
+      <div class="stage-head">
+        <div class="stage-badge">07</div>
+        <div>
+          <div class="stage-label">Stage 07 · Cyan</div>
+          <div class="stage-title">Verification &amp; Delivery</div>
+        </div>
+      </div>
+      <p class="stage-why">Nothing ships until an automated gate proves the diagram is structurally sound — this is the <mark style="background:rgba(8,145,178,0.20)">last checkpoint</mark> before hand-off.</p>
+      <div class="cards">
+        <div class="card">
+          <span class="lvl a">HIGH-LEVEL</span>
+          <h4><strong>Exit 2 means the diagram does not ship</strong></h4>
+          <ul>
+            <li><code>verify_mcp.py</code> — the hard gate</li>
+            <li>Checks registry, dangling edges, icons, arrowheads, fan-out</li>
+            <li>Exit 0 = ship-ready</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl b">LOW-LEVEL</span>
+          <h4><strong>The connector table is rule-first, LLM-second</strong></h4>
+          <ul>
+            <li><code>generate_connector_details.py</code> — 14 columns</li>
+            <li>Optional Claude refine pass</li>
+            <li><mark style="background:rgba(8,145,178,0.20)">Zero-TBD guard</mark> refuses to embed an unfilled cell</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl b">LOW-LEVEL</span>
+          <h4><strong>Two tests anchor the riskiest logic</strong></h4>
+          <ul>
+            <li><code>test_natural_sort.py</code> — version ordering</li>
+            <li><code>test_parser.py</code> — full drawio round-trip</li>
+          </ul>
+        </div>
+      </div>
+      <div class="deepdive">
+        <div class="dd-h"><span class="dd-tag">Worked example</span><span class="dd-t">A gate failure loops the build back</span></div>
+        <p><code>verify_mcp.py</code> finds one dangling edge and exits 2. The create-diagram prompt catches this and loops back to repair the edge before ever offering the finished file.</p>
+      </div>
+    </section>
+
+    <div class="rule" style="background:var(--s8)"></div>
+
+    <!-- ============ STAGE 8 ============ -->
+    <section class="stage" id="stage-8" style="--sc:var(--s8)">
+      <div class="stage-head">
+        <div class="stage-badge">08</div>
+        <div>
+          <div class="stage-label">Stage 08 · Indigo</div>
+          <div class="stage-title">Docs, Templates &amp; Cross-OS Tooling</div>
+        </div>
+      </div>
+      <p class="stage-why">Every operating system gets the <mark style="background:rgba(79,70,229,0.20)">same six commands</mark>, and every document has exactly one reason to exist.</p>
+      <div class="cards">
+        <div class="card">
+          <span class="lvl a">HIGH-LEVEL</span>
+          <h4><strong>Two markdown files run the whole pipeline</strong></h4>
+          <ul>
+            <li><code>create-diagram.md</code> — 12-step flow, step 2a guardrail</li>
+            <li><code>update-diagram.md</code> — incremental variant</li>
+            <li><code>prompt.md</code> — a recipe cookbook</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl a">HIGH-LEVEL</span>
+          <h4><strong>high_level_instruction.md is the map of the maps</strong></h4>
+          <ul>
+            <li><code>README.md</code> — pitch + quickstart</li>
+            <li><code>architecture.md</code> (prose) vs. <code>component_details.md</code> (table)</li>
+            <li><code>vscode-restart-formality.md</code> — mandatory checklist</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="lvl b">LOW-LEVEL</span>
+          <h4><strong>18 scripts, one command, three shells</strong></h4>
+          <ul>
+            <li><code>linux/*.sh</code> · <code>mac/*.sh</code> · <code>windows/*.ps1</code></li>
+            <li>setup · run-server · normalize · verify · demo · clean</li>
+          </ul>
+        </div>
+      </div>
+      <div class="deepdive">
+        <div class="dd-h"><span class="dd-tag">Worked example</span><span class="dd-t">One file, two representations</span></div>
+        <p><code>component_details.md</code> is the tabular source of truth this reference page's content was assembled from — <code>component.md</code> tells the same story in prose for a first read-through.</p>
+      </div>
+    </section>
+
+    <!-- ============ GLOSSARY ============ -->
+    <section class="glossary" id="glossary">
+      <h3 style="font-size:22px; font-weight:800; color:#f8fafc;">Micro-Glossary</h3>
+      <p style="color:#9fb0c3; font-size:12.5px; margin-top:6px;">Jargon and acronyms used throughout this map, defined once.</p>
+      <div class="g-grid">
+        <div class="g-item"><div class="g-term">MCP</div><div class="g-def">Model Context Protocol — the stdio/JSON-RPC contract Copilot uses to call server tools.</div></div>
+        <div class="g-item"><div class="g-term">mxGraph XML</div><div class="g-def">The XML dialect draw.io / diagrams.net files are written in.</div></div>
+        <div class="g-item"><div class="g-term">Pydantic model</div><div class="g-def">Python data-validation classes used for the Diagram / Node / Edge intent model.</div></div>
+        <div class="g-item"><div class="g-term">Swimlane</div><div class="g-def">A vertical container grouping nodes that belong to the same layer or actor.</div></div>
+        <div class="g-item"><div class="g-term">Fan-out</div><div class="g-def">Edge routing that spreads multiple connections leaving one node to avoid overlap.</div></div>
+        <div class="g-item"><div class="g-term">Busy node</div><div class="g-def">A node whose edge count crosses a threshold and gets promoted to a bordered card.</div></div>
+        <div class="g-item"><div class="g-term">Zero-TBD guard</div><div class="g-def">A rule that refuses to embed a table if any cell is left unfilled.</div></div>
+        <div class="g-item"><div class="g-term">Natural sort</div><div class="g-def">Digit-aware ordering so PROJ-2 sorts before PROJ-10.</div></div>
+        <div class="g-item"><div class="g-term">Sandbox</div><div class="g-def">A store that rejects any file path resolving outside its configured root.</div></div>
+        <div class="g-item"><div class="g-term">Guardrail</div><div class="g-def">A mandatory pre-build check — here, the restricted-service policy gate.</div></div>
+        <div class="g-item"><div class="g-term">TOOL_REGISTRY</div><div class="g-def">The name → (schema, handler) map the server dispatches every tool call through.</div></div>
+        <div class="g-item"><div class="g-term">gcp_icon</div><div class="g-def">The parameter that resolves a service name to its official icon SVG.</div></div>
+      </div>
+    </section>
+
+    <!-- ============ STUDY PATH ============ -->
+    <section class="studypath" id="studypath">
+      <h3>Suggested Study Path</h3>
+      <ol>
+        <li>Read <strong>high_level_instruction.md</strong> and <strong>architecture.md</strong> for the map of the maps.</li>
+        <li>Trace one prompt end-to-end through <code>prompts/create-diagram.md</code>.</li>
+        <li>Read <strong>server.py</strong> and the <code>tools/__init__</code> registry to see dispatch in action.</li>
+        <li>Study the <strong>Diagram / Node / Edge</strong> Pydantic model in <code>drawio/parser.py</code> and <code>builder.py</code>.</li>
+        <li>Read <strong>policy/unavailable_services.md</strong> and follow the guardrail through step 2a.</li>
+        <li>Run <code>verify_mcp.py</code> against a sample diagram and intentionally break something to see it fail.</li>
+        <li>Run the OS wrapper scripts locally: <code>setup → run-server → normalize → demo</code>.</li>
+        <li>Modify one tool (e.g. <code>add_node</code>) and add a pytest before shipping the change.</li>
+      </ol>
+    </section>
+
+  </div>
+
+  <div class="footer">
+    <div>8 stages · 24 topic cards · 12 glossary terms · <b>HIGH-LEVEL</b> / <b>LOW-LEVEL</b> tagged throughout</div>
+    <div class="fchips">
+      <span class="fchip">Python 3.13</span>
+      <span class="fchip">MCP</span>
+      <span class="fchip">Pydantic</span>
+      <span class="fchip">mxGraph XML</span>
+      <span class="fchip">GitHub Copilot</span>
+      <span class="fchip">Anthropic Claude</span>
+    </div>
+  </div>
+
+</body>
+</html>

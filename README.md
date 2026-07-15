@@ -141,6 +141,52 @@ Detailed schema in [`docs/tool-reference.md`](docs/tool-reference.md).
 
 ---
 
+## GCP service names beside every icon
+
+Every node drawn with an official GCP icon now shows the **canonical
+service name next to the logo**, so a diagram is self-describing even
+when the component's own label never says which service it is. The
+server appends the service name to the icon's label automatically:
+
+```
+add_node(label="Order Events", gcp_icon="pubsub")   → "Order Events (Pub/Sub)"
+add_node(label="Raw Landing",  gcp_icon="gcs")      → "Raw Landing (Cloud Storage)"
+add_node(label="Model Serving", gcp_icon="vertex ai") → "Model Serving (Vertex AI)"
+```
+
+Details of the behavior:
+
+- **No duplication.** If the label already names the service, it's left
+  as-is — `"BigQuery analytics"` and `"Orders DB (Cloud SQL)"` are not
+  changed.
+- **Correct names, not naive title-case.** A curated folder→name map
+  gives `Pub/Sub`, `BigQuery`, `Cloud SQL`, `GKE`, `VPC`, `IAM`,
+  `Cloud KMS`, … (unmapped icons fall back to a title-cased folder name
+  with acronym handling).
+- **Icon swaps replace, never stack.** `update_node` swapping an icon
+  strips the previously-added service name first, so you get
+  `"Order Events (Cloud Run)"`, never `"… (Pub/Sub) (Cloud Run)"`.
+- **Plain text, semantically clean.** The name is appended as plain
+  text (not HTML), so the label stays clean for the verifier's
+  duplicate-label check, the connector-details table, and diagram
+  summaries. Both `add_node` and `update_node` also return the applied
+  `gcp_service` and the final `label` in their response.
+
+### Impacted components (changed for this feature)
+
+| File | Change |
+|---|---|
+| [`drawio-mcp-server/src/drawio_mcp_server/drawio/gcp_icons.py`](drawio-mcp-server/src/drawio_mcp_server/drawio/gcp_icons.py) | Added the `GCP_SERVICE_NAMES` folder→display-name map and the `service_name_for_svg()`, `label_with_service()`, and `strip_service_suffix()` helpers (plus `_titlecase_folder` fallback). |
+| [`drawio-mcp-server/src/drawio_mcp_server/tools/add_node.py`](drawio-mcp-server/src/drawio_mcp_server/tools/add_node.py) | After resolving a `gcp_icon`, appends the canonical service name to the node label; returns `gcp_service` + `label`. Applies to both explicit and auto-detected icons. |
+| [`drawio-mcp-server/src/drawio_mcp_server/tools/update_node.py`](drawio-mcp-server/src/drawio_mcp_server/tools/update_node.py) | On an icon swap, strips any prior service suffix then re-appends the new service name; returns `gcp_service` + `label`. |
+
+No change was needed to the rendering/serialization layer (`builder.py`)
+or the icon image style (`build_gcp_image_style`) — the label already
+renders below the icon (`verticalLabelPosition=bottom`); this feature
+just guarantees the service name is part of that label.
+
+---
+
 ## Critical: VS Code restart formality
 
 VS Code's *MCP: Restart Server* command does **not** reliably kill the

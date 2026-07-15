@@ -172,7 +172,7 @@ REQUIRED_SECTIONS = (
     r"^\s*10\.\s*Acceptance Criteria\b",
 )
 
-MODEL_DEFAULT = "claude-sonnet-4-6"
+MODEL_DEFAULT = "claude-sonnet-5"
 
 SYSTEM_PROMPT_COMMON = """You rewrite raw Jira-style business notes into a strict
 canonical story format used by an architecture-diagram automation pipeline
