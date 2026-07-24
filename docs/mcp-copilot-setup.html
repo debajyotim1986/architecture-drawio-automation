@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Step-by-step guide to connect the drawio MCP server in this repository to GitHub Copilot Chat in VS Code." />
+  <title>Connect drawio MCP Server with GitHub Copilot Chat</title>
+  <style>
+    :root {
+      --fg: #1f2937;
+      --fg-strong: #111827;
+      --bg: #ffffff;
+      --pre-bg: #f3f4f6;
+      --code-bg: #eef2ff;
+      --note-bg: #e0f2fe;
+      --note-border: #0ea5e9;
+      --warn-bg: #fef3c7;
+      --warn-border: #f59e0b;
+      --link: #1d4ed8;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e5e7eb;
+        --fg-strong: #f9fafb;
+        --bg: #0b1020;
+        --pre-bg: #111827;
+        --code-bg: #1f2937;
+        --note-bg: #082f49;
+        --note-border: #38bdf8;
+        --warn-bg: #422006;
+        --warn-border: #f59e0b;
+        --link: #93c5fd;
+      }
+    }
+    body { font-family: Arial, sans-serif; line-height: 1.6; margin: 24px; color: var(--fg); background: var(--bg); }
+    h1, h2, h3 { color: var(--fg-strong); }
+    a { color: var(--link); }
+    pre { background: var(--pre-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
+    code { background: var(--code-bg); padding: 2px 4px; border-radius: 4px; }
+    .note { background: var(--note-bg); padding: 12px; border-left: 4px solid var(--note-border); border-radius: 6px; }
+    .warning { background: var(--warn-bg); padding: 12px; border-left: 4px solid var(--warn-border); border-radius: 6px; }
+    .note::before { content: "ℹ "; font-weight: bold; }
+    .warning::before { content: "⚠ "; font-weight: bold; }
+    ul { margin-left: 20px; }
+    li { margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Connect drawio MCP Server with GitHub Copilot Chat</h1>
+  <p>This page explains how to connect the MCP server in this repository to VS Code Copilot Chat.</p>
+  <p>For the full end-to-end install (Python, Git, VS Code, extensions), see the canonical <a href="installation.md">installation.md</a>. This page is the short version, focused on the Copilot-Chat connection.</p>
+
+  <h2>0. Prerequisites</h2>
+  <ul>
+    <li>Python <strong>3.10+</strong> on PATH (<code>python3 --version</code> on macOS/Linux, <code>python --version</code> on Windows).</li>
+    <li>VS Code <strong>1.99+</strong> (MCP support in Copilot Chat).</li>
+    <li>VS Code extensions installed and signed in:
+      <ul>
+        <li><strong>GitHub Copilot</strong> (<code>GitHub.copilot</code>)</li>
+        <li><strong>GitHub Copilot Chat</strong> (<code>GitHub.copilot-chat</code>) — required for MCP.</li>
+      </ul>
+    </li>
+    <li>Optional: <strong>Draw.io Integration</strong> by hediet (<code>hediet.vscode-drawio</code>) to preview <code>.drawio</code> files.</li>
+  </ul>
+
+  <h2>1. Confirm repository setup</h2>
+  <ol>
+    <li>Open the workspace folder in VS Code: <code>AI_Atlassian_copilot</code>.</li>
+    <li>Verify these files exist in the workspace root:
+      <ul>
+        <li><code>.vscode/mcp.json</code></li>
+        <li><code>.vscode/settings.json</code></li>
+        <li><code>drawio-mcp-server/</code></li>
+      </ul>
+    </li>
+  </ol>
+
+  <h2>2. Create and activate the Python virtual environment</h2>
+  <p>Run these commands from the <code>drawio-mcp-server/</code> folder:</p>
+  <pre><code>cd drawio-mcp-server
+python3 -m venv .venv
+source .venv/bin/activate</code></pre>
+  <p>On Windows PowerShell:</p>
+  <pre><code>cd drawio-mcp-server
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1</code></pre>
+
+  <h2>3. Install the MCP server dependencies</h2>
+  <pre><code>pip install --upgrade pip
+pip install -e .</code></pre>
+  <p>This installs:</p>
+  <ul>
+    <li><code>mcp</code> SDK</li>
+    <li><code>pydantic</code></li>
+    <li>the local package <code>drawio_mcp_server</code></li>
+  </ul>
+
+  <h2>4. Verify the server starts</h2>
+  <p>With the venv active, run:</p>
+  <pre><code>python -m drawio_mcp_server</code></pre>
+  <p>The server speaks MCP over stdio, so it prints a one-line banner on <strong>stderr</strong> and then blocks waiting for JSON-RPC input on stdin — that silence is correct. You should see something like:</p>
+  <pre><code>[drawio-mcp] connected. diagrams=... stories=...</code></pre>
+  <p>To prove the wire protocol works without VS Code, send a probe and exit:</p>
+  <pre><code>echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | python -m drawio_mcp_server</code></pre>
+  <p>Then press <strong>Ctrl+C</strong> to stop any manually-launched server.</p>
+
+  <h2>5. Configure VS Code MCP settings</h2>
+  <p>Open <a href="../.vscode/mcp.json"><code>.vscode/mcp.json</code></a> and make sure the server is configured like this:</p>
+  <pre><code>{
+  "servers": {
+    "drawio": {
+      "type": "stdio",
+      "command": "${workspaceFolder}/drawio-mcp-server/.venv/bin/python",
+      "args": ["-m", "drawio_mcp_server"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "DRAWIO_DIAGRAMS_DIR": "${workspaceFolder}/diagrams",
+        "DRAWIO_STORIES_DIR": "${workspaceFolder}/jira-stories",
+        "PYTHONPATH": "${workspaceFolder}/drawio-mcp-server/src"
+      }
+    }
+  }
+}</code></pre>
+  <div class="note" role="note">
+    <strong>Note:</strong> Use the workspace venv Python path so VS Code launches the correct interpreter for the MCP server. On <strong>Windows</strong>, replace the <code>command</code> value with <code>${workspaceFolder}/drawio-mcp-server/.venv/Scripts/python.exe</code>.
+  </div>
+
+  <h2>6. Enable MCP in VS Code settings</h2>
+  <p>Open <a href="../.vscode/settings.json"><code>.vscode/settings.json</code></a> and confirm these values are present:</p>
+  <pre><code>{
+  "files.associations": {
+    "*.drawio": "xml"
+  },
+  "chat.mcp.enabled": true,
+  "github.copilot.chat.codeGeneration.useInstructionFiles": true
+}</code></pre>
+
+  <h2>7. Reload VS Code</h2>
+  <ol>
+    <li>Press <code>Ctrl+Shift+P</code> (Windows/Linux) or <code>Cmd+Shift+P</code> (Mac).</li>
+    <li>Run <strong>Developer: Reload Window</strong>.</li>
+  </ol>
+
+  <h2>8. Confirm the MCP server is connected</h2>
+  <p>Open GitHub Copilot Chat.</p>
+  <p>In the chat input area, click the <strong>MCP servers</strong> indicator. You should see:</p>
+  <ul>
+    <li><strong>drawio</strong> listed as connected</li>
+    <li>10 available tools:
+      <ul>
+        <li><code>list_diagrams</code></li>
+        <li><code>read_diagram</code></li>
+        <li><code>read_diagram_summary</code></li>
+        <li><code>create_diagram</code></li>
+        <li><code>add_node</code></li>
+        <li><code>add_edge</code></li>
+        <li><code>update_node</code></li>
+        <li><code>remove_element</code></li>
+        <li><code>list_stories</code></li>
+        <li><code>read_story</code></li>
+      </ul>
+    </li>
+  </ul>
+
+  <h2>9. Use the MCP server from Copilot Chat</h2>
+  <p>Try this prompt in the chat (paths are relative to the workspace root — see <a href="../prompts/create-diagram.md"><code>prompts/create-diagram.md</code></a>):</p>
+  <pre><code>@workspace use the prompt at prompts/create-diagram.md.
+The story is jira-stories/PROJ-123.txt.
+Save the diagram as diagrams/my-diagram.drawio.</code></pre>
+
+  <h2>Troubleshooting</h2>
+  <div class="warning" role="alert">
+    <strong>If connection fails:</strong>
+    <ul>
+      <li>Open <strong>View → Output</strong> and select <strong>MCP</strong>.</li>
+      <li>Verify the virtual environment is active and <code>python -m drawio_mcp_server</code> works.</li>
+      <li>Confirm the <code>command</code> path in <code>.vscode/mcp.json</code> points to the venv Python (Windows uses <code>.venv/Scripts/python.exe</code>).</li>
+    </ul>
+  </div>
+
+  <h2>Optional: Test with a Jira story</h2>
+  <pre><code>cp examples/sample-jira-story.txt jira-stories/PROJ-123.txt</code></pre>
+  <p>See <a href="../examples/sample-jira-story.txt"><code>examples/sample-jira-story.txt</code></a>. Then use the prompt above in Copilot Chat to create a diagram file.</p>
+</body>
+</html>

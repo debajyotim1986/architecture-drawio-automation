@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Atlassian Copilot — Architecture &amp; Process Flow</title>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      flowchart: { curve: 'basis', htmlLabels: true },
+      sequence: { actorMargin: 60, boxMargin: 10, mirrorActors: false }
+    });
+  </script>
+  <style>
+    :root {
+      --gcp-blue: #4285f4;
+      --gcp-light: #aecbfa;
+      --ink: #1a1a1a;
+      --muted: #555;
+      --rule: #e0e0e0;
+      --panel: #fafafa;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 1200px;
+      margin: 2em auto;
+      padding: 0 1.5em 4em;
+      color: var(--ink);
+      line-height: 1.55;
+    }
+    h1 {
+      border-bottom: 3px solid var(--gcp-blue);
+      padding-bottom: 0.4em;
+      margin-bottom: 0.2em;
+    }
+    h2 {
+      color: var(--gcp-blue);
+      margin-top: 2.4em;
+      border-bottom: 1px solid var(--rule);
+      padding-bottom: 0.3em;
+    }
+    h3 { margin-top: 1.6em; }
+    .subtitle { color: var(--muted); margin-top: 0; }
+    .mermaid {
+      background: var(--panel);
+      padding: 1.5em;
+      border-radius: 10px;
+      border: 1px solid var(--rule);
+      margin: 1.2em 0;
+      overflow-x: auto;
+    }
+    code, kbd {
+      background: #f0f0f0;
+      padding: 0.1em 0.35em;
+      border-radius: 3px;
+      font-family: 'SF Mono', Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1em 0;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.55em 0.8em;
+      border-bottom: 1px solid var(--rule);
+      vertical-align: top;
+    }
+    th { background: var(--panel); font-weight: 600; }
+    .note {
+      background: #fff8e1;
+      border-left: 4px solid #fbbc04;
+      padding: 0.8em 1em;
+      border-radius: 4px;
+      margin: 1em 0;
+    }
+    .legend {
+      color: var(--muted);
+      font-size: 0.92em;
+      margin-top: -0.5em;
+    }
+  </style>
+</head>
+<body>
+
+<h1>AI Atlassian Copilot — Architecture &amp; Process Flow</h1>
+<p class="subtitle">
+  How a Jira story file becomes a draw.io architecture diagram, end to end.
+</p>
+
+<h2>1. System architecture</h2>
+<p>
+  The system is built around a strict boundary: <strong>only the MCP server
+  ever touches <code>.drawio</code> XML</strong>. Copilot reasons about the
+  story and the diagram <em>topology</em>, then issues intent-level tool
+  calls; it never hand-edits XML. GCP icons are URL-encoded SVGs that
+  Copilot embeds as data URIs in the node style strings it passes to
+  <code>add_node</code>.
+</p>
+
+<div class="mermaid">
+flowchart LR
+    user(["👤 Developer"])
+
+    subgraph workspace["VS Code workspace"]
+        direction TB
+        story[("jira-stories/<br/>PROJ-123.txt<br/><i>input</i>")]
+        prompts[/"prompts/<br/>create-diagram.md<br/>update-diagram.md"/]
+        icons[("logo_icon_gcp/<br/>cloud_run.svg<br/>bigquery.svg<br/>…260 icons")]
+        diagrams[("diagrams/<br/>*.drawio<br/><i>output</i>")]
+        mcpcfg[/".vscode/mcp.json<br/>(wires server)"/]
+    end
+
+    subgraph vscode["VS Code editor"]
+        copilot["GitHub Copilot Chat<br/>(orchestrator)"]
+        drawioext["draw.io extension<br/>(renders .drawio)"]
+    end
+
+    subgraph server["drawio-mcp-server &nbsp;(Python, stdio)"]
+        direction TB
+        readtools["Read tools<br/>• list_stories / read_story<br/>• list_diagrams<br/>• read_diagram<br/>• read_diagram_summary"]
+        writetools["Write tools<br/>• create_diagram<br/>• add_node / add_edge<br/>• update_node<br/>• remove_element"]
+    end
+
+    user -->|1 drop story| story
+    user -->|2 prompt| copilot
+    prompts -.->|template| copilot
+    mcpcfg -.->|launches| server
+
+    copilot <-->|MCP JSON-RPC<br/>over stdio| server
+    copilot -->|reads &amp; URL-encodes SVG<br/>into data URI| icons
+
+    readtools -->|reads| story
+    readtools -->|reads| diagrams
+    writetools -->|writes| diagrams
+
+    diagrams -->|file changed| drawioext
+    drawioext -->|renders| user
+
+    classDef storage fill:#fff,stroke:#aecbfa,stroke-width:2px,color:#1a1a1a
+    classDef prompt fill:#fff8e1,stroke:#fbbc04,stroke-width:1px,color:#1a1a1a
+    classDef ai fill:#e8f0fe,stroke:#4285f4,stroke-width:2px,color:#1a1a1a
+    classDef tool fill:#f1f8e9,stroke:#34a853,stroke-width:1px,color:#1a1a1a
+
+    class story,diagrams,icons storage
+    class prompts,mcpcfg prompt
+    class copilot,drawioext ai
+    class readtools,writetools tool
+</div>
+<p class="legend">
+  Solid arrows = data flow during a run. Dashed arrows = configuration /
+  template loading. The MCP server has no network access and only reads
+  from <code>DRAWIO_DIAGRAMS_DIR</code> and <code>DRAWIO_STORIES_DIR</code>.
+</p>
+
+<h2>2. End-to-end workflow</h2>
+<p>
+  A typical "story → diagram" run, traced step by step. The optional
+  block in the middle is the GCP-icon embedding pass that runs only when
+  the story references Google Cloud services.
+</p>
+
+<div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor User as 👤 Developer
+    participant FS as 📁 Filesystem
+    participant Copilot as 🤖 Copilot Chat
+    participant MCP as ⚙️ drawio-mcp-server
+    participant Drawio as 🖼️ draw.io extension
+
+    User->>FS: drop jira-stories/PROJ-123.txt
+    User->>Copilot: "Use prompts/create-diagram.md,<br/>story PROJ-123, save as order.drawio"
+    Copilot->>FS: read prompts/create-diagram.md
+    FS-->>Copilot: prompt template
+
+    Copilot->>MCP: read_story("PROJ-123.txt")
+    MCP->>FS: read jira-stories/PROJ-123.txt
+    FS-->>MCP: story text
+    MCP-->>Copilot: story content
+
+    Note over Copilot: Plan components<br/>(detect GCP services<br/>from story wording)
+
+    opt for each GCP service in plan
+        Copilot->>FS: read logo_icon_gcp/&lt;svc&gt;/&lt;svc&gt;.svg
+        FS-->>Copilot: SVG XML
+        Note over Copilot: URL-encode SVG →<br/>data:image/svg+xml,&lt;…&gt;
+    end
+
+    Copilot->>MCP: create_diagram("order.drawio", title)
+    MCP->>FS: write diagrams/order.drawio (skeleton)
+    MCP-->>Copilot: ok
+
+    loop for each component
+        Copilot->>MCP: add_node(id, label, style, geometry)
+        MCP->>FS: append &lt;mxCell vertex="1"/&gt;
+    end
+
+    loop for each connection
+        Copilot->>MCP: add_edge(id, src, tgt, label)
+        MCP->>FS: append &lt;mxCell edge="1"/&gt;
+    end
+
+    Copilot->>MCP: read_diagram_summary("order.drawio")
+    MCP-->>Copilot: node/edge counts
+    Copilot-->>User: bullet summary + saved path
+
+    User->>Drawio: open diagrams/order.drawio
+    Drawio->>FS: read diagrams/order.drawio
+    FS-->>Drawio: drawio XML (with embedded SVG icons)
+    Drawio-->>User: rendered architecture diagram
+</div>
+
+<h2>3. Component reference</h2>
+<table>
+  <thead>
+    <tr><th>Component</th><th>Path</th><th>Role</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Jira stories</td><td><code>jira-stories/</code></td><td>Input. Plain <code>.txt</code> / <code>.md</code> files. Read-only context for Copilot.</td></tr>
+    <tr><td>Prompt templates</td><td><code>prompts/create-diagram.md</code>, <code>prompts/update-diagram.md</code></td><td>Tell Copilot which tools to call, in what order, and how to handle GCP icons.</td></tr>
+    <tr><td>MCP server</td><td><code>drawio-mcp-server/</code></td><td>Python stdio process. Exposes 10 tools. Only component that mutates <code>.drawio</code> XML.</td></tr>
+    <tr><td>VS Code wiring</td><td><code>.vscode/mcp.json</code></td><td>Tells VS Code Copilot how to launch the MCP server (venv Python, env vars for dirs).</td></tr>
+    <tr><td>Diagrams</td><td><code>diagrams/</code></td><td>Output. Uncompressed <code>.drawio</code> XML so git diffs cleanly.</td></tr>
+    <tr><td>GCP icon library</td><td><code>logo_icon_gcp/</code></td><td>~260 service folders, each with <code>.svg</code> + <code>.png</code>. Copilot URL-encodes the SVGs into data URIs.</td></tr>
+    <tr><td>draw.io extension</td><td><code>hediet.vscode-drawio</code></td><td>Renders the <code>.drawio</code> XML inside VS Code.</td></tr>
+  </tbody>
+</table>
+
+<h2>4. Key design decisions</h2>
+<table>
+  <thead>
+    <tr><th>Decision</th><th>Why</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>AI never edits XML directly</td>
+      <td>The MCP server is the single writer. Copilot speaks at the level of <em>add this node</em>, <em>connect these two</em> — not <code>&lt;mxCell&gt;</code>. Prevents malformed XML and keeps the prompt small.</td>
+    </tr>
+    <tr>
+      <td>Uncompressed <code>.drawio</code> XML</td>
+      <td>Default draw.io files are zlib-compressed and base64-wrapped — unreadable in diffs and unparseable by the server. The MCP server reads/writes the uncompressed form so git diffs and tool mutations both work.</td>
+    </tr>
+    <tr>
+      <td>Stories are input-only</td>
+      <td>No <code>write_story</code> tool exists. Stories represent the source of truth from Jira; the diagram is derived from them, never the reverse.</td>
+    </tr>
+    <tr>
+      <td>GCP icons embedded as URL-encoded data URIs</td>
+      <td>Relative file paths fail in the VS Code drawio webview (sandbox blocks local loads). <code>;base64,</code> data URIs are split by drawio's style parser on the literal <code>;</code>. URL-encoded plain SVG is the format drawio itself emits — it has no <code>;</code> to confuse the parser.</td>
+    </tr>
+    <tr>
+      <td>Stdio transport for MCP</td>
+      <td>Local-only, no network surface, launched by VS Code per workspace. No auth needed.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>5. What you do vs. what Copilot does</h2>
+<table>
+  <thead>
+    <tr><th>You</th><th>Copilot</th><th>MCP server</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Drop a Jira story file into <code>jira-stories/</code></td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Paste a one-line prompt into Copilot Chat referencing the story + the chosen prompt template</td>
+      <td>Loads template, reads story, plans components, detects GCP services</td>
+      <td>Serves <code>read_story</code></td>
+    </tr>
+    <tr>
+      <td>(For update flow) Approve Copilot's plan</td>
+      <td>Issues <code>create_diagram</code>, then a sequence of <code>add_node</code> / <code>add_edge</code> calls. For GCP services, embeds URL-encoded SVG icons in the node style.</td>
+      <td>Validates inputs, writes <code>.drawio</code> XML, refuses paths outside the configured roots</td>
+    </tr>
+    <tr>
+      <td>Open the generated <code>.drawio</code> file in the draw.io extension</td>
+      <td>Reports summary + saved file path</td>
+      <td>—</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <strong>For canonical detail</strong>, see
+  <a href="installation.md">installation.md</a> (setup),
+  <a href="tool-reference.md">tool-reference.md</a> (per-tool contracts), and
+  <a href="high_level_instruction.md">high_level_instruction.md</a> (full
+  project plan, including the GCP icon mapping table).
+</div>
+
+</body>
+</html>

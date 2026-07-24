@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>End-to-End Flow — AI Atlassian Copilot</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root {
+    --bg: #fafafa;
+    --fg: #1a1a1a;
+    --muted: #6b6b6b;
+    --accent: #0b57d0;
+    --card: #ffffff;
+    --border: #e3e3e3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+  }
+  header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 24px 32px;
+  }
+  header h1 { margin: 0 0 6px; font-size: 24px; font-weight: 600; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; }
+  header a { color: var(--accent); text-decoration: none; }
+  header a:hover { text-decoration: underline; }
+  nav {
+    position: sticky;
+    top: 0;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 32px;
+    z-index: 5;
+    font-size: 13px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  nav a {
+    color: var(--accent);
+    text-decoration: none;
+    margin-right: 14px;
+  }
+  nav a:hover { text-decoration: underline; }
+  main {
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 24px 32px 80px;
+  }
+  section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 22px 26px;
+    margin-bottom: 26px;
+  }
+  section h2 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  section p { color: var(--muted); margin: 0 0 16px; }
+  section ol, section ul { color: var(--muted); margin: 0 0 16px; padding-left: 20px; }
+  .diagram {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 16px 0 4px;
+    text-align: center;
+  }
+  /* Let Mermaid render at its natural width; scroll inside the card if needed. */
+  .diagram .mermaid {
+    display: inline-block;
+    min-width: 100%;
+  }
+  .diagram .mermaid svg {
+    max-width: none !important;
+    height: auto !important;
+  }
+  code {
+    background: #f1f1f1;
+    border-radius: 3px;
+    padding: 1px 5px;
+    font: 13px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  table {
+    border-collapse: collapse;
+    margin: 8px 0 16px;
+    font-size: 13px;
+    width: 100%;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: #f6f8fa; font-weight: 600; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>End-to-End Flow — AI Atlassian Copilot</h1>
+  <p>
+    Twelve focused diagrams that cover the whole system from every angle.
+    Mirror of <a href="mermaid_diagram.md">mermaid_diagram.md</a>.
+    For the tabular file inventory see
+    <a href="component_details.md">component_details.md</a>.
+  </p>
+</header>
+
+<nav>
+  <a href="#s1">1. User journey</a>
+  <a href="#s2">2. Runtime stack</a>
+  <a href="#s3">3. Create session</a>
+  <a href="#s4">4. Update session</a>
+  <a href="#s5">5. MCP dispatch</a>
+  <a href="#s6">6. add_edge pipeline</a>
+  <a href="#s7">7. Icon resolution</a>
+  <a href="#s8">8. Verification</a>
+  <a href="#s9">9. Table fill</a>
+  <a href="#s10">10. Data flow</a>
+  <a href="#s11">11. Error paths</a>
+  <a href="#s12">12. Constants</a>
+</nav>
+
+<main>
+
+<section id="s1">
+  <h2>1. User journey — what the user does, end to end</h2>
+  <p>A state diagram. Each state is something the user can be in; arrows are the actions that move them between states.</p>
+  <div class="diagram"><pre class="mermaid">
+stateDiagram-v2
+    [*] --> Writing
+    Writing : 1. Writing the Jira story
+    Writing --> Normalizing : run normalize_jira_story.py
+    Normalizing : 2. Normalizing to surgical format
+    Normalizing --> Prompting : open Copilot Chat
+    Prompting : 3. Pasting create-diagram prompt
+    Prompting --> Reviewing : Copilot finishes MCP calls
+    Reviewing : 4. Reviewing the .drawio output
+    Reviewing --> Verifying : run verify_mcp.py
+    Verifying : 5. Pre-flight verification
+    Verifying --> Generating : exit 0
+    Verifying --> Prompting : exit 2 (fix and retry)
+    Generating : 6. Generating connector-details table
+    Generating --> Embedding : table written
+    Embedding : 7. Embedding table into .drawio
+    Embedding --> [*] : done
+  </pre></div>
+</section>
+
+<section id="s2">
+  <h2>2. Runtime stack — four layers, top down</h2>
+  <div class="diagram"><pre class="mermaid">
+flowchart TB
+    CLIENT[Copilot Chat]
+    SERVER[server.py]
+    TOOLS[MCP tools]
+    ADAPTER[drawio adapter]
+    STORE[Storage layer]
+    DISK[(Filesystem)]
+
+    CLIENT --> SERVER
+    SERVER --> TOOLS
+    TOOLS --> ADAPTER
+    ADAPTER --> STORE
+    STORE --> DISK
+
+    classDef client fill:#e1d5e7,stroke:#9673a6,color:#000
+    classDef tool fill:#ffe6cc,stroke:#d79b00,color:#000
+    classDef code fill:#dae8fc,stroke:#6c8ebf,color:#000
+    classDef store fill:#d5e8d4,stroke:#82b366,color:#000
+
+    class CLIENT client
+    class SERVER,TOOLS tool
+    class ADAPTER code
+    class STORE,DISK store
+  </pre></div>
+  <table>
+    <tr><th>Layer</th><th>Files</th></tr>
+    <tr><td>Copilot Chat</td><td>GitHub Copilot in VS Code</td></tr>
+    <tr><td>server.py</td><td><code>drawio-mcp-server/src/drawio_mcp_server/server.py</code> — stdio JSON-RPC</td></tr>
+    <tr><td>MCP tools</td><td><code>tools/</code> — one file per tool</td></tr>
+    <tr><td>drawio adapter</td><td><code>parser.py</code>, <code>builder.py</code>, <code>shapes.py</code>, <code>gcp_icons.py</code></td></tr>
+    <tr><td>Storage</td><td><code>util/diagram_store.py</code>, <code>util/story_store.py</code></td></tr>
+  </table>
+</section>
+
+<section id="s3">
+  <h2>3. Create-diagram session — full sequence</h2>
+  <p>One Copilot Chat turn that builds a new diagram from a Jira story.</p>
+  <div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    participant U as User
+    participant CO as Copilot
+    participant MC as MCP server
+    participant FS as Filesystem
+
+    U->>CO: paste create-diagram prompt
+    CO->>FS: read surgical story
+    CO->>MC: create_diagram
+    MC->>FS: write empty .drawio
+    loop 4-6 swimlanes
+        CO->>MC: add_container
+        MC->>FS: update .drawio
+    end
+    loop each component
+        CO->>MC: add_node (gcp_icon)
+        MC->>FS: update .drawio
+    end
+    loop each connection
+        CO->>MC: add_edge
+        MC->>FS: update .drawio
+    end
+    CO->>MC: add_title
+    MC->>FS: update .drawio
+    U->>FS: run verify_mcp.py
+    FS-->>U: exit 0
+    U->>FS: run generate_connector_details.py
+    FS-->>U: connectors.md ready
+    CO->>MC: add_connector_table
+    MC->>FS: final .drawio
+    CO-->>U: diagram path
+  </pre></div>
+</section>
+
+<section id="s4">
+  <h2>4. Update-diagram session — what differs from create</h2>
+  <div class="diagram"><pre class="mermaid">
+sequenceDiagram
+    participant U as User
+    participant CO as Copilot
+    participant MC as MCP server
+
+    U->>CO: paste update-diagram prompt
+    CO->>MC: read_diagram_summary
+    MC-->>CO: nodes + edges (compact)
+    Note over CO: diff vs. new story
+    loop changed nodes
+        CO->>MC: update_node
+    end
+    loop removed elements
+        CO->>MC: remove_element
+    end
+    loop new components
+        CO->>MC: add_node
+    end
+    loop new connections
+        CO->>MC: add_edge
+    end
+    CO-->>U: diff summary
+  </pre></div>
+</section>
+
+<section id="s5">
+  <h2>5. MCP request dispatch — JSON-RPC to tool</h2>
+  <p>What <code>server.py</code> does when a single <code>call_tool</code> request arrives over stdio.</p>
+  <div class="diagram"><pre class="mermaid">
+flowchart TB
+    IN[/stdio JSON-RPC/]
+    DEC[Parse request]
+    LOOK[Lookup tool in TOOL_REGISTRY]
+    VAL[Validate args vs schema]
+    CALL[Await handler]
+    SER[Serialize result to TextContent]
+    OUT[/stdio response/]
+    ERR[Wrap error as TextContent]
+
+    IN --> DEC
+    DEC --> LOOK
+    LOOK --> VAL
+    VAL -->|ok| CALL
+    VAL -->|bad args| ERR
+    CALL -->|ok| SER
+    CALL -->|exception| ERR
+    SER --> OUT
+    ERR --> OUT
+
+    classDef io fill:#dae8fc,stroke:#6c8ebf,color:#000
+    classDef step fill:#ffe6cc,stroke:#d79b00,color:#000
+    classDef err fill:#f8cecc,stroke:#b85450,color:#000
+
+    class IN,OUT io
+    class DEC,LOOK,VAL,CALL,SER step
+    class ERR err
+  </pre></div>
+</section>
+
+<section id="s6">
+  <h2>6. <code>add_edge</code> pipeline — the five routing passes</h2>
+  <p>When Copilot adds an edge, <code>add_edge.py</code> runs five passes in order before saving. Each pass owns one quality concern.</p>
+  <div class="diagram"><pre class="mermaid">
+flowchart LR
+    IN[/from, to, label/]
+    P0[Append DiagramEdge]
+    P1[Fan parallel endpoints]
+    P2[Compute waypoints]
+    P3[Deconflict lanes]
+    P4[Frame busy nodes]
+    OUT[/Save .drawio/]
+
+    IN --> P0 --> P1 --> P2 --> P3 --> P4 --> OUT
+
+    classDef io fill:#dae8fc,stroke:#6c8ebf,color:#000
+    classDef pass fill:#ffe6cc,stroke:#d79b00,color:#000
+    class IN,OUT io
+    class P0,P1,P2,P3,P4 pass
+  </pre></div>
+  <table>
+    <tr><th>#</th><th>Pass</th><th>Concern</th></tr>
+    <tr><td>0</td><td>Append DiagramEdge</td><td>record the edge and auto-assign step number</td></tr>
+    <tr><td>1</td><td><code>_distribute_parallel_endpoints</code></td><td>siblings sharing a node fan out across the perimeter</td></tr>
+    <tr><td>2</td><td><code>_compute_waypoints</code></td><td>cross-container edges route through row-gap "highways"</td></tr>
+    <tr><td>3</td><td><code>_deconflict_highway_lanes</code></td><td>edges that share a highway get sub-lane offsets</td></tr>
+    <tr><td>4</td><td><code>_frame_busy_nodes</code></td><td>nodes with degree &gt; 3 get a card border</td></tr>
+  </table>
+</section>
+
+<section id="s7">
+  <h2>7. <code>add_node</code> icon resolution — <code>gcp_icon</code> to SVG</h2>
+  <div class="diagram"><pre class="mermaid">
+flowchart TB
+    IN[/gcp_icon arg/]
+    NORM[Normalize name]
+    LOOKUP[Lookup in icon table]
+    READ[Read SVG file]
+    ENC[URL-encode SVG]
+    STYLE[Build shape=image style]
+    OUT[/raw_style on DiagramNode/]
+    FAIL[Raise ValueError]
+    AUTO[Auto-detect from label]
+
+    IN --> NORM
+    NORM --> LOOKUP
+    LOOKUP -->|hit| READ
+    LOOKUP -->|miss + no_label| FAIL
+    LOOKUP -->|miss + has_label| AUTO
+    AUTO -->|found| READ
+    AUTO -->|none| FAIL
+    READ --> ENC
+    ENC --> STYLE
+    STYLE --> OUT
+
+    classDef io fill:#dae8fc,stroke:#6c8ebf,color:#000
+    classDef step fill:#ffe6cc,stroke:#d79b00,color:#000
+    classDef err fill:#f8cecc,stroke:#b85450,color:#000
+
+    class IN,OUT io
+    class NORM,LOOKUP,READ,ENC,STYLE,AUTO step
+    class FAIL err
+  </pre></div>
+</section>
+
+<section id="s8">
+  <h2>8. Verification flow — what <code>verify_mcp.py</code> checks</h2>
+  <p>Each check is a gate. The first one to fail returns exit 2 with the specific reason.</p>
+  <div class="diagram"><pre class="mermaid">
+flowchart TB
+    START([verify_mcp.py])
+    C1[Tool registry healthy]
+    C2[No dangling edges]
+    C3[No duplicate labels]
+    C4[Every GCP node has icon]
+    C5[Every edge renders arrow]
+    C6[Parallel edges fanned]
+    OK([exit 0])
+    BAD([exit 2 with reason])
+
+    START --> C1
+    C1 -->|ok| C2
+    C2 -->|ok| C3
+    C3 -->|ok| C4
+    C4 -->|ok| C5
+    C5 -->|ok| C6
+    C6 -->|ok| OK
+    C1 -->|fail| BAD
+    C2 -->|fail| BAD
+    C3 -->|fail| BAD
+    C4 -->|fail| BAD
+    C5 -->|fail| BAD
+    C6 -->|fail| BAD
+
+    classDef gate fill:#ffe6cc,stroke:#d79b00,color:#000
+    classDef ok fill:#d5e8d4,stroke:#82b366,color:#000
+    classDef bad fill:#f8cecc,stroke:#b85450,color:#000
+    class C1,C2,C3,C4,C5,C6 gate
+    class OK,START ok
+    class BAD bad
+  </pre></div>
+</section>
+
+<section id="s9">
+  <h2>9. Connector-table fill flow</h2>
+  <p><code>generate_connector_details.py</code> has two parallel fill engines plus a hard guard so the table never ships with <code>{TBD}</code>.</p>
+  <div class="diagram"><pre class="mermaid">
+flowchart TB
+    IN[/diagram + surgical story/]
+    SK[Build skeleton table]
+    RULE[Run deterministic rule engine]
+    KEY{ANTHROPIC_API_KEY set?}
+    LLM[Refine with Claude]
+    MERGE[Merge rule + LLM]
+    GUARD{Any TBD remaining?}
+    EXIT0([Write .md, exit 0])
+    EXIT2([Emit NEEDS_FILL payload, exit 2])
+
+    IN --> SK
+    SK --> RULE
+    RULE --> KEY
+    KEY -->|yes| LLM
+    KEY -->|no| GUARD
+    LLM --> MERGE
+    MERGE --> GUARD
+    GUARD -->|no| EXIT0
+    GUARD -->|yes| EXIT2
+
+    classDef io fill:#dae8fc,stroke:#6c8ebf,color:#000
+    classDef step fill:#ffe6cc,stroke:#d79b00,color:#000
+    classDef good fill:#d5e8d4,stroke:#82b366,color:#000
+    classDef bad fill:#f8cecc,stroke:#b85450,color:#000
+
+    class IN io
+    class SK,RULE,LLM,MERGE step
+    class EXIT0 good
+    class EXIT2 bad
+  </pre></div>
+</section>
+
+<section id="s10">
+  <h2>10. Data flow across files</h2>
+  <p>Every artifact on disk and which step reads / writes it.</p>
+  <div class="diagram"><pre class="mermaid">
+flowchart LR
+    A[/raw .txt/]
+    B[/surgical .txt/]
+    C[/.drawio empty/]
+    D[/.drawio populated/]
+    E[/connectors .md/]
+    F[/.drawio with table/]
+
+    A -->|normalize_jira_story.py| B
+    B -->|read by Copilot| C
+    C -->|add_container, add_node, add_edge| D
+    D -->|verify_mcp.py reads| D
+    B -->|generate_connector_details.py reads| E
+    D -->|add_connector_table reads + writes| F
+    E -->|add_connector_table reads| F
+
+    classDef raw fill:#f8cecc,stroke:#b85450,color:#000
+    classDef ready fill:#d5e8d4,stroke:#82b366,color:#000
+    classDef final fill:#dae8fc,stroke:#6c8ebf,color:#000
+
+    class A raw
+    class B,C,D,E ready
+    class F final
+  </pre></div>
+</section>
+
+<section id="s11">
+  <h2>11. Error paths — what goes wrong and where</h2>
+  <p>Common failure modes and how the system surfaces them.</p>
+  <div class="diagram"><pre class="mermaid">
+flowchart TB
+    F1[Bad MCP args]
+    F2[Diagram not found]
+    F3[Unknown gcp_icon]
+    F4[Dangling edge]
+    F5[Duplicate label]
+    F6[Edge missing arrow]
+    F7[Stale Python in MCP]
+    F8[TBD in connectors.md]
+
+    F1 --> R1[Schema validation, TextContent error]
+    F2 --> R2[diagram_store ValueError]
+    F3 --> R3[add_node ValueError, ask user]
+    F4 --> R4[verify_mcp exit 2]
+    F5 --> R4
+    F6 --> R4
+    F7 --> R5[Restart MCP per vscode-restart-formality]
+    F8 --> R6[add_connector_table hard guard]
+
+    classDef fail fill:#f8cecc,stroke:#b85450,color:#000
+    classDef resolve fill:#fff2cc,stroke:#d6b656,color:#000
+    class F1,F2,F3,F4,F5,F6,F7,F8 fail
+    class R1,R2,R3,R4,R5,R6 resolve
+  </pre></div>
+</section>
+
+<section id="s12">
+  <h2>12. Layout constants — single source of truth</h2>
+  <p>These five knobs govern the visual output of every diagram. Edit the source files and run <code>scripts/reroute_diagram.py</code> to retrofit an existing <code>.drawio</code>.</p>
+  <table>
+    <tr><th>Constant</th><th>Value</th><th>File</th><th>Effect</th></tr>
+    <tr><td><code>_COLUMN_GAP</code></td><td>140</td><td><code>add_container.py</code></td><td>Horizontal gap between swimlanes</td></tr>
+    <tr><td><code>_CONTAINER_CHILD_STRIDE</code></td><td>200</td><td><code>add_node.py</code></td><td>Vertical distance between stacked icons</td></tr>
+    <tr><td><code>_CORRIDOR_INSET</code></td><td>70</td><td><code>add_edge.py</code></td><td>Half of <code>_COLUMN_GAP</code> — centres waypoints in the gap</td></tr>
+    <tr><td><code>_LANE_BAND_HALF</code></td><td>50</td><td><code>add_edge.py</code></td><td>Max Y offset for sub-lane deconfliction</td></tr>
+    <tr><td><code>_BUSY_DEGREE_THRESHOLD</code></td><td>3</td><td><code>add_edge.py</code></td><td>Node degree &gt; this triggers the card border</td></tr>
+  </table>
+</section>
+
+</main>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "default",
+    // 14 px reads as a real diagram caption — slightly larger than the
+    // 13 px used in the .md mirror so the standalone HTML page looks
+    // polished on its own.
+    themeVariables: {
+      fontSize: "14px",
+      actorFontSize: "14px",
+      noteFontSize: "13px",
+      messageFontSize: "13px",
+      labelBoxFontSize: "13px"
+    },
+    flowchart: {
+      curve: "basis",
+      htmlLabels: true,
+      useMaxWidth: false,
+      nodeSpacing: 60,
+      rankSpacing: 75,
+      padding: 14
+    },
+    sequence: {
+      useMaxWidth: false,
+      actorMargin: 90,
+      messageMargin: 40,
+      boxMargin: 20,
+      noteMargin: 18,
+      width: 160,
+      mirrorActors: false
+    },
+    state: {
+      useMaxWidth: false,
+      nodeSpacing: 60,
+      rankSpacing: 70
+    }
+  });
+</script>
+
+</body>
+</html>
