@@ -1,0 +1,639 @@
+<title>Architecture Copilot — How It Works</title>
+<style>
+  :root {
+    color-scheme: light dark;
+
+    --page: #eaeef6;
+    --canvas: #ffffff;
+    --grid: #e3e9f4;
+    --node: #ffffff;
+    --lane-body: #fbfcfe;
+    --ink: #0f1626;
+    --muted: #55637a;
+    --faint: #8493ab;
+    --border: #d5dfee;
+    --edge: #46536b;
+    --link: #0b57d0;
+    --pill: #ffffff;
+    --stop: #c5221f;
+    --stop-bg: #fdecea;
+    --shadow: 0 1px 2px rgba(15, 22, 38, .07), 0 14px 30px -20px rgba(15, 22, 38, .4);
+
+    /* swimlane palette — verbatim from drawio/shapes.py SWIMLANE_COLORS */
+    --ln-ext: #f8cecc;  --ln-ext-b: #b85450;
+    --ln-ing: #dae8fc;  --ln-ing-b: #6c8ebf;
+    --ln-sec: #fad9d5;  --ln-sec-b: #ae4132;
+    --ln-pro: #fff2cc;  --ln-pro-b: #d6b656;
+    --ln-sta: #d5e8d4;  --ln-sta-b: #82b366;
+    --ln-cur: #e1d5e7;  --ln-cur-b: #9673a6;
+
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #080d18;
+      --canvas: #0e1526;
+      --grid: #16203a;
+      --node: #18213a;
+      --lane-body: #121a2e;
+      --ink: #e9eefb;
+      --muted: #a2b2cd;
+      --faint: #74849f;
+      --border: #29364f;
+      --edge: #8b9cba;
+      --link: #8ab0f8;
+      --pill: #18213a;
+      --stop: #ff8a7d;
+      --stop-bg: #33201e;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 18px 36px -22px rgba(0,0,0,.95);
+    }
+  }
+  :root[data-theme="dark"] {
+    --page: #080d18; --canvas: #0e1526; --grid: #16203a; --node: #18213a;
+    --lane-body: #121a2e; --ink: #e9eefb; --muted: #a2b2cd; --faint: #74849f;
+    --border: #29364f; --edge: #8b9cba; --link: #8ab0f8; --pill: #18213a;
+    --stop: #ff8a7d; --stop-bg: #33201e;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 18px 36px -22px rgba(0,0,0,.95);
+  }
+  :root[data-theme="light"] {
+    --page: #eaeef6; --canvas: #ffffff; --grid: #e3e9f4; --node: #ffffff;
+    --lane-body: #fbfcfe; --ink: #0f1626; --muted: #55637a; --faint: #8493ab;
+    --border: #d5dfee; --edge: #46536b; --link: #0b57d0; --pill: #ffffff;
+    --stop: #c5221f; --stop-bg: #fdecea;
+    --shadow: 0 1px 2px rgba(15,22,38,.07), 0 14px 30px -20px rgba(15,22,38,.4);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font: 400 15px/1.5 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 36px 20px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+  }
+
+  /* ── header ───────────────────────────────────── */
+  .top { display: flex; flex-direction: column; gap: 12px; }
+  .eyebrow {
+    font: 600 10.5px/1 var(--mono);
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--link);
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(25px, 3.5vw, 37px);
+    font-weight: 800;
+    letter-spacing: -.03em;
+    line-height: 1.12;
+    text-wrap: balance;
+  }
+  h1 .dim { color: var(--muted); font-weight: 700; }
+  .lede { margin: 0; max-width: 64ch; font-size: 15.5px; color: var(--muted); }
+
+  .keys { display: flex; flex-wrap: wrap; gap: 7px; }
+  .key {
+    display: inline-flex; align-items: baseline; gap: 6px;
+    padding: 5px 11px;
+    background: var(--canvas);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 11.5px;
+    color: var(--muted);
+    box-shadow: var(--shadow);
+  }
+  .key b { font: 700 13px/1 var(--sans); color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  /* ── diagram frame: a draw.io canvas ──────────── */
+  figure { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+
+  figcaption { display: flex; flex-direction: column; gap: 5px; }
+  figcaption h2 { margin: 0; font-size: 19px; font-weight: 750; letter-spacing: -.018em; }
+  figcaption p { margin: 0; max-width: 74ch; font-size: 13.5px; color: var(--muted); }
+
+  .canvas {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    background:
+      repeating-linear-gradient(0deg, var(--grid) 0 1px, transparent 1px 20px),
+      repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 20px),
+      var(--canvas);
+    padding: 14px;
+  }
+  .canvas svg { display: block; width: 100%; min-width: 900px; height: auto; }
+
+  /* svg type roles */
+  .t-lane  { font: 700 12px var(--sans); letter-spacing: .12em; }
+  .t-lane2 { font: 500 9px var(--mono); letter-spacing: .06em; }
+  .t-name  { font: 700 13.5px var(--sans); letter-spacing: -.01em; fill: var(--ink); }
+  .t-who   { font: 700 8.5px var(--mono); letter-spacing: .12em; }
+  .t-cmd   { font: 500 9px var(--mono); fill: var(--faint); }
+  .t-badge { font: 700 12px var(--sans); }
+  .t-edge  { font: 700 10px var(--sans); fill: var(--link); }
+  .t-note  { font: 600 10px var(--sans); fill: var(--stop); }
+  .t-big   { font: 700 15px var(--sans); fill: var(--ink); letter-spacing: -.01em; }
+  .t-sub   { font: 400 11px var(--sans); fill: var(--muted); }
+  .t-step  { font: 700 13px var(--sans); fill: var(--ink); letter-spacing: -.012em; }
+  .t-step2 { font: 400 10.5px var(--sans); fill: var(--muted); }
+  .t-next  { font: 700 8px var(--mono); letter-spacing: .12em; fill: var(--ln-cur-b); }
+
+  .disc { fill: #f2f5fa; stroke: var(--border); stroke-width: 1.2; }
+  .card-next { fill: var(--node); stroke: var(--ln-cur-b); stroke-width: 1.4; stroke-dasharray: 5 4; }
+
+  .shape { fill: var(--node); stroke: var(--border); stroke-width: 1.4; }
+  .wire  { fill: none; stroke: var(--edge); stroke-width: 1.6; stroke-linejoin: round; }
+  .wire-back { fill: none; stroke: var(--stop); stroke-width: 1.6; stroke-dasharray: 6 4; }
+  .pill  { fill: var(--pill); }
+
+  /* ── benefits ─────────────────────────────────── */
+  .wins { display: grid; grid-template-columns: repeat(auto-fit, minmax(228px, 1fr)); gap: 10px; }
+  .win {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 14px 15px;
+    background: var(--canvas);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    box-shadow: var(--shadow);
+  }
+  .win svg { flex: none; width: 30px; height: 30px; }
+  .win b { display: block; font-size: 13.5px; font-weight: 700; letter-spacing: -.012em; margin-bottom: 3px; }
+  .win p { margin: 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
+
+  footer {
+    display: flex; flex-wrap: wrap; gap: 6px 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 11.5px; color: var(--faint);
+  }
+  footer b { color: var(--muted); font-weight: 650; }
+
+  @media (max-width: 620px) { .page { padding: 24px 14px 36px; gap: 20px; } }
+</style>
+
+<div class="page">
+
+  <header class="top">
+    <div class="eyebrow">Architecture Copilot · MCP · draw.io</div>
+    <h1>Build end-to-end architecture diagrams using Copilot<br><span class="dim">From one line of chat to a reviewed deliverable.</span></h1>
+    <p class="lede">
+      Drop a Jira story in a folder, type one sentence in chat. Nine stages later you have layered
+      swimlanes, official GCP icons, numbered connectors and a per-connector integration contract —
+      with two hard gates that stop the run if policy or quality would be broken.
+    </p>
+    <div class="keys">
+      <span class="key"><b>9</b> stages</span>
+      <span class="key"><b>13</b> MCP tools</span>
+      <span class="key"><b>258</b> GCP icons</span>
+      <span class="key"><b>2</b> hard gates</span>
+      <span class="key"><b>3</b> artifacts per run</span>
+      <span class="key"><b>0</b> XML edited by hand</span>
+    </div>
+  </header>
+
+  <!-- ══════════ DIAGRAM 0 — the end-to-end journey ══════════ -->
+  <figure>
+    <figcaption>
+      <h2>The journey, end to end</h2>
+      <p>From a requirement sitting in Jira to a diagram living in your repository. Dashed steps are on the roadmap — everything before them runs today.</p>
+    </figcaption>
+
+    <div class="canvas">
+      <svg viewBox="0 0 1426 164" role="img" aria-label="End-to-end journey: architect, GitHub Copilot, download the Jira story, run the prompt, architecture created, attached back to Jira, pushed to GitHub as diagram-as-code.">
+        <defs>
+          <marker id="a0" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+            <path d="M0 1 L11 6 L0 11 z" fill="var(--edge)"></path>
+          </marker>
+        </defs>
+
+        <!-- flow arrows -->
+        <g>
+          <path class="wire" d="M178 52 H200" marker-end="url(#a0)"></path>
+          <path class="wire" d="M386 52 H408" marker-end="url(#a0)"></path>
+          <path class="wire" d="M594 52 H616" marker-end="url(#a0)"></path>
+          <path class="wire" d="M802 52 H824" marker-end="url(#a0)"></path>
+          <path class="wire" d="M1010 52 H1032" marker-end="url(#a0)"></path>
+          <path class="wire" d="M1218 52 H1240" marker-end="url(#a0)"></path>
+        </g>
+
+        <!-- 1 · you -->
+        <g>
+          <rect class="shape" x="0" y="6" width="174" height="148" rx="9"></rect>
+          <circle class="disc" cx="87" cy="52" r="26"></circle>
+          <circle cx="87" cy="45" r="6.5" fill="none" stroke="#475569" stroke-width="2.2"></circle>
+          <path d="M76 66 a11 11 0 0 1 22 0" fill="none" stroke="#475569" stroke-width="2.2" stroke-linecap="round"></path>
+          <text class="t-step"  x="87" y="104" text-anchor="middle">You</text>
+          <text class="t-step2" x="87" y="122" text-anchor="middle">Have a requirement</text>
+        </g>
+
+        <!-- 2 · copilot -->
+        <g>
+          <rect class="shape" x="208" y="6" width="174" height="148" rx="9"></rect>
+          <circle class="disc" cx="295" cy="52" r="26"></circle>
+          <path d="M286 43 q-4 -9 4 -10 M304 43 q4 -9 -4 -10" fill="none" stroke="#24292f" stroke-width="2" stroke-linecap="round"></path>
+          <rect x="281" y="43" width="28" height="21" rx="10.5" fill="none" stroke="#24292f" stroke-width="2.2"></rect>
+          <circle cx="290" cy="54" r="2.3" fill="#24292f"></circle>
+          <circle cx="300" cy="54" r="2.3" fill="#24292f"></circle>
+          <text class="t-step"  x="295" y="104" text-anchor="middle">GitHub Copilot</text>
+          <text class="t-step2" x="295" y="122" text-anchor="middle">Chat, inside VS Code</text>
+        </g>
+
+        <!-- 3 · download the jira story -->
+        <g>
+          <rect class="shape" x="416" y="6" width="174" height="148" rx="9"></rect>
+          <circle class="disc" cx="503" cy="52" r="26"></circle>
+          <path d="M503 33 L520 52 L503 71 L486 52 Z" fill="#2684ff"></path>
+          <path d="M503 44 L511 52 L503 60 L495 52 Z" fill="#f2f5fa"></path>
+          <path d="M503 33 L520 52 L512 52 L503 43 Z" fill="#0052cc"></path>
+          <text class="t-step"  x="503" y="104" text-anchor="middle">Jira story</text>
+          <text class="t-step2" x="503" y="122" text-anchor="middle">Downloaded to a file</text>
+        </g>
+
+        <!-- 4 · run the prompt -->
+        <g>
+          <rect class="shape" x="624" y="6" width="174" height="148" rx="9"></rect>
+          <circle class="disc" cx="711" cy="52" r="26"></circle>
+          <path d="M691 40 h34 a6 6 0 0 1 6 6 v16 a6 6 0 0 1 -6 6 h-18 l-9 8 v-8 h-7 a6 6 0 0 1 -6 -6 v-16 a6 6 0 0 1 6 -6 z"
+                fill="none" stroke="#0b57d0" stroke-width="2.2" stroke-linejoin="round"></path>
+          <path d="M700 49 l5 5 l-5 5 M712 59 h10" fill="none" stroke="#0b57d0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+          <text class="t-step"  x="711" y="104" text-anchor="middle">Run the prompt</text>
+          <text class="t-step2" x="711" y="122" text-anchor="middle">One line, no template</text>
+        </g>
+
+        <!-- 5 · architecture created -->
+        <g>
+          <rect class="shape" x="832" y="6" width="174" height="148" rx="9"></rect>
+          <circle class="disc" cx="919" cy="52" r="26"></circle>
+          <rect x="900" y="38" width="16" height="12" rx="2" fill="none" stroke="#d6b656" stroke-width="2.1"></rect>
+          <rect x="922" y="38" width="16" height="12" rx="2" fill="none" stroke="#82b366" stroke-width="2.1"></rect>
+          <rect x="911" y="58" width="16" height="12" rx="2" fill="none" stroke="#9673a6" stroke-width="2.1"></rect>
+          <path d="M916 44 h6" fill="none" stroke="var(--edge)" stroke-width="1.6"></path>
+          <path d="M908 50 v4 h11 v4" fill="none" stroke="var(--edge)" stroke-width="1.6"></path>
+          <text class="t-step"  x="919" y="104" text-anchor="middle">Architecture created</text>
+          <text class="t-step2" x="919" y="122" text-anchor="middle">Lanes · icons · arrows</text>
+        </g>
+
+        <!-- 6 · attached back to jira (roadmap) -->
+        <g>
+          <rect class="card-next" x="1040" y="6" width="174" height="148" rx="9"></rect>
+          <circle class="disc" cx="1127" cy="52" r="26"></circle>
+          <path d="M1123 33 L1140 52 L1123 71 L1106 52 Z" fill="#2684ff"></path>
+          <path d="M1123 44 L1131 52 L1123 60 L1115 52 Z" fill="#f2f5fa"></path>
+          <circle cx="1141" cy="66" r="9.5" fill="#188038"></circle>
+          <path d="M1141 71 v-9 M1137 65.5 l4 -4 l4 4" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+          <text class="t-step"  x="1127" y="104" text-anchor="middle">Attached to Jira</text>
+          <text class="t-step2" x="1127" y="122" text-anchor="middle">Back on the story</text>
+          <rect x="1100" y="130" width="54" height="15" rx="3" fill="none" stroke="var(--ln-cur-b)"></rect>
+          <text class="t-next" x="1127" y="141" text-anchor="middle">ROADMAP</text>
+        </g>
+
+        <!-- 7 · pushed to github (roadmap) -->
+        <g>
+          <rect class="card-next" x="1248" y="6" width="174" height="148" rx="9"></rect>
+          <circle class="disc" cx="1335" cy="52" r="26"></circle>
+          <g transform="translate(1318 35) scale(1.4167)" fill="#24292f">
+            <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12z"></path>
+          </g>
+          <text class="t-step"  x="1335" y="104" text-anchor="middle">Pushed to GitHub</text>
+          <text class="t-step2" x="1335" y="122" text-anchor="middle">Diagram as code</text>
+          <rect x="1308" y="130" width="54" height="15" rx="3" fill="none" stroke="var(--ln-cur-b)"></rect>
+          <text class="t-next" x="1335" y="141" text-anchor="middle">ROADMAP</text>
+        </g>
+      </svg>
+    </div>
+  </figure>
+
+  <!-- ══════════ DIAGRAM 1 — the nine stages, as the tool would draw them ══════════ -->
+  <figure>
+    <figcaption>
+      <h2>The nine stages</h2>
+      <p>Drawn in the product's own visual language — six swimlanes, numbered step badges, orthogonal connectors. Red lanes are gates: the run stops there.</p>
+    </figcaption>
+
+    <div class="canvas">
+      <svg viewBox="0 0 1408 352" role="img" aria-label="Nine-stage pipeline across six swimlanes: Capture, Prepare, Govern, Build, Prove, Ship.">
+        <defs>
+          <marker id="a1" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M0 1 L11 6 L0 11 z" fill="var(--edge)"></path>
+          </marker>
+          <marker id="a1r" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M0 1 L11 6 L0 11 z" fill="var(--stop)"></path>
+          </marker>
+        </defs>
+
+        <!-- ── swimlanes ── -->
+        <g>
+          <rect x="0"    y="8" width="208" height="332" rx="3" fill="var(--lane-body)" stroke="var(--ln-ext-b)"></rect>
+          <path d="M0 11 a3 3 0 0 1 3-3 h202 a3 3 0 0 1 3 3 v31 H0 z" fill="var(--ln-ext)"></path>
+          <text class="t-lane" x="104" y="25" text-anchor="middle" fill="#7a2e2b">CAPTURE</text>
+          <text class="t-lane2" x="104" y="37" text-anchor="middle" fill="#8e4340">you + copilot</text>
+
+          <rect x="240"  y="8" width="208" height="332" rx="3" fill="var(--lane-body)" stroke="var(--ln-ing-b)"></rect>
+          <path d="M240 11 a3 3 0 0 1 3-3 h202 a3 3 0 0 1 3 3 v31 H240 z" fill="var(--ln-ing)"></path>
+          <text class="t-lane" x="344" y="25" text-anchor="middle" fill="#2c4a75">PREPARE</text>
+          <text class="t-lane2" x="344" y="37" text-anchor="middle" fill="#3d5c88">cli + copilot</text>
+
+          <rect x="480"  y="8" width="208" height="332" rx="3" fill="var(--lane-body)" stroke="var(--ln-sec-b)"></rect>
+          <path d="M480 11 a3 3 0 0 1 3-3 h202 a3 3 0 0 1 3 3 v31 H480 z" fill="var(--ln-sec)"></path>
+          <text class="t-lane" x="584" y="25" text-anchor="middle" fill="#7d2c20">GOVERN</text>
+          <text class="t-lane2" x="584" y="37" text-anchor="middle" fill="#93392c">gate · you decide</text>
+
+          <rect x="720"  y="8" width="208" height="332" rx="3" fill="var(--lane-body)" stroke="var(--ln-pro-b)"></rect>
+          <path d="M720 11 a3 3 0 0 1 3-3 h202 a3 3 0 0 1 3 3 v31 H720 z" fill="var(--ln-pro)"></path>
+          <text class="t-lane" x="824" y="25" text-anchor="middle" fill="#7a6216">BUILD</text>
+          <text class="t-lane2" x="824" y="37" text-anchor="middle" fill="#8d7420">mcp server</text>
+
+          <rect x="960"  y="8" width="208" height="332" rx="3" fill="var(--lane-body)" stroke="var(--ln-sta-b)"></rect>
+          <path d="M960 11 a3 3 0 0 1 3-3 h202 a3 3 0 0 1 3 3 v31 H960 z" fill="var(--ln-sta)"></path>
+          <text class="t-lane" x="1064" y="25" text-anchor="middle" fill="#3d6b33">PROVE</text>
+          <text class="t-lane2" x="1064" y="37" text-anchor="middle" fill="#4c7d40">gate · automatic</text>
+
+          <rect x="1200" y="8" width="208" height="332" rx="3" fill="var(--lane-body)" stroke="var(--ln-cur-b)"></rect>
+          <path d="M1200 11 a3 3 0 0 1 3-3 h202 a3 3 0 0 1 3 3 v31 H1200 z" fill="var(--ln-cur)"></path>
+          <text class="t-lane" x="1304" y="25" text-anchor="middle" fill="#5c3d70">SHIP</text>
+          <text class="t-lane2" x="1304" y="37" text-anchor="middle" fill="#6d4c82">cli + mcp</text>
+        </g>
+
+        <!-- ── connectors (drawn under the nodes) ── -->
+        <g>
+          <path class="wire" d="M104 148 V182" marker-end="url(#a1)"></path>
+          <path class="wire" d="M192 232 H224 V102 H252" marker-end="url(#a1)"></path>
+          <path class="wire" d="M344 148 V182" marker-end="url(#a1)"></path>
+          <path class="wire" d="M448 232 H464 V167 H492" marker-end="url(#a1)"></path>
+          <path class="wire" d="M688 167 H732" marker-end="url(#a1)"></path>
+          <path class="wire" d="M928 167 H972" marker-end="url(#a1)"></path>
+          <path class="wire" d="M1168 167 H1184 V102 H1212" marker-end="url(#a1)"></path>
+          <path class="wire" d="M1304 148 V182" marker-end="url(#a1)"></path>
+          <path class="wire-back" d="M1064 213 V312 H824 V217" marker-end="url(#a1r)"></path>
+        </g>
+
+        <!-- ── connector labels, in the product's blue-bold-on-white-pill style ── -->
+        <g>
+          <rect class="pill" x="192" y="150" width="62" height="14" rx="3"></rect>
+          <text class="t-edge" x="223" y="161" text-anchor="middle">canonical</text>
+
+          <rect class="pill" x="424" y="188" width="66" height="14" rx="3"></rect>
+          <text class="t-edge" x="457" y="199" text-anchor="middle">plan ready</text>
+
+          <rect class="pill" x="676" y="152" width="66" height="14" rx="3"></rect>
+          <text class="t-edge" x="709" y="163" text-anchor="middle">approved</text>
+
+          <rect class="pill" x="916" y="152" width="70" height="14" rx="3"></rect>
+          <text class="t-edge" x="951" y="163" text-anchor="middle">diagram in</text>
+
+          <rect class="pill" x="1152" y="150" width="56" height="14" rx="3"></rect>
+          <text class="t-edge" x="1180" y="161" text-anchor="middle">exit 0</text>
+
+          <rect class="pill" x="888" y="305" width="118" height="14" rx="3"></rect>
+          <text class="t-note" x="947" y="316" text-anchor="middle">exit 2 — fix &amp; re-run</text>
+        </g>
+
+        <!-- ── stage 1 ── -->
+        <g>
+          <rect class="shape" x="16" y="56" width="176" height="92" rx="6"></rect>
+          <circle cx="36" cy="78" r="13" fill="#e6194b"></circle>
+          <text class="t-badge" x="36" y="82" text-anchor="middle" fill="#fff">1</text>
+          <text class="t-name" x="58" y="82">Describe</text>
+          <text class="t-who" x="18" y="106" fill="#7a2e2b">YOU · PLAIN ENGLISH</text>
+          <text class="t-cmd" x="18" y="128">jira-stories/&lt;KEY&gt;.txt</text>
+        </g>
+        <!-- ── stage 2 ── -->
+        <g>
+          <rect class="shape" x="16" y="186" width="176" height="92" rx="6"></rect>
+          <circle cx="36" cy="208" r="13" fill="#f58231"></circle>
+          <text class="t-badge" x="36" y="212" text-anchor="middle" fill="#fff">2</text>
+          <text class="t-name" x="58" y="212">Route</text>
+          <text class="t-who" x="18" y="236" fill="#7a2e2b">COPILOT · ONE LINE</text>
+          <text class="t-cmd" x="18" y="258">create · or · update flow</text>
+        </g>
+        <!-- ── stage 3 ── -->
+        <g>
+          <rect class="shape" x="256" y="56" width="176" height="92" rx="6"></rect>
+          <circle cx="276" cy="78" r="13" fill="#ffd700"></circle>
+          <text class="t-badge" x="276" y="82" text-anchor="middle" fill="#3d2f00">3</text>
+          <text class="t-name" x="298" y="82">Normalize</text>
+          <text class="t-who" x="258" y="106" fill="#2c4a75">CLI · REWRITES BRIEF</text>
+          <text class="t-cmd" x="258" y="128">normalize_jira_story.py</text>
+        </g>
+        <!-- ── stage 4 ── -->
+        <g>
+          <rect class="shape" x="256" y="186" width="176" height="92" rx="6"></rect>
+          <circle cx="276" cy="208" r="13" fill="#3cb44b"></circle>
+          <text class="t-badge" x="276" y="212" text-anchor="middle" fill="#fff">4</text>
+          <text class="t-name" x="298" y="212">Read &amp; plan</text>
+          <text class="t-who" x="258" y="236" fill="#2c4a75">COPILOT · MCP READS</text>
+          <text class="t-cmd" x="258" y="258">read_diagram_summary</text>
+        </g>
+        <!-- ── stage 5 · GATE ── -->
+        <g>
+          <rect x="496" y="121" width="176" height="92" rx="6" fill="var(--stop-bg)" stroke="var(--stop)" stroke-width="2"></rect>
+          <rect x="496" y="121" width="5" height="92" fill="var(--stop)"></rect>
+          <circle cx="520" cy="143" r="13" fill="#4363d8"></circle>
+          <text class="t-badge" x="520" y="147" text-anchor="middle" fill="#fff">5</text>
+          <text class="t-name" x="542" y="147">Guardrail</text>
+          <text class="t-who" x="508" y="171" fill="var(--stop)">STOPS · YOU PICK</text>
+          <text class="t-cmd" x="508" y="193">unavailable_services.md</text>
+        </g>
+        <!-- ── stage 6 ── -->
+        <g>
+          <rect class="shape" x="736" y="121" width="176" height="92" rx="6"></rect>
+          <circle cx="756" cy="143" r="13" fill="#911eb4"></circle>
+          <text class="t-badge" x="756" y="147" text-anchor="middle" fill="#fff">6</text>
+          <text class="t-name" x="778" y="147">Build</text>
+          <text class="t-who" x="738" y="171" fill="#7a6216">LANES · ICONS · ARROWS</text>
+          <text class="t-cmd" x="738" y="193">add_node · add_edge</text>
+        </g>
+        <!-- ── stage 7 · GATE ── -->
+        <g>
+          <rect x="976" y="121" width="176" height="92" rx="6" fill="var(--stop-bg)" stroke="var(--stop)" stroke-width="2"></rect>
+          <rect x="976" y="121" width="5" height="92" fill="var(--stop)"></rect>
+          <circle cx="1000" cy="143" r="13" fill="#f032e6"></circle>
+          <text class="t-badge" x="1000" y="147" text-anchor="middle" fill="#fff">7</text>
+          <text class="t-name" x="1022" y="147">Verify</text>
+          <text class="t-who" x="988" y="171" fill="var(--stop)">EXIT 2 · NO SHIP</text>
+          <text class="t-cmd" x="988" y="193">verify_mcp.py</text>
+        </g>
+        <!-- ── stage 8 ── -->
+        <g>
+          <rect class="shape" x="1216" y="56" width="176" height="92" rx="6"></rect>
+          <circle cx="1236" cy="78" r="13" fill="#9a6324"></circle>
+          <text class="t-badge" x="1236" y="82" text-anchor="middle" fill="#fff">8</text>
+          <text class="t-name" x="1258" y="82">Document</text>
+          <text class="t-who" x="1218" y="106" fill="#5c3d70">CLI · 14 COLUMNS</text>
+          <text class="t-cmd" x="1218" y="128" style="font-size:8px">generate_connector_details.py</text>
+        </g>
+        <!-- ── stage 9 ── -->
+        <g>
+          <rect class="shape" x="1216" y="186" width="176" height="92" rx="6"></rect>
+          <circle cx="1236" cy="208" r="13" fill="#469990"></circle>
+          <text class="t-badge" x="1236" y="212" text-anchor="middle" fill="#fff">9</text>
+          <text class="t-name" x="1258" y="212">Deliver</text>
+          <text class="t-who" x="1218" y="236" fill="#5c3d70">MCP · TABLE EMBEDDED</text>
+          <text class="t-cmd" x="1218" y="258">add_connector_table</text>
+        </g>
+      </svg>
+    </div>
+  </figure>
+
+  <!-- ══════════ DIAGRAM 2 — the high-level work workflow ══════════ -->
+  <figure>
+    <figcaption>
+      <h2>How the work flows</h2>
+      <p>The same journey at altitude: you hand off once, the machine does the middle, and the two gates decide whether it comes back to you or goes out the door.</p>
+    </figcaption>
+
+    <div class="canvas">
+      <svg viewBox="0 0 1408 258" role="img" aria-label="High-level workflow loop from you, to Copilot, to the MCP server, through the gates, to artifacts and back to you.">
+        <defs>
+          <marker id="a2" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+            <path d="M0 1 L11 6 L0 11 z" fill="var(--edge)"></path>
+          </marker>
+        </defs>
+
+        <!-- connectors -->
+        <g>
+          <path class="wire" d="M240 78 H288" marker-end="url(#a2)"></path>
+          <path class="wire" d="M532 78 H580" marker-end="url(#a2)"></path>
+          <path class="wire" d="M824 78 H872" marker-end="url(#a2)"></path>
+          <path class="wire" d="M1116 78 H1164" marker-end="url(#a2)"></path>
+          <path class="wire" d="M1288 138 V200 H120 V142" marker-end="url(#a2)"></path>
+        </g>
+        <g>
+          <rect class="pill" x="236" y="62" width="56" height="14" rx="3"></rect>
+          <text class="t-edge" x="264" y="73" text-anchor="middle">one line</text>
+          <rect class="pill" x="528" y="62" width="60" height="14" rx="3"></rect>
+          <text class="t-edge" x="558" y="73" text-anchor="middle">13 tools</text>
+          <rect class="pill" x="820" y="62" width="60" height="14" rx="3"></rect>
+          <text class="t-edge" x="850" y="73" text-anchor="middle">checked</text>
+          <rect class="pill" x="1112" y="62" width="56" height="14" rx="3"></rect>
+          <text class="t-edge" x="1140" y="73" text-anchor="middle">passed</text>
+          <rect class="pill" x="642" y="193" width="124" height="14" rx="3"></rect>
+          <text class="t-edge" x="704" y="204" text-anchor="middle">review · next story</text>
+        </g>
+
+        <!-- 1 · you -->
+        <g>
+          <rect class="shape" x="0" y="18" width="240" height="120" rx="8"></rect>
+          <rect x="0" y="18" width="240" height="5" rx="2" fill="var(--ln-ext-b)"></rect>
+          <circle cx="34" cy="56" r="9" fill="none" stroke="var(--ln-ext-b)" stroke-width="2.2"></circle>
+          <path d="M20 78 a14 14 0 0 1 28 0" fill="none" stroke="var(--ln-ext-b)" stroke-width="2.2" stroke-linecap="round"></path>
+          <text class="t-big" x="60" y="62">You</text>
+          <text class="t-sub" x="18" y="102">Write the story. Type one sentence.</text>
+          <text class="t-sub" x="18" y="120">Approve the swap at the gate.</text>
+        </g>
+
+        <!-- 2 · copilot -->
+        <g>
+          <rect class="shape" x="292" y="18" width="240" height="120" rx="8"></rect>
+          <rect x="292" y="18" width="240" height="5" rx="2" fill="var(--ln-ing-b)"></rect>
+          <path d="M312 44 h34 a6 6 0 0 1 6 6 v20 a6 6 0 0 1 -6 6 h-20 l-10 9 v-9 h-4 a6 6 0 0 1 -6 -6 v-20 a6 6 0 0 1 6 -6 z"
+                fill="none" stroke="var(--ln-ing-b)" stroke-width="2.2" stroke-linejoin="round"></path>
+          <text class="t-big" x="366" y="62">Copilot</text>
+          <text class="t-sub" x="310" y="102">Reads the brief, plans the layers,</text>
+          <text class="t-sub" x="310" y="120">calls the tools in order.</text>
+        </g>
+
+        <!-- 3 · mcp server -->
+        <g>
+          <rect class="shape" x="584" y="18" width="240" height="120" rx="8"></rect>
+          <rect x="584" y="18" width="240" height="5" rx="2" fill="var(--ln-pro-b)"></rect>
+          <rect x="604" y="42" width="34" height="9" rx="2" fill="none" stroke="var(--ln-pro-b)" stroke-width="2.2"></rect>
+          <rect x="604" y="55" width="34" height="9" rx="2" fill="none" stroke="var(--ln-pro-b)" stroke-width="2.2"></rect>
+          <rect x="604" y="68" width="34" height="9" rx="2" fill="none" stroke="var(--ln-pro-b)" stroke-width="2.2"></rect>
+          <text class="t-big" x="654" y="62">MCP server</text>
+          <text class="t-sub" x="602" y="102">Owns every coordinate, icon and</text>
+          <text class="t-sub" x="602" y="120">file write. Sandboxed to two folders.</text>
+        </g>
+
+        <!-- 4 · gates -->
+        <g>
+          <rect x="876" y="18" width="240" height="120" rx="8" fill="var(--stop-bg)" stroke="var(--stop)" stroke-width="2"></rect>
+          <rect x="876" y="18" width="240" height="5" rx="2" fill="var(--stop)"></rect>
+          <path d="M913 40 l18 8 v13 c0 11 -8 19 -18 23 c-10 -4 -18 -12 -18 -23 v-13 z"
+                fill="none" stroke="var(--stop)" stroke-width="2.2" stroke-linejoin="round"></path>
+          <text class="t-big" x="946" y="62">Two gates</text>
+          <text class="t-sub" x="894" y="102">Restricted service? It stops and asks.</text>
+          <text class="t-sub" x="894" y="120">Broken diagram? It refuses to ship.</text>
+        </g>
+
+        <!-- 5 · artifacts -->
+        <g>
+          <rect class="shape" x="1168" y="18" width="240" height="120" rx="8"></rect>
+          <rect x="1168" y="18" width="240" height="5" rx="2" fill="var(--ln-sta-b)"></rect>
+          <path d="M1190 40 h20 l8 8 v30 h-28 z" fill="none" stroke="var(--ln-sta-b)" stroke-width="2.2" stroke-linejoin="round"></path>
+          <path d="M1198 48 h22 v30" fill="none" stroke="var(--ln-sta-b)" stroke-width="2.2" stroke-linejoin="round" opacity=".55"></path>
+          <text class="t-big" x="1238" y="62">Three artifacts</text>
+          <text class="t-sub" x="1186" y="102">Technical brief · layered diagram</text>
+          <text class="t-sub" x="1186" y="120">with embedded connector contract.</text>
+        </g>
+      </svg>
+    </div>
+  </figure>
+
+  <!-- ══════════ BENEFITS ══════════ -->
+  <figure>
+    <figcaption>
+      <h2>What the team gets</h2>
+    </figcaption>
+
+    <div class="wins">
+      <div class="win">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--link)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.5 2"></path>
+        </svg>
+        <div><b>Minutes, not days</b><p>One sentence replaces drawing boxes, hunting icons and aligning arrows by hand.</p></div>
+      </div>
+      <div class="win">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--stop)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3l7 3v6c0 5-3 8-7 9c-4-1-7-4-7-9V6z"></path><path d="M12 9v4"></path><path d="M12 16v.5"></path>
+        </svg>
+        <div><b>Governance can't be skipped</b><p>Restricted services halt the build and make you choose an approved replacement.</p></div>
+      </div>
+      <div class="win">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#3cb44b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l2.6 2.6L16 9.5"></path>
+        </svg>
+        <div><b>Broken diagrams don't ship</b><p>The verifier blocks delivery on dangling edges, missing icons or invisible arrowheads.</p></div>
+      </div>
+      <div class="win">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#911eb4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="4" y="3" width="16" height="18" rx="2"></rect><path d="M8 8h8M8 12h8M8 16h5"></path>
+        </svg>
+        <div><b>Every connector documented</b><p>Fourteen columns per arrow, with a zero-placeholder rule enforced before embedding.</p></div>
+      </div>
+      <div class="win">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#d6b656" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3l8 4.5-8 4.5-8-4.5z"></path><path d="M4 12.5l8 4.5 8-4.5"></path><path d="M4 16.5l8 4.5 8-4.5"></path>
+        </svg>
+        <div><b>Consistent by construction</b><p>Spacing and routing live in one place — two architects produce the same house style.</p></div>
+      </div>
+      <div class="win">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#469990" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 8a8 8 0 0 1 14-3"></path><path d="M18 3v4h-4"></path>
+          <path d="M20 16a8 8 0 0 1-14 3"></path><path d="M6 21v-4h4"></path>
+        </svg>
+        <div><b>Reproducible and reviewable</b><p>Uncompressed XML, timestamped names — diagrams diff in a PR, re-runs never overwrite.</p></div>
+      </div>
+    </div>
+  </figure>
+
+  <footer>
+    <span><b>Runs locally</b> — stdio MCP, nothing leaves the machine</span>
+    <span><b>Any MCP client</b> — Copilot Chat · Claude Desktop · Cursor</span>
+    <span><b>Owner</b> Debajyoti Mukhopadhyay — Architecture &amp; Tooling</span>
+  </footer>
+
+</div>
