@@ -1,0 +1,157 @@
+<mxfile host="app.diagrams.net" modified="2026-09-04T00:00:00.000Z" agent="architecture-doc" version="24.0.0" type="device">
+  <diagram id="looker-ext-flow" name="External Looker Access Flow">
+    <mxGraphModel dx="1400" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1654" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ============ ZONES ============ -->
+        <mxCell id="zoneClient" value="L0 — CLIENT (Browser, untrusted)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#7A8A99;dashed=1;verticalAlign=top;align=left;spacing=10;fontSize=12;fontStyle=1;fontColor=#4A5A6A;" vertex="1" parent="1">
+          <mxGeometry x="40" y="120" width="300" height="820" as="geometry" />
+        </mxCell>
+        <mxCell id="zoneEdge" value="L1 — EDGE: Apigee external gateway exposure (only internet-facing surface)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDF6E6;strokeColor=#D8B56A;verticalAlign=top;align=left;spacing=10;fontSize=12;fontStyle=1;fontColor=#9A5B00;" vertex="1" parent="1">
+          <mxGeometry x="420" y="120" width="920" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="zoneApigee" value="L2 — APIGEE GATEWAY (policy enforcement point, one hostname)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F1F8;strokeColor=#9CC0DD;verticalAlign=top;align=left;spacing=10;fontSize=12;fontStyle=1;fontColor=#0B5FA5;" vertex="1" parent="1">
+          <mxGeometry x="420" y="320" width="920" height="580" as="geometry" />
+        </mxCell>
+        <mxCell id="zoneGke" value="L4–L7 — WORKLOAD VPC / GKE (no public endpoints)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAF6EF;strokeColor=#9CCDB0;verticalAlign=top;align=left;spacing=10;fontSize=12;fontStyle=1;fontColor=#1A7F4E;" vertex="1" parent="1">
+          <mxGeometry x="420" y="960" width="920" height="430" as="geometry" />
+        </mxCell>
+        <mxCell id="zoneData" value="L8 — DATA LAYER" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F6;strokeColor=#7A8A99;verticalAlign=top;align=left;spacing=10;fontSize=12;fontStyle=1;fontColor=#4A5A6A;" vertex="1" parent="1">
+          <mxGeometry x="420" y="1430" width="920" height="120" as="geometry" />
+        </mxCell>
+
+        <!-- ============ CLIENT LANE NODES ============ -->
+        <mxCell id="user" value="&lt;b&gt;External User (Browser)&lt;/b&gt;&lt;br&gt;opens portal.yourdomain.com" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1C2733;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="170" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="loginUi" value="&lt;b&gt;[2c] Login UI rendered&lt;/b&gt;&lt;br&gt;SPA loaded in browser&lt;br&gt;&lt;font color=&quot;#0b5fa5&quot;&gt;&lt;b&gt;user enters userid + passkey&lt;/b&gt;&lt;/font&gt;&lt;br&gt;submit → POST /auth/login" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0B5FA5;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="400" width="240" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="tokenClient" value="&lt;b&gt;[4] Token on Client&lt;/b&gt;&lt;br&gt;4a — HttpOnly Secure cookie (or in-memory JWT)&lt;br&gt;4b — redirect to dashboard page" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0B5FA5;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="620" width="240" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="dashCall" value="&lt;b&gt;[4c] Dashboard calls /api/**&lt;/b&gt;&lt;br&gt;cookie auto-attached, or&lt;br&gt;Authorization: Bearer &amp;lt;jwt&amp;gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0B5FA5;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="790" width="240" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ============ SERVER NODES ============ -->
+        <mxCell id="lb" value="&lt;b&gt;[1] Apigee External Gateway Proxy (Internet-facing)&lt;/b&gt;&lt;br&gt;1a — DNS → Global External HTTPS LB (required Apigee X plumbing) · TLS&lt;br&gt;1b — forwarded via PSC NEG · &lt;font color=&quot;#9a5b00&quot;&gt;no edge WAF: SpikeArrest is the only brute-force control&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9A5B00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="490" y="160" width="480" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uiProxy" value="&lt;b&gt;[2] UI Passthrough Proxy&lt;/b&gt;&lt;br&gt;2a — route match: GET /login, /static/** (no JWT check)&lt;br&gt;2b — proxies to the UI hosting backend" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0B5FA5;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="490" y="370" width="480" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="uiBackend" value="&lt;b&gt;UI Hosting Backend&lt;/b&gt;&lt;br&gt;NGINX pod in GKE,&lt;br&gt;or GCS bucket + CDN" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F7FAFC;strokeColor=#7A97AD;dashed=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="370" width="250" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="authBroker" value="&lt;b&gt;[3] Auth Broker — POST /auth/login&lt;/b&gt;&lt;br&gt;3b — SpikeArrest · JSON threat protection · input validation · CAPTCHA — BEFORE credentials leave the gateway&lt;br&gt;3e — clean faults: 401 bad creds / 423 locked / 503 auth down" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0B5FA5;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="490" y="510" width="480" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="intProxy" value="&lt;b&gt;Apigee INTERNAL Proxy&lt;/b&gt;&lt;br&gt;proxy-to-proxy hop · never internet-exposed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F1F8;strokeColor=#0B5FA5;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="460" width="250" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="idAuth" value="&lt;b&gt;L3 — ID&amp;amp;A API&lt;/b&gt;&lt;br&gt;validates creds · returns {jwt} · JWKS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4ECF8;strokeColor=#8E6AA8;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="545" width="250" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="osis" value="&lt;b&gt;OSIS Database&lt;/b&gt;&lt;br&gt;userid/password credential store" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F4F6;strokeColor=#7A8A99;dashed=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="630" width="250" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="eIntToApi" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0B5FA5;strokeWidth=1.3;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="intProxy" target="idAuth">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eApiToOsis" value="credential lookup" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#8E6AA8;strokeWidth=1.3;fontSize=10;fontColor=#8E6AA8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="idAuth" target="osis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="dataProxy" value="&lt;b&gt;[5] Data Proxy — VerifyJWT on /api/**&lt;/b&gt;&lt;br&gt;5a — signature vs ID team's JWKS URI · exp · iss · aud · claims&lt;br&gt;5c — strip client identity headers → inject X-User-Id, X-Tenant-Id, X-Roles&lt;br&gt;&lt;font color=&quot;#9a5b00&quot;&gt;5b — fail → 401 to browser → SPA redirects to /login&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0B5FA5;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="490" y="740" width="480" height="110" as="geometry" />
+        </mxCell>
+
+        <mxCell id="pscIlb" value="&lt;b&gt;[6a/6b] PSC / Internal HTTPS LB → GKE Ingress&lt;/b&gt;&lt;br&gt;Apigee presents mTLS client cert · only the Apigee path allowed in" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1A7F4E;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="490" y="1010" width="480" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="gkeApi" value="&lt;b&gt;[6c/6d] GKE Data API&lt;/b&gt;&lt;br&gt;6c — authorize via trusted headers/claims (tenant, dashboards)&lt;br&gt;6d — generate Signed SSO Embed URL / Looker API session" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1A7F4E;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="490" y="1110" width="480" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="revProxy" value="&lt;b&gt;[7] Reverse Proxy (NGINX / Envoy)&lt;/b&gt;&lt;br&gt;7a — internal TLS · 7b — WebSocket upgrade, cookie rewrites · 7c — NetworkPolicy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1A7F4E;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="490" y="1220" width="480" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="looker" value="&lt;b&gt;[8a] Looker Instance&lt;/b&gt;&lt;br&gt;embed user + row-level security via user attributes&lt;br&gt;accepts traffic only from reverse-proxy pods" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1A7F4E;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="490" y="1320" width="480" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db" value="&lt;b&gt;[8b] Backing Database&lt;/b&gt;&lt;br&gt;private IP only (PSA) · Looker service credential · governance in model" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A8A99;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="490" y="1470" width="480" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ============ EDGES ============ -->
+        <mxCell id="eUserLb" value="1 · HTTPS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="user" target="lb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eLbUi" value="1b — via PSC NEG" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="lb" target="uiProxy">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eUiBackend" value="2b" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0B5FA5;strokeWidth=1.4;startArrow=classic;startFill=1;fontSize=11;fontColor=#0B5FA5;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="uiProxy" target="uiBackend">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eSpaToBrowser" value="2c — SPA / login form rendered in browser" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0B5FA5;strokeWidth=1.6;dashed=1;fontSize=11;fontColor=#0B5FA5;exitX=0;exitY=0.5;entryX=1;entryY=0.3;" edge="1" parent="1" source="uiProxy" target="loginUi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eCredsToAuth" value="3a — user submits userid + passkey (POST /auth/login)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;fontSize=11;exitX=1;exitY=0.7;entryX=0;entryY=0.4;" edge="1" parent="1" source="loginUi" target="authBroker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eAuthId" value="3c — chained call, creds" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0B5FA5;strokeWidth=1.4;fontSize=11;fontColor=#0B5FA5;exitX=1;exitY=0.3;entryX=0;entryY=0.5;" edge="1" parent="1" source="authBroker" target="intProxy">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eIdAuthBack" value="3e — { jwt }" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0B5FA5;strokeWidth=1.4;fontSize=11;fontColor=#0B5FA5;exitX=0;exitY=0.7;entryX=1;entryY=0.7;" edge="1" parent="1" source="idAuth" target="authBroker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eTokenToClient" value="3d/4a — JSON + Set-Cookie { jwt }" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0B5FA5;strokeWidth=1.6;dashed=1;fontSize=11;fontColor=#0B5FA5;exitX=0;exitY=0.7;entryX=1;entryY=0.3;" edge="1" parent="1" source="authBroker" target="tokenClient">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eTokenDash" value="4b" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="tokenClient" target="dashCall">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eDashData" value="4c — /api/** + token" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="dashCall" target="dataProxy">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e401" value="5b — 401 → back to /login" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#9A5B00;strokeWidth=1.3;dashed=1;fontSize=11;fontColor=#9A5B00;exitX=0;exitY=0.9;entryX=1;entryY=0.85;" edge="1" parent="1" source="dataProxy" target="loginUi">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="390" y="839" />
+              <mxPoint x="390" y="494" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="eDataPsc" value="southbound (private, never public)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="dataProxy" target="pscIlb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ePscApi" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="pscIlb" target="gkeApi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eApiRev" value="7a" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="gkeApi" target="revProxy">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eRevLooker" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="revProxy" target="looker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eLookerDb" value="8b — cache/PDT first, then query" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="looker" target="db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eReturn" value="8c — response: Looker → reverse proxy → GKE API → Apigee → LB → browser" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1A7F4E;strokeWidth=1.6;dashed=1;fontSize=11;fontColor=#1A7F4E;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="1" source="looker" target="user">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1380" y="1350" />
+              <mxPoint x="1380" y="90" />
+              <mxPoint x="190" y="90" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

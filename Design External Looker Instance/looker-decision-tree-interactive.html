@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Decision Tree — External Looker Access (v1.3.1)</title>
+<style>
+:root{
+  --ink:#1c2733; --ink-soft:#4a5a6a; --paper:#fdfdfb; --panel:#f2f4f6; --line:#c9d2da;
+  --accent:#0b5fa5; --accent-soft:#e3eef7; --ok:#1a7f4e; --ok-soft:#e7f5ee;
+  --warn:#9a5b00; --warn-soft:#fdf4e0; --bad:#b3352b; --bad-soft:#fbeae8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;font-size:15px;line-height:1.5}
+.wrap{max-width:1120px;margin:0 auto;padding:0 22px 70px}
+header{border-bottom:3px solid var(--accent);padding:30px 0 18px;margin-bottom:16px}
+header h1{margin:0 0 6px;font-size:23px;font-weight:650}
+header p{margin:0;color:var(--ink-soft);max-width:90ch;font-size:14px}
+.progressbar{margin:14px 0 0;background:var(--panel);border:1px solid var(--line);border-radius:6px;height:26px;position:relative;overflow:hidden}
+.progressbar .fill{position:absolute;left:0;top:0;bottom:0;background:var(--ok);opacity:.25;transition:width .3s}
+.progressbar span{position:absolute;left:12px;top:3px;font-size:13px;font-weight:600}
+
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:18px 0 14px}
+.tab{border:1px solid var(--line);background:#fff;border-radius:6px;padding:7px 13px;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--ink-soft)}
+.tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.tab .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:7px;background:#c9d2da}
+.tab .dot.done{background:var(--ok)}
+
+.question{background:var(--accent-soft);border:1px solid #bcd6ea;border-left:5px solid var(--accent);border-radius:6px;padding:12px 16px;margin-bottom:14px;font-size:15px}
+.question b{color:var(--accent)}
+.keyq{background:var(--warn-soft);border:1px solid #e5cf9a;border-left:5px solid var(--warn);border-radius:6px;padding:10px 16px;margin:0 0 16px;font-size:13.5px;color:#5c4200}
+
+.card{border:1px solid var(--line);border-radius:8px;background:#fff;margin-bottom:12px;overflow:hidden}
+.card.sel-approved{border-color:var(--ok);box-shadow:0 0 0 2px var(--ok-soft)}
+.card.sel-rejected{opacity:.72}
+.card-head{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer}
+.oid{font-weight:700;color:var(--accent);font-size:14px;min-width:34px}
+.card-title{font-weight:600;font-size:14.5px;flex:1}
+.badge{font-size:11px;font-weight:700;border-radius:4px;padding:3px 8px;white-space:nowrap}
+.badge.rec{background:var(--ok-soft);color:var(--ok)}
+.badge.alt{background:var(--warn-soft);color:var(--warn)}
+.badge.cond{background:var(--warn-soft);color:var(--warn)}
+.badge.not{background:var(--bad-soft);color:var(--bad)}
+.chev{color:var(--ink-soft);font-size:12px;transition:transform .2s}
+.card.open .chev{transform:rotate(90deg)}
+.card-body{display:none;border-top:1px solid var(--line);padding:14px 16px;background:#fbfcfd}
+.card.open .card-body{display:block}
+.detail{font-size:13.5px;margin:0 0 8px;color:var(--ink)}
+.detail b{color:var(--ink-soft);font-weight:650}
+.decide{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0 8px}
+.decide button{border:1px solid var(--line);background:#fff;border-radius:5px;padding:6px 13px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink-soft)}
+.decide button.approve.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.decide button.reject.on{background:var(--bad);border-color:var(--bad);color:#fff}
+.decide button.driver.on{background:var(--warn);border-color:var(--warn);color:#fff}
+.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.meta input,.meta textarea{border:1px solid var(--line);border-radius:5px;padding:7px 10px;font-family:inherit;font-size:13px;background:#fffde7}
+.meta input{width:220px}
+.meta textarea{flex:1;min-width:260px;min-height:38px;resize:vertical}
+.status-strip{font-size:12px;font-weight:700;padding:4px 16px;display:none}
+.card.sel-approved .status-strip{display:block;background:var(--ok-soft);color:var(--ok)}
+.card.sel-rejected .status-strip{display:block;background:var(--bad-soft);color:var(--bad)}
+.card.sel-driver .status-strip{display:block;background:var(--warn-soft);color:var(--warn)}
+
+.summary-table{border-collapse:collapse;width:100%;font-size:13px;background:#fff}
+.summary-table th,.summary-table td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+.summary-table th{background:var(--panel)}
+.golden{background:var(--ok-soft);border:1px solid #b7d9c6;border-left:5px solid var(--ok);border-radius:6px;padding:12px 16px;margin:14px 0;font-size:14px;font-weight:600;word-break:break-word}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.toolbar button,.toolbar label.btn{border:1px solid var(--accent);background:#fff;color:var(--accent);border-radius:6px;padding:8px 16px;font-size:13.5px;font-weight:600;cursor:pointer}
+.toolbar button.primary{background:var(--accent);color:#fff}
+.toolbar input[type=file]{display:none}
+.note{font-size:12.5px;color:var(--ink-soft);margin-top:8px}
+.pane{display:none}
+.pane.active{display:block}
+@media print{
+  .tabs,.toolbar,.decide,header p,.progressbar{display:none!important}
+  .pane{display:block!important;page-break-inside:avoid}
+  .card-body{display:block!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Interactive Decision Tree — External User Access to Looker on GKE <span style="color:var(--ink-soft);font-weight:400;font-size:15px">v1.3.1</span></h1>
+  <p>Click a decision tab (D1–D8), expand any option to read details, then mark it <b>Approve</b> / <b>Reject</b> / <b>Needs driver</b> and add owner + notes. The Summary tab compiles everything and exports JSON/CSV for the central architect team. State lives in this page while it's open — use <b>Export</b> to save your session and <b>Import</b> to restore it.</p>
+  <div class="progressbar"><div class="fill" id="progFill"></div><span id="progText"></span></div>
+</header>
+
+<div class="tabs" id="tabs"></div>
+<div id="panes"></div>
+
+<script>
+// ---------------- DATA (mirrors decision matrix v1.3.1) ----------------
+const DATA = [
+ {key:"D1", label:"D1 Entry point", q:"How does external traffic enter? (User → Internet entry)", keyq:"Decided in v1.3: direct Apigee exposure, no edge WAF. Remaining check: agree the abuse-control budget on /auth/login — SpikeArrest is the only line of defense.",
+  opts:[
+   {id:"1A", name:"L7 Global External HTTPS LB (Application LB) + PSC NEG → Apigee", rec:"rec", recLabel:"Selected v1.3",
+    how:"Layer-7 Application LB; anycast IP; Google-managed cert; PSC NEG backend to Apigee. TLS terminates at LB. Cloud Armor attachable here (currently removed).",
+    pros:"Required plumbing for Apigee X custom hostname; HTTP-aware routing; managed certs.", cons:"Without Cloud Armor, SpikeArrest is the only brute-force control (flagged).", preset:"approved", presetNote:"v1.3 decision — without Cloud Armor (flagged)"},
+   {id:"1B", name:"Apigee default Google-managed hostname (no custom LB)", rec:"not", recLabel:"Not recommended",
+    how:"Expose the default Apigee endpoint directly.", pros:"Zero setup.", cons:"No custom domain or policy control; weak brand trust.", preset:"rejected", presetNote:"Rejected — not production-grade"},
+   {id:"1C", name:"Regional External ALB", rec:"cond", recLabel:"Conditional",
+    how:"Regional L7 LB instead of global.", pros:"Meets data-residency / regional-only mandates.", cons:"Loses global anycast; regional failover to design.", preset:"", presetNote:""},
+   {id:"1D", name:"Third-party CDN/WAF (Akamai/Cloudflare) in front of GCP LB", rec:"not", recLabel:"Deselected v1.3",
+    how:"Enterprise WAF terminates first, forwards to GCP LB as locked origin.", pros:"Reuses enterprise WAF standard; DDoS/bot maturity.", cons:"Two control planes; origin-lock, cache-bypass, True-Client-IP work.", preset:"rejected", presetNote:"Removed per v1.3 decision"},
+   {id:"1E", name:"L4 External LB (passthrough NLB / TCP-SSL Proxy)", rec:"not", recLabel:"Not viable",
+    how:"Layer-4: forwards TCP/TLS without understanding HTTP.", pros:"End-to-end TLS (passthrough); lowest LB latency.", cons:"Incompatible with Apigee X PSC-NEG exposure (needs L7); loses HTTP routing, L7 WAF rules, managed certs.", preset:"rejected", presetNote:"Hard blocker — Apigee X requires L7 ALB"}
+  ]},
+ {key:"D2", label:"D2 Login UI", q:"Where are the login SPA assets hosted / served from behind the Apigee UI passthrough?", keyq:"Key question: one GKE pipeline for everything (2B) or minimal-ops static hosting (2A)?",
+  opts:[
+   {id:"2A", name:"GCS bucket + Cloud CDN behind Apigee passthrough", rec:"rec", recLabel:"Recommended",
+    how:"Apigee /login and /static/** proxy to a static bucket via CDN.", pros:"No pods; cheapest; versioned rollout; CDN caching.", cons:"Separate deploy target from GKE.", preset:"", presetNote:""},
+   {id:"2B", name:"NGINX pod in GKE behind Apigee passthrough", rec:"alt", recLabel:"Alternative",
+    how:"Small NGINX deployment serves the SPA.", pros:"One platform and one pipeline for UI + API.", cons:"Pods to patch/scale for static content.", preset:"", presetNote:""},
+   {id:"2C", name:"Firebase Hosting behind Apigee", rec:"cond", recLabel:"Conditional",
+    how:"Firebase serves SPA; Apigee fronts it.", pros:"Great DX; instant rollback.", cons:"Product outside the core stack; extra IAM surface.", preset:"", presetNote:""},
+   {id:"2D", name:"HTML from Apigee AssignMessage policy", rec:"not", recLabel:"Not recommended",
+    how:"Login page returned as a policy payload.", pros:"No hosting at all.", cons:"Unmaintainable; no caching; policy bloat.", preset:"rejected", presetNote:"Rejected — anti-pattern"}
+  ]},
+ {key:"D3", label:"D3 Authentication", q:"How are the user's credentials authenticated?", keyq:"Transport decided in v1.3: proxy chain — external proxy → Apigee INTERNAL proxy → ID&A API → OSIS DB. Confirm OSIS password hashing (bcrypt/scrypt/Argon2) + lockout counters.",
+  opts:[
+   {id:"3A", name:"Proxy chain: external proxy → Apigee internal proxy → ID&A API → OSIS DB (current pattern)", rec:"rec", recLabel:"Selected v1.3",
+    how:"SPA POSTs /auth/login; external proxy pre-checks (SpikeArrest, threat protection, CAPTCHA) then chains to the internal proxy (never internet-exposed) fronting the ID&A API, which validates userid/password against OSIS; JSON {jwt} returns up the chain.",
+    pros:"Matches agreed contract; internal leg never exposed; Apigee abuse controls.", cons:"Credentials transit the stack (TLS-protected); you own login UX + lockout with ID&A team.", preset:"approved", presetNote:"v1.3 decision — internal proxy chain + OSIS"},
+   {id:"3B", name:"OIDC Authorization Code + PKCE (IdP-hosted login)", rec:"alt", recLabel:"Evolution target",
+    how:"Browser redirects to IdP; code exchanged for tokens; Apigee validates.", pros:"Credentials never touch your stack; MFA/SSO for free.", cons:"Needs ID&A team to run an OIDC IdP with hosted login.", preset:"", presetNote:""},
+   {id:"3C", name:"SAML 2.0 federation", rec:"cond", recLabel:"Conditional",
+    how:"Enterprise IdP posts SAML assertion; broker converts to JWT.", pros:"Fits partners mandating SAML.", cons:"Heavy XML; assertion-to-JWT conversion layer.", preset:"", presetNote:""},
+   {id:"3D", name:"WebAuthn / FIDO2 passkeys", rec:"cond", recLabel:"Conditional",
+    how:"Challenge-response signature; no shared secret sent.", pros:"Phishing-resistant, passwordless.", cons:"Changes hop 3 to challenge relay; enrollment flows to build.", preset:"", presetNote:""},
+   {id:"3E", name:"GCP Identity Platform (CIAM) fronting ID&A", rec:"alt", recLabel:"Alternative",
+    how:"Managed CIAM handles login, MFA, lockout; federates to ID&A.", pros:"Brute-force protection + MFA out of the box.", cons:"ID&A must sit behind it; per-MAU pricing.", preset:"", presetNote:""}
+  ]},
+ {key:"D4", label:"D4 Token storage", q:"How is the JWT delivered to and stored on the client?", keyq:"4D is an add-on: pick it together with 4A or 4B, not instead of them.",
+  opts:[
+   {id:"4A", name:"HttpOnly Secure SameSite cookie set by Apigee", rec:"rec", recLabel:"Recommended",
+    how:"AssignMessage sets Set-Cookie on the /auth/login response.", pros:"Immune to XSS token theft; auto-attached.", cons:"CSRF thinking needed (SameSite covers most); browser-only.", preset:"", presetNote:""},
+   {id:"4B", name:"JWT in JSON body → in-memory → Bearer header", rec:"alt", recLabel:"Alternative",
+    how:"SPA keeps token in JS memory; sends Authorization header.", pros:"Works for non-browser consumers.", cons:"Lost on refresh; exposed if XSS runs mid-session.", preset:"", presetNote:""},
+   {id:"4C", name:"JWT in localStorage", rec:"not", recLabel:"Not recommended",
+    how:"Persist token in localStorage.", pros:"Survives refresh.", cons:"Readable by any XSS payload — classic theft vector.", preset:"rejected", presetNote:"Rejected — XSS exposure"},
+   {id:"4D", name:"Short-lived access + rotating refresh token (add-on)", rec:"rec", recLabel:"Recommended add-on",
+    how:"15–60 min access TTL; /auth/refresh brokered by Apigee; rotation detects replay.", pros:"Limits leaked-token blast radius; silent re-auth.", cons:"Refresh endpoint + rotation logic with ID&A.", preset:"", presetNote:""}
+  ]},
+ {key:"D5", label:"D5 JWT validation", q:"How is the JWT validated on /api/**?", keyq:"Key question: what is the revocation SLA? Seconds → 5C introspection; token-TTL acceptable → 5A + 5F.",
+  opts:[
+   {id:"5A", name:"Apigee VerifyJWT against ID&A JWKS URI", rec:"rec", recLabel:"Recommended",
+    how:"Policy checks signature, exp, iss, aud, custom claims; keys cached from JWKS.", pros:"Automatic key rotation; edge rejection; per-claim checks.", cons:"Depends on JWKS availability (cached).", preset:"", presetNote:""},
+   {id:"5B", name:"Static public key in Apigee KVM", rec:"not", recLabel:"Not recommended",
+    how:"Key pasted into KVM.", pros:"No JWKS dependency.", cons:"Manual rotation = outage risk; env drift.", preset:"rejected", presetNote:"Rejected — rotation fragility"},
+   {id:"5C", name:"Opaque token + introspection ServiceCallout", rec:"cond", recLabel:"Conditional",
+    how:"Apigee calls /introspect per request (short cache).", pros:"Instant revocation; token opaque to client.", cons:"Latency + hard runtime dependency per call.", preset:"", presetNote:""},
+   {id:"5D", name:"Validate only inside the GKE API", rec:"not", recLabel:"Not recommended",
+    how:"No gateway check; API middleware validates.", pros:"One less policy.", cons:"Unauthenticated traffic reaches the VPC; loses edge analytics.", preset:"rejected", presetNote:"Rejected — late rejection"},
+   {id:"5E", name:"Double validation: Apigee + GKE API (add-on)", rec:"rec", recLabel:"Recommended add-on",
+    how:"VerifyJWT at gateway AND re-validate in API vs same JWKS.", pros:"Defense-in-depth.", cons:"Document Apigee as authoritative.", preset:"", presetNote:""},
+   {id:"5F", name:"jti deny-list in Apigee cache (add-on)", rec:"rec", recLabel:"Recommended add-on",
+    how:"Logout/compromise writes token id to cache until natural expiry.", pros:"Revocation without introspection cost.", cons:"Cache sizing; multi-region consistency.", preset:"", presetNote:""}
+  ]},
+ {key:"D6", label:"D6 Southbound", q:"Network trust Apigee → GKE, and how does user identity reach the API?", keyq:"6D is safe ONLY because transport (6A/6B) proves the sender is Apigee — approve them together.",
+  opts:[
+   {id:"6A", name:"PSC service attachment + mTLS to GKE ingress", rec:"rec", recLabel:"Recommended",
+    how:"Apigee target → PSC → internal LB/Gateway; Apigee presents CAS-issued client cert.", pros:"Private producer/consumer; no peering sprawl; strongest transport trust.", cons:"CAS + cert rotation to operate.", preset:"", presetNote:""},
+   {id:"6B", name:"Internal HTTPS LB over shared/peered VPC + firewall", rec:"alt", recLabel:"Alternative",
+    how:"Route over existing shared VPC; one-way TLS; firewall-restricted.", pros:"Reuses existing fabric.", cons:"Weaker than mTLS unless added.", preset:"", presetNote:""},
+   {id:"6C", name:"Public GKE endpoint + IP allow-list", rec:"not", recLabel:"Not recommended",
+    how:"Public ingress, allow-list Apigee IPs.", pros:"Trivial setup.", cons:"Public surface; IP trust fragile.", preset:"rejected", presetNote:"Rejected — public surface"},
+   {id:"6D", name:"Trusted headers injected by Apigee (X-User-Id/Tenant/Roles)", rec:"rec", recLabel:"Recommended",
+    how:"Apigee strips client identity headers, injects from verified claims.", pros:"Simple, fast; API stays JWT-agnostic.", cons:"Safe only with locked transport.", preset:"", presetNote:""},
+   {id:"6E", name:"Forward original JWT; API re-validates (add-on)", rec:"rec", recLabel:"Recommended add-on",
+    how:"Bearer passed through; API validates vs JWKS.", pros:"End-to-end verifiable identity.", cons:"Slight CPU per request.", preset:"", presetNote:""},
+   {id:"6F", name:"Token exchange — internal gateway-signed token", rec:"cond", recLabel:"Conditional",
+    how:"Apigee swaps external JWT for an internal short-lived token.", pros:"Cleanest zero-trust story.", cons:"Signing service to build and operate.", preset:"", presetNote:""}
+  ]},
+ {key:"D7", label:"D7 Looker", q:"How do external users consume Looker, and what fronts the Looker pods?", keyq:"Key question: Looker look-and-feel (7A) vs fully branded custom UI (7B)? Months of effort difference.",
+  opts:[
+   {id:"7A", name:"Signed SSO Embed URL (iframe dashboards)", rec:"rec", recLabel:"Recommended",
+    how:"GKE API builds signed embed URL from embed secret; JWT claims → embed user + user attributes.", pros:"Per-user identity + RLS with least custom code.", cons:"Iframe constraints; Looker chrome (theming mitigates).", preset:"", presetNote:""},
+   {id:"7B", name:"Looker REST API behind a custom UI", rec:"alt", recLabel:"Alternative",
+    how:"API session runs queries/renders; SPA displays results.", pros:"Full brand control.", cons:"Rebuild filters, drill-downs, exports — months.", preset:"", presetNote:""},
+   {id:"7C", name:"Private embed without SSO", rec:"not", recLabel:"Not recommended",
+    how:"Anonymous/shared embed.", pros:"Quick demo path.", cons:"No per-user identity → no RLS.", preset:"rejected", presetNote:"Rejected — no per-user RLS"},
+   {id:"7D", name:"Full reverse-proxy of native Looker UI", rec:"not", recLabel:"Not recommended",
+    how:"Proxy the whole Looker app externally.", pros:"No embed work.", cons:"Session complexity; exposes native surface.", preset:"rejected", presetNote:"Rejected — surface exposure"},
+   {id:"7E", name:"NGINX reverse proxy in front of Looker pods", rec:"rec", recLabel:"Recommended",
+    how:"TLS, WebSocket upgrade, rewrites, limits, NetworkPolicy.", pros:"Simple, well-known.", cons:"Manual config for mTLS/policy.", preset:"", presetNote:""},
+   {id:"7F", name:"Envoy / Istio mesh sidecars", rec:"cond", recLabel:"Conditional",
+    how:"Mesh provides mTLS, policy, telemetry.", pros:"Free mTLS + policy IF mesh exists.", cons:"Never adopt a mesh just for this.", preset:"", presetNote:""}
+  ]},
+ {key:"D8", label:"D8 Data isolation", q:"How is tenant data isolated at query time (Looker → DB)?", keyq:"8A is the standard multi-tenant embed pattern; 8B/8C need a named regulatory or platform driver.",
+  opts:[
+   {id:"8A", name:"Single service credential + user-attribute access filters (RLS)", rec:"rec", recLabel:"Recommended",
+    how:"Looker connects once; access_filter fields keyed to embed user attributes.", pros:"Standard pattern; isolation in the model layer.", cons:"Model discipline; test per-tenant leakage.", preset:"", presetNote:""},
+   {id:"8B", name:"Per-tenant DB connections / schemas", rec:"cond", recLabel:"Conditional",
+    how:"Connection per tenant, mapped by user attribute.", pros:"Hard isolation for regulated tenants.", cons:"Connection sprawl; ops per tenant.", preset:"", presetNote:""},
+   {id:"8C", name:"BigQuery authorized views per tenant", rec:"cond", recLabel:"Conditional",
+    how:"Tenant-scoped views; Looker models point at them.", pros:"Warehouse-level enforcement; auditable.", cons:"View maintenance; BQ-only.", preset:"", presetNote:""}
+  ]}
+];
+
+// ---------------- STATE ----------------
+const state = {};
+DATA.forEach(d => d.opts.forEach(o => {
+  state[o.id] = { decision: o.preset || "", owner: "", notes: o.presetNote || "" };
+}));
+
+// ---------------- RENDER ----------------
+const tabsEl = document.getElementById("tabs");
+const panesEl = document.getElementById("panes");
+const recClass = {rec:"rec", alt:"alt", cond:"cond", not:"not"};
+
+DATA.forEach((d, i) => {
+  const t = document.createElement("div");
+  t.className = "tab" + (i===0 ? " active" : "");
+  t.innerHTML = d.label + '<span class="dot" id="dot-'+d.key+'"></span>';
+  t.onclick = () => activate(d.key);
+  t.id = "tab-" + d.key;
+  tabsEl.appendChild(t);
+
+  const p = document.createElement("div");
+  p.className = "pane" + (i===0 ? " active" : "");
+  p.id = "pane-" + d.key;
+  let html = '<div class="question"><b>' + d.key + ':</b> ' + d.q + '</div>';
+  html += '<div class="keyq">' + d.keyq + '</div>';
+  d.opts.forEach(o => {
+    html += `
+    <div class="card" id="card-${o.id}">
+      <div class="status-strip" id="strip-${o.id}"></div>
+      <div class="card-head" onclick="toggleCard('${o.id}')">
+        <span class="oid">${o.id}</span>
+        <span class="card-title">${o.name}</span>
+        <span class="badge ${recClass[o.rec]}">${o.recLabel}</span>
+        <span class="chev">▶</span>
+      </div>
+      <div class="card-body">
+        <p class="detail"><b>How it works:</b> ${o.how}</p>
+        <p class="detail"><b>Pros:</b> ${o.pros}</p>
+        <p class="detail"><b>Cons / risks:</b> ${o.cons}</p>
+        <div class="decide">
+          <span style="font-size:13px;font-weight:650;color:var(--ink-soft)">Team decision:</span>
+          <button class="approve" id="btn-a-${o.id}" onclick="decide('${o.id}','approved')">✔ Approve</button>
+          <button class="reject" id="btn-r-${o.id}" onclick="decide('${o.id}','rejected')">✘ Reject</button>
+          <button class="driver" id="btn-d-${o.id}" onclick="decide('${o.id}','driver')">? Needs driver</button>
+          <button id="btn-c-${o.id}" onclick="decide('${o.id}','')">Clear</button>
+        </div>
+        <div class="meta">
+          <input placeholder="Owner (e.g. A. Sharma)" id="own-${o.id}" oninput="meta('${o.id}')">
+          <textarea placeholder="Notes / driver / conditions…" id="note-${o.id}" oninput="meta('${o.id}')"></textarea>
+        </div>
+      </div>
+    </div>`;
+  });
+  p.innerHTML = html;
+  panesEl.appendChild(p);
+});
+
+// Summary tab
+const st = document.createElement("div");
+st.className = "tab"; st.id = "tab-SUM"; st.textContent = "📋 Summary & Export";
+st.onclick = () => activate("SUM");
+tabsEl.appendChild(st);
+const sp = document.createElement("div");
+sp.className = "pane"; sp.id = "pane-SUM";
+sp.innerHTML = `
+  <div class="question"><b>Summary:</b> everything the team has confirmed so far. Approved options compose the selected path.</div>
+  <div class="golden" id="goldenPath"></div>
+  <div class="toolbar">
+    <button class="primary" onclick="exportJSON()">⬇ Export decisions (JSON)</button>
+    <button onclick="exportCSV()">⬇ Export table (CSV)</button>
+    <label class="btn">⬆ Import JSON<input type="file" accept=".json" onchange="importJSON(event)"></label>
+    <button onclick="window.print()">🖨 Print / PDF</button>
+  </div>
+  <p class="note">This page keeps decisions in memory only — export before closing, and import to resume a session.</p>
+  <table class="summary-table" id="sumTable"></table>`;
+panesEl.appendChild(sp);
+
+// ---------------- BEHAVIOUR ----------------
+function activate(key){
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".pane").forEach(x=>x.classList.remove("active"));
+  document.getElementById("tab-"+key).classList.add("active");
+  document.getElementById("pane-"+key).classList.add("active");
+  if(key==="SUM") renderSummary();
+}
+function toggleCard(id){ document.getElementById("card-"+id).classList.toggle("open"); }
+function decide(id, val){
+  state[id].decision = val;
+  paint(id); refresh();
+}
+function meta(id){
+  state[id].owner = document.getElementById("own-"+id).value;
+  state[id].notes = document.getElementById("note-"+id).value;
+}
+function paint(id){
+  const card = document.getElementById("card-"+id);
+  card.classList.remove("sel-approved","sel-rejected","sel-driver");
+  ["a","r","d"].forEach(k=>document.getElementById("btn-"+k+"-"+id).classList.remove("on"));
+  const strip = document.getElementById("strip-"+id);
+  const dec = state[id].decision;
+  if(dec==="approved"){ card.classList.add("sel-approved"); document.getElementById("btn-a-"+id).classList.add("on"); strip.textContent="✔ APPROVED by team"; }
+  if(dec==="rejected"){ card.classList.add("sel-rejected"); document.getElementById("btn-r-"+id).classList.add("on"); strip.textContent="✘ REJECTED"; }
+  if(dec==="driver"){ card.classList.add("sel-driver"); document.getElementById("btn-d-"+id).classList.add("on"); strip.textContent="? NEEDS DRIVER — see notes"; }
+  if(dec===""){ strip.textContent=""; }
+}
+function refresh(){
+  let decided=0, total=0;
+  DATA.forEach(d=>{
+    let hopDecided=false;
+    d.opts.forEach(o=>{ total++; if(state[o.id].decision){decided++;} if(state[o.id].decision==="approved") hopDecided=true; });
+    const dot=document.getElementById("dot-"+d.key);
+    dot.classList.toggle("done", hopDecided);
+  });
+  document.getElementById("progFill").style.width = (decided/total*100)+"%";
+  document.getElementById("progText").textContent = decided+" of "+total+" options decided · a hop turns green when at least one option is Approved";
+}
+function renderSummary(){
+  const approved=[];
+  let rows = "<tr><th>Hop</th><th>Opt</th><th>Option</th><th>Decision</th><th>Owner</th><th>Notes</th></tr>";
+  DATA.forEach(d=>d.opts.forEach(o=>{
+    const s=state[o.id];
+    if(s.decision==="approved") approved.push(o.id);
+    const label = s.decision==="approved"?"✔ Approved": s.decision==="rejected"?"✘ Rejected": s.decision==="driver"?"? Needs driver":"— Pending";
+    rows += `<tr><td>${d.key}</td><td><b>${o.id}</b></td><td>${o.name}</td><td>${label}</td><td>${esc(s.owner)}</td><td>${esc(s.notes)}</td></tr>`;
+  }));
+  document.getElementById("sumTable").innerHTML = rows;
+  document.getElementById("goldenPath").textContent = approved.length
+    ? "Selected path: " + approved.join(" → ")
+    : "No options approved yet — approve options in the D1–D8 tabs to build the path.";
+}
+function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+function exportJSON(){
+  const out = { version:"v1.3.1", exported:new Date().toISOString(), decisions:state };
+  download("looker-decisions-"+Date.now()+".json", JSON.stringify(out,null,2), "application/json");
+}
+function exportCSV(){
+  let csv = "Hop,OptID,Option,Decision,Owner,Notes\n";
+  DATA.forEach(d=>d.opts.forEach(o=>{
+    const s=state[o.id];
+    csv += [d.key,o.id,q(o.name),s.decision||"pending",q(s.owner),q(s.notes)].join(",")+"\n";
+  }));
+  download("looker-decisions.csv", csv, "text/csv");
+  function q(v){ return '"'+(v||"").replace(/"/g,'""')+'"'; }
+}
+function importJSON(ev){
+  const f=ev.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{
+    const obj=JSON.parse(rd.result);
+    Object.keys(obj.decisions||{}).forEach(id=>{
+      if(state[id]){ state[id]=obj.decisions[id];
+        const ow=document.getElementById("own-"+id), no=document.getElementById("note-"+id);
+        if(ow) ow.value=state[id].owner||""; if(no) no.value=state[id].notes||"";
+        paint(id);
+      }});
+    refresh(); renderSummary(); alert("Imported successfully.");
+  }catch(e){ alert("Could not parse that file."); } };
+  rd.readAsText(f);
+}
+function download(name, content, type){
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([content],{type}));
+  a.download=name; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// init presets
+Object.keys(state).forEach(id=>{
+  const no=document.getElementById("note-"+id);
+  if(no && state[id].notes) no.value=state[id].notes;
+  paint(id);
+});
+refresh();
+</script>
+</div>
+</body>
+</html>

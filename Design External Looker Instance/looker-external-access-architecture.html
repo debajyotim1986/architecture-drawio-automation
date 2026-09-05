@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>External User Access to Looker on GKE — Apigee Brokered Auth Architecture</title>
+<style>
+  :root{
+    --ink:#1c2733;
+    --ink-soft:#4a5a6a;
+    --paper:#fdfdfb;
+    --panel:#f2f4f6;
+    --line:#c9d2da;
+    --accent:#0b5fa5;      /* deep gcp-ish blue */
+    --accent-soft:#e3eef7;
+    --ok:#1a7f4e;
+    --warn:#9a5b00;
+    --code-bg:#0f1b26;
+    --code-ink:#d7e3ee;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size:16px;
+    line-height:1.6;
+  }
+  .doc{max-width:1040px;margin:0 auto;padding:0 28px 80px}
+
+  /* ---------- header ---------- */
+  header.dochead{
+    border-bottom:3px solid var(--accent);
+    padding:44px 0 26px;
+    margin-bottom:36px;
+  }
+  .doc-id{color:var(--ink-soft);font-size:13px;letter-spacing:.04em;margin-bottom:10px}
+  header.dochead h1{
+    margin:0 0 10px;
+    font-size:30px;
+    line-height:1.25;
+    font-weight:650;
+  }
+  header.dochead p.sub{margin:0;color:var(--ink-soft);max-width:70ch}
+  .meta-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+  .meta-row span{
+    background:var(--accent-soft);
+    color:var(--accent);
+    border:1px solid #bcd6ea;
+    border-radius:4px;
+    padding:3px 10px;
+    font-size:13px;
+  }
+
+  /* ---------- toc ---------- */
+  nav.toc{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:18px 22px;
+    margin-bottom:40px;
+  }
+  nav.toc strong{display:block;margin-bottom:8px}
+  nav.toc ol{margin:0;padding-left:22px;columns:2;column-gap:40px}
+  nav.toc li{margin:3px 0;font-size:15px}
+  nav.toc a{color:var(--accent);text-decoration:none}
+  nav.toc a:hover{text-decoration:underline}
+
+  /* ---------- sections ---------- */
+  section{margin-bottom:52px}
+  h2{
+    font-size:22px;
+    font-weight:650;
+    margin:0 0 6px;
+    padding-bottom:8px;
+    border-bottom:1px solid var(--line);
+  }
+  h2 .sec-no{color:var(--accent);margin-right:10px}
+  h3{font-size:17px;font-weight:650;margin:26px 0 8px;color:var(--ink)}
+  p{max-width:78ch}
+  .lede{color:var(--ink-soft);margin-top:2px}
+  ul,ol{max-width:80ch}
+  li{margin:5px 0}
+  strong{font-weight:650}
+  code{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:1px 6px;
+    font-family:Consolas,"SFMono-Regular",Menlo,monospace;
+    font-size:.88em;
+    color:#173a56;
+  }
+  pre{
+    background:var(--code-bg);
+    color:var(--code-ink);
+    border-radius:6px;
+    padding:20px 22px;
+    overflow-x:auto;
+    font-family:Consolas,"SFMono-Regular",Menlo,monospace;
+    font-size:13.5px;
+    line-height:1.55;
+  }
+  pre code{background:none;border:none;color:inherit;padding:0;font-size:inherit}
+
+  /* flow diagram */
+  .flow{
+    background:var(--code-bg);
+    color:#e8f0f7;
+    border-radius:6px;
+    border-left:6px solid var(--accent);
+    padding:22px 26px;
+    overflow-x:auto;
+    font-family:Consolas,"SFMono-Regular",Menlo,monospace;
+    font-size:13.5px;
+    line-height:1.5;
+    white-space:pre;
+  }
+
+  /* layer cards */
+  .layer{
+    border:1px solid var(--line);
+    border-left:5px solid var(--accent);
+    border-radius:5px;
+    background:#fff;
+    padding:16px 20px;
+    margin:14px 0;
+  }
+  .layer h4{margin:0 0 6px;font-size:15.5px;font-weight:650}
+  .layer h4 .tag{
+    display:inline-block;
+    background:var(--accent);
+    color:#fff;
+    border-radius:3px;
+    font-size:12px;
+    padding:1px 8px;
+    margin-right:10px;
+    vertical-align:1px;
+  }
+  .layer p{margin:4px 0;font-size:15px;color:var(--ink-soft)}
+  .layer ul{margin:6px 0 0;font-size:14.5px;color:var(--ink)}
+
+  /* tables */
+  table{
+    border-collapse:collapse;
+    width:100%;
+    font-size:14.5px;
+    margin:14px 0;
+    background:#fff;
+  }
+  th,td{
+    border:1px solid var(--line);
+    padding:9px 12px;
+    text-align:left;
+    vertical-align:top;
+  }
+  th{background:var(--panel);font-weight:650}
+  tr:nth-child(even) td{background:#fafbfc}
+
+  /* callouts */
+  .note{
+    border:1px solid #d8c69a;
+    border-left:5px solid var(--warn);
+    background:#fdf8ec;
+    border-radius:5px;
+    padding:12px 18px;
+    margin:16px 0;
+    font-size:15px;
+  }
+  .good{
+    border:1px solid #b7d9c6;
+    border-left:5px solid var(--ok);
+    background:#eef8f2;
+    border-radius:5px;
+    padding:12px 18px;
+    margin:16px 0;
+    font-size:15px;
+  }
+
+  footer{
+    margin-top:60px;
+    padding-top:16px;
+    border-top:1px solid var(--line);
+    color:var(--ink-soft);
+    font-size:13px;
+  }
+
+  @media (max-width:720px){
+    nav.toc ol{columns:1}
+    header.dochead h1{font-size:24px}
+  }
+</style>
+</head>
+<body>
+<div class="doc">
+
+<header class="dochead">
+  <div class="doc-id">Solution Architecture &nbsp;·&nbsp; GCP / Apigee / GKE / Looker</div>
+  <h1>External User Access to Looker on GKE via Apigee-Brokered Authentication</h1>
+  <p class="sub">End-to-end design for exposing Looker dashboards (deployed as a container image in GKE, no GCP console access for users) to external consumers through an internet-facing Apigee entry point, a brokered login flow with the ID &amp; Auth team, JWT enforcement, and internal routing to the GKE-hosted API and Looker via reverse proxy.</p>
+  <div class="meta-row">
+    <span>Apigee X</span><span>GKE</span><span>Looker (containerized)</span><span>Cloud Armor</span><span>PSC / Internal LB</span><span>JWT / JWKS</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#flow">End-to-End Flow (Target Architecture)</a></li>
+    <li><a href="#layers">Layered View of the High-Level Flow</a></li>
+    <li><a href="#q1">Q1 — Exposing the Login UI via Apigee</a></li>
+    <li><a href="#q2">Q2 — External Apigee Gateway: Needed?</a></li>
+    <li><a href="#q3">Q3 — How the JWT Is Supplied &amp; Validated</a></li>
+    <li><a href="#q4">Q4 — Apigee Routing to the Login Screen</a></li>
+    <li><a href="#q5">Q5 — Login → Auth → Internal Proxy → GKE API</a></li>
+    <li><a href="#integration">Integration Details (Deep Dive)</a></li>
+    <li><a href="#cicd">CI/CD — How the Pipeline Works</a></li>
+    <li><a href="#arch-notes">Architect's Flags &amp; Recommendations</a></li>
+  </ol>
+</nav>
+
+<!-- ================= 1. FLOW ================= -->
+<section id="flow">
+  <h2><span class="sec-no">1.</span>End-to-End Flow (Target Architecture)</h2>
+  <div class="flow">External User (Browser)
+        │
+        ▼
+[1] Edge Entry — Apigee External Gateway Proxy (Internet-facing)
+    1a. DNS resolves portal.yourdomain.com → Global External HTTPS LB (required plumbing to expose
+        the Apigee X external gateway on a custom hostname); TLS handshake (Google-managed cert)
+    1b. Traffic forwarded to the Apigee external gateway proxy via PSC NEG → routed to Login UI [2]
+        (note: with no edge WAF, Apigee SpikeArrest in step 3b is the only brute-force control)
+        │
+        ▼
+[2] Apigee External Proxy — Login UI Passthrough
+    2a. Route match: GET /login and GET /static/**  (no JWT check on these paths)
+    2b. Apigee proxies to the UI hosting backend (NGINX pod in GKE, or GCS bucket/CDN)
+    2c. SPA assets (HTML/JS/CSS) returned to browser; login form rendered
+        │  user submits userid/password
+        ▼
+[3] Auth Chain — UI → Apigee External Proxy → Apigee INTERNAL Proxy → ID&amp;A API → OSIS DB
+    3a. SPA does POST /auth/login on the same external Apigee hostname (no CORS complications)
+    3b. Apigee external proxy pre-checks: SpikeArrest per-IP, JSONThreatProtection, input validation,
+        optional reCAPTCHA/bot-token verification — BEFORE credentials leave the gateway
+        (with no edge WAF, size these controls as the ONLY brute-force protection)
+    3c. External proxy chains to the Apigee INTERNAL proxy (proxy-to-proxy; the internal proxy is
+        never internet-exposed — the browser can never reach it directly), which fronts the ID&amp;A API
+    3d. ID&amp;A API validates userid/password against the OSIS database (the credential store)
+    3e. On success, ID&amp;A returns JSON { jwt_token, expiry, refresh_token? } back up the chain
+    3f. Apigee maps failures to clean faults: 401 bad credentials / 423 locked / 503 auth service down
+        │
+        ▼
+[4] Token Delivery &amp; Client-Side Handling
+    4a. Apigee sets the JWT as an HttpOnly, Secure, SameSite cookie (recommended)
+        — or returns it in the JSON body for in-memory storage by the SPA
+    4b. SPA redirects the user to the dashboard page
+    4c. Every subsequent call carries the token: cookie auto-attached by the browser,
+        or Authorization: Bearer &lt;jwt&gt; header if the in-memory model was chosen
+        │
+        ▼
+[5] Apigee Data Proxy — JWT Enforcement on /api/**
+    5a. VerifyJWT policy: signature vs ID team's JWKS URI, exp, iss, aud, custom claims (tenant, roles)
+    5b. Fail → 401 returned to browser → SPA redirects to /login
+    5c. Pass → Apigee strips ALL client-supplied identity headers, then ExtractVariables pulls
+        claims and injects trusted headers southbound: X-User-Id, X-Tenant-Id, X-Roles
+        │
+        ▼
+[6] Southbound Internal Routing → GKE-Hosted API
+    6a. Apigee target → PSC service attachment / Internal HTTPS LB (Apigee presents mTLS client cert)
+    6b. GKE Gateway/Ingress validates the mTLS cert + network restriction (only the Apigee path is allowed in)
+    6c. GKE API authorizes the request: maps X-User-Id / claims → permitted dashboards, tenant scope
+    6d. GKE API prepares Looker access: generates the Signed SSO Embed URL
+        (or opens a Looker API session) mapping JWT claims → embed user + user attributes
+        │
+        ▼
+[7] Reverse Proxy (NGINX/Envoy in GKE) → Looker Instance
+    7a. GKE API forwards over internal TLS to the reverse proxy fronting the Looker pods
+    7b. Proxy duties: WebSocket upgrade (render streams), cookie Domain/SameSite rewrites
+        for embed, header normalization, request size limits
+    7c. Kubernetes NetworkPolicy: Looker pods accept traffic ONLY from the reverse-proxy pods
+        │
+        ▼
+[8] Looker → DB → Dashboard Response
+    8a. Looker resolves the embed user + user attributes → row-level security filters applied
+    8b. Query served from Looker cache/PDT where possible; otherwise hits the DB over private IP
+    8c. Rendered dashboard travels back the same chain:
+        Looker → reverse proxy → GKE API → Apigee → External LB → browser</div>
+
+  <div class="good"><strong>Validation (v1.3):</strong> Akamai and Cloud Armor are removed per decision — the internet-facing surface is now the <strong>Apigee external gateway proxy</strong> (exposed through the Global External HTTPS LB + PSC NEG, which remains as required Apigee X plumbing). Credential validation now runs through a <strong>proxy chain</strong>: Login UI → Apigee external proxy → Apigee <strong>internal proxy</strong> (never internet-exposed) → ID&amp;A API → <strong>OSIS database</strong> where userid/password are stored. One correction was applied to make the requested design work: a browser cannot call an internal proxy directly, so the UI's call to the ID&amp;A API is brokered by the external proxy chaining to the internal proxy — same intent, valid wiring. <strong>Risk flag for the architect team:</strong> with no edge WAF, Apigee SpikeArrest + JSON threat protection (step 3b) is the only brute-force / abuse control on an internet-exposed login; re-adding Cloud Armor later is low-cost insurance and needs no redesign.</div>
+
+  <h3>Flow Diagram (Visual)</h3>
+  <div style="border:1px solid var(--line);border-radius:6px;background:#fff;padding:14px;overflow-x:auto;">
+  <svg viewBox="0 0 1200 1410" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1160px;display:block;margin:0 auto;font-family:'Segoe UI',Arial,sans-serif;">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#1c2733"/>
+      </marker>
+      <marker id="arrb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#0b5fa5"/>
+      </marker>
+      <marker id="arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#1a7f4e"/>
+      </marker>
+      <marker id="arrw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#9a5b00"/>
+      </marker>
+    </defs>
+
+    <!-- ================= L0 CLIENT LANE ================= -->
+    <rect x="30" y="110" width="270" height="740" rx="6" fill="#fafafa" stroke="#7a8a99" stroke-width="1.2" stroke-dasharray="6,4"/>
+    <text x="44" y="132" font-size="12" font-weight="700" fill="#4a5a6a">L0 — CLIENT (Browser, untrusted)</text>
+
+    <rect x="50" y="150" width="230" height="64" rx="6" fill="#ffffff" stroke="#1c2733" stroke-width="1.6"/>
+    <text x="165" y="174" text-anchor="middle" font-size="13" font-weight="600" fill="#1c2733">External User (Browser)</text>
+    <text x="165" y="192" text-anchor="middle" font-size="11" fill="#4a5a6a">opens portal.yourdomain.com</text>
+
+    <rect x="50" y="360" width="230" height="110" rx="6" fill="#fff" stroke="#0b5fa5" stroke-width="1.6"/>
+    <text x="165" y="384" text-anchor="middle" font-size="13" font-weight="600" fill="#1c2733">[2c] Login UI rendered</text>
+    <text x="165" y="404" text-anchor="middle" font-size="11" fill="#4a5a6a">SPA loaded in browser</text>
+    <text x="165" y="422" text-anchor="middle" font-size="11" font-weight="600" fill="#0b5fa5">user enters userid + passkey</text>
+    <text x="165" y="440" text-anchor="middle" font-size="11" fill="#4a5a6a">submit → POST /auth/login</text>
+
+    <rect x="50" y="560" width="230" height="110" rx="6" fill="#fff" stroke="#0b5fa5" stroke-width="1.6"/>
+    <text x="165" y="584" text-anchor="middle" font-size="13" font-weight="600" fill="#1c2733">[4] Token on Client</text>
+    <text x="165" y="604" text-anchor="middle" font-size="11" fill="#4a5a6a">4a — HttpOnly Secure cookie</text>
+    <text x="165" y="620" text-anchor="middle" font-size="11" fill="#4a5a6a">(or in-memory JWT)</text>
+    <text x="165" y="638" text-anchor="middle" font-size="11" fill="#4a5a6a">4b — redirect to dashboard page</text>
+
+    <rect x="50" y="720" width="230" height="90" rx="6" fill="#fff" stroke="#0b5fa5" stroke-width="1.6"/>
+    <text x="165" y="744" text-anchor="middle" font-size="13" font-weight="600" fill="#1c2733">[4c] Dashboard calls /api/**</text>
+    <text x="165" y="764" text-anchor="middle" font-size="11" fill="#4a5a6a">cookie auto-attached, or</text>
+    <text x="165" y="780" text-anchor="middle" font-size="11" fill="#4a5a6a">Authorization: Bearer &lt;jwt&gt;</text>
+
+    <line x1="165" y1="670" x2="165" y2="716" stroke="#1c2733" stroke-width="1.6" marker-end="url(#arr)"/>
+    <text x="178" y="700" font-size="10.5" fill="#4a5a6a">4b</text>
+
+    <!-- ================= L1 EDGE ZONE ================= -->
+    <rect x="340" y="110" width="830" height="150" rx="6" fill="#fdf6e6" stroke="#d8b56a" stroke-width="1.2"/>
+    <text x="356" y="132" font-size="12" font-weight="700" fill="#9a5b00">L1 — EDGE (Apigee external gateway exposure; only internet-facing surface)</text>
+    <rect x="400" y="148" width="460" height="96" rx="6" fill="#ffffff" stroke="#9a5b00" stroke-width="1.4"/>
+    <text x="630" y="172" text-anchor="middle" font-size="13" font-weight="600" fill="#1c2733">[1] Apigee External Gateway Proxy (Internet-facing)</text>
+    <text x="630" y="194" text-anchor="middle" font-size="11" fill="#4a5a6a">1a — DNS → Global External HTTPS LB (required Apigee X plumbing) · TLS</text>
+    <text x="630" y="212" text-anchor="middle" font-size="11" fill="#4a5a6a">1b — forwarded to the Apigee external proxy via PSC NEG</text>
+    <text x="630" y="230" text-anchor="middle" font-size="10.5" fill="#9a5b00">note: no edge WAF — Apigee SpikeArrest is the only brute-force control</text>
+
+    <!-- ================= L2 APIGEE ZONE ================= -->
+    <rect x="340" y="290" width="830" height="520" rx="6" fill="#e9f1f8" stroke="#9cc0dd" stroke-width="1.2"/>
+    <text x="356" y="312" font-size="12" font-weight="700" fill="#0b5fa5">L2 — APIGEE GATEWAY (policy enforcement point, one hostname)</text>
+
+    <rect x="400" y="330" width="460" height="80" rx="6" fill="#ffffff" stroke="#0b5fa5" stroke-width="1.4"/>
+    <text x="630" y="352" text-anchor="middle" font-size="13" font-weight="600" fill="#1c2733">[2] UI Passthrough Proxy</text>
+    <text x="630" y="372" text-anchor="middle" font-size="11" fill="#4a5a6a">2a — route match: GET /login, /static/** (no JWT check)</text>
+    <text x="630" y="388" text-anchor="middle" font-size="11" fill="#4a5a6a">2b — proxies to the UI hosting backend</text>
+    <rect x="900" y="330" width="250" height="80" rx="6" fill="#f7fafc" stroke="#7a97ad" stroke-width="1.2" stroke-dasharray="5,3"/>
+    <text x="1025" y="356" text-anchor="middle" font-size="12" font-weight="600" fill="#1c2733">UI Hosting Backend</text>
+    <text x="1025" y="374" text-anchor="middle" font-size="11" fill="#4a5a6a">NGINX pod in GKE,</text>
+    <text x="1025" y="390" text-anchor="middle" font-size="11" fill="#4a5a6a">or GCS bucket + CDN</text>
+    <line x1="860" y1="370" x2="896" y2="370" stroke="#0b5fa5" stroke-width="1.4" marker-end="url(#arrb)" marker-start="url(#arrb)"/>
+    <text x="878" y="362" text-anchor="middle" font-size="10" fill="#0b5fa5">2b</text>
+
+    <rect x="400" y="450" width="460" height="104" rx="6" fill="#ffffff" stroke="#0b5fa5" stroke-width="1.4"/>
+    <text x="630" y="472" text-anchor="middle" font-size="13" font-weight="600" fill="#1c2733">[3] Auth Broker — POST /auth/login</text>
+    <text x="630" y="492" text-anchor="middle" font-size="11" fill="#4a5a6a">3b — SpikeArrest · JSON threat protection · input validation ·</text>
+    <text x="630" y="508" text-anchor="middle" font-size="11" fill="#4a5a6a">CAPTCHA — BEFORE credentials leave the gateway</text>
+    <text x="630" y="526" text-anchor="middle" font-size="11" fill="#4a5a6a">3e — clean faults: 401 bad creds / 423 locked / 503 auth down</text>
+    <rect x="900" y="440" width="250" height="44" rx="5" fill="#e9f1f8" stroke="#0b5fa5" stroke-width="1.2"/>
+    <text x="1025" y="458" text-anchor="middle" font-size="11.5" font-weight="600" fill="#1c2733">Apigee INTERNAL Proxy</text>
+    <text x="1025" y="474" text-anchor="middle" font-size="10" fill="#4a5a6a">proxy-to-proxy hop · never internet-exposed</text>
+    <line x1="1025" y1="484" x2="1025" y2="496" stroke="#0b5fa5" stroke-width="1.3" marker-end="url(#arrb)"/>
+    <rect x="900" y="498" width="250" height="44" rx="5" fill="#f4ecf8" stroke="#8e6aa8" stroke-width="1.2"/>
+    <text x="1025" y="516" text-anchor="middle" font-size="11.5" font-weight="600" fill="#1c2733">L3 — ID&amp;A API</text>
+    <text x="1025" y="532" text-anchor="middle" font-size="10" fill="#4a5a6a">validates creds · returns {jwt} · JWKS</text>
+    <line x1="1025" y1="542" x2="1025" y2="554" stroke="#8e6aa8" stroke-width="1.3" marker-end="url(#arrb)"/>
+    <rect x="900" y="556" width="250" height="44" rx="5" fill="#f2f4f6" stroke="#7a8a99" stroke-width="1.2" stroke-dasharray="5,3"/>
+    <text x="1025" y="574" text-anchor="middle" font-size="11.5" font-weight="600" fill="#1c2733">OSIS Database</text>
+    <text x="1025" y="590" text-anchor="middle" font-size="10" fill="#4a5a6a">userid/password credential store</text>
+    <line x1="860" y1="462" x2="896" y2="462" stroke="#0b5fa5" stroke-width="1.4" marker-end="url(#arrb)"/>
+    <text x="878" y="454" text-anchor="middle" font-size="10" fill="#0b5fa5">3c</text>
+    <line x1="896" y1="520" x2="860" y2="520" stroke="#0b5fa5" stroke-width="1.4" marker-end="url(#arrb)"/>
+    <text x="878" y="536" text-anchor="middle" font-size="10" fill="#0b5fa5">3e</text>
+
+    <rect x="400" y="660" width="460" height="104" rx="6" fill="#ffffff" stroke="#0b5fa5" stroke-width="1.4"/>
+    <text x="630" y="682" text-anchor="middle" font-size="13" font-weight="600" fill="#1c2733">[5] Data Proxy — VerifyJWT on /api/**</text>
+    <text x="630" y="702" text-anchor="middle" font-size="11" fill="#4a5a6a">5a — signature vs ID team's JWKS URI · exp · iss · aud · claims</text>
+    <text x="630" y="718" text-anchor="middle" font-size="11" fill="#4a5a6a">5c — strip client identity headers → inject X-User-Id,</text>
+    <text x="630" y="734" text-anchor="middle" font-size="11" fill="#4a5a6a">X-Tenant-Id, X-Roles from verified claims</text>
+    <text x="630" y="752" text-anchor="middle" font-size="11" fill="#9a5b00">5b — fail → 401 to browser → SPA redirects to /login</text>
+
+    <!-- ================= CLIENT ↔ SERVER ARROWS ================= -->
+    <line x1="280" y1="182" x2="396" y2="182" stroke="#1c2733" stroke-width="1.6" marker-end="url(#arr)"/>
+    <text x="338" y="174" text-anchor="middle" font-size="10.5" fill="#4a5a6a">1 · HTTPS</text>
+
+    <path d="M 630 244 L 630 326" fill="none" stroke="#1c2733" stroke-width="1.6" marker-end="url(#arr)"/>
+    <text x="643" y="290" font-size="10.5" fill="#4a5a6a">1b — via PSC NEG</text>
+
+    <path d="M 400 388 L 284 388" fill="none" stroke="#0b5fa5" stroke-width="1.6" stroke-dasharray="6,3" marker-end="url(#arrb)"/>
+    <text x="342" y="380" text-anchor="middle" font-size="10.5" fill="#0b5fa5">2c — SPA / login form</text>
+
+    <path d="M 280 445 L 310 445 L 310 470 L 396 470" fill="none" stroke="#1c2733" stroke-width="1.6" marker-end="url(#arr)"/>
+    <text x="342" y="462" text-anchor="middle" font-size="10.5" fill="#1c2733">3a — creds</text>
+
+    <path d="M 400 540 L 310 540 L 310 600 L 284 600" fill="none" stroke="#0b5fa5" stroke-width="1.6" stroke-dasharray="6,3" marker-end="url(#arrb)"/>
+    <text x="346" y="532" text-anchor="middle" font-size="10.5" fill="#0b5fa5">3d/4a — Set-Cookie {jwt}</text>
+
+    <path d="M 280 760 L 310 760 L 310 712 L 396 712" fill="none" stroke="#1c2733" stroke-width="1.6" marker-end="url(#arr)"/>
+    <text x="345" y="753" text-anchor="middle" font-size="10.5" fill="#1c2733">4c — token</text>
+
+    <path d="M 400 748 L 328 748 L 328 415 L 284 415" fill="none" stroke="#9a5b00" stroke-width="1.4" stroke-dasharray="5,4" marker-end="url(#arrw)"/>
+    <text x="322" y="586" font-size="10.5" fill="#9a5b00" transform="rotate(90 322 586)">5b — 401 → /login</text>
+
+    <path d="M 630 764 L 630 866" fill="none" stroke="#1c2733" stroke-width="1.6" marker-end="url(#arr)"/>
+    <text x="643" y="820" font-size="10.5" fill="#4a5a6a">southbound (private, never public)</text>
+
+    <!-- ================= L4-L7 GKE ZONE ================= -->
+    <rect x="340" y="870" width="830" height="392" rx="6" fill="#eaf6ef" stroke="#9ccdb0" stroke-width="1.2"/>
+    <text x="356" y="892" font-size="12" font-weight="700" fill="#1a7f4e">L4–L7 — WORKLOAD VPC / GKE (no public endpoints)</text>
+
+    <rect x="400" y="908" width="460" height="62" rx="6" fill="#ffffff" stroke="#1a7f4e" stroke-width="1.4"/>
+    <text x="630" y="930" text-anchor="middle" font-size="13" font-weight="600" fill="#1c2733">[6a/6b] PSC / Internal HTTPS LB → GKE Ingress</text>
+    <text x="630" y="948" text-anchor="middle" font-size="11" fill="#4a5a6a">Apigee presents mTLS client cert · only the Apigee path allowed in</text>
+    <line x1="630" y1="970" x2="630" y2="998" stroke="#1c2733" stroke-width="1.6" marker-end="url(#arr)"/>
+
+    <rect x="400" y="1002" width="460" height="76" rx="6" fill="#ffffff" stroke="#1a7f4e" stroke-width="1.4"/>
+    <text x="630" y="1024" text-anchor="middle" font-size="13" font-weight="600" fill="#1c2733">[6c/6d] GKE Data API</text>
+    <text x="630" y="1042" text-anchor="middle" font-size="11" fill="#4a5a6a">6c — authorize via trusted headers/claims (tenant, dashboards)</text>
+    <text x="630" y="1058" text-anchor="middle" font-size="11" fill="#4a5a6a">6d — generate Signed SSO Embed URL / Looker API session</text>
+    <line x1="630" y1="1078" x2="630" y2="1106" stroke="#1c2733" stroke-width="1.6" marker-end="url(#arr)"/>
+    <text x="643" y="1098" font-size="10.5" fill="#4a5a6a">7a — internal TLS</text>
+
+    <rect x="400" y="1110" width="460" height="58" rx="6" fill="#ffffff" stroke="#1a7f4e" stroke-width="1.4"/>
+    <text x="630" y="1132" text-anchor="middle" font-size="13" font-weight="600" fill="#1c2733">[7] Reverse Proxy (NGINX / Envoy)</text>
+    <text x="630" y="1150" text-anchor="middle" font-size="11" fill="#4a5a6a">7b — WebSocket upgrade · cookie rewrites · 7c — NetworkPolicy</text>
+    <line x1="630" y1="1168" x2="630" y2="1192" stroke="#1c2733" stroke-width="1.6" marker-end="url(#arr)"/>
+
+    <rect x="400" y="1196" width="460" height="52" rx="6" fill="#ffffff" stroke="#1a7f4e" stroke-width="1.4"/>
+    <text x="630" y="1218" text-anchor="middle" font-size="13" font-weight="600" fill="#1c2733">[8a] Looker Instance — embed user + RLS via user attributes</text>
+    <text x="630" y="1236" text-anchor="middle" font-size="11" fill="#4a5a6a">accepts traffic only from reverse-proxy pods</text>
+
+    <line x1="630" y1="1262" x2="630" y2="1290" stroke="#1c2733" stroke-width="1.6" marker-end="url(#arr)"/>
+    <text x="643" y="1282" font-size="10.5" fill="#4a5a6a">8b — cache/PDT first, then query</text>
+
+    <!-- ================= L8 DATA ZONE ================= -->
+    <rect x="340" y="1294" width="830" height="92" rx="6" fill="#f2f4f6" stroke="#7a8a99" stroke-width="1.2"/>
+    <text x="356" y="1316" font-size="12" font-weight="700" fill="#4a5a6a">L8 — DATA LAYER</text>
+    <rect x="400" y="1324" width="460" height="50" rx="6" fill="#ffffff" stroke="#7a8a99" stroke-width="1.4"/>
+    <text x="630" y="1344" text-anchor="middle" font-size="13" font-weight="600" fill="#1c2733">Backing Database</text>
+    <text x="630" y="1362" text-anchor="middle" font-size="11" fill="#4a5a6a">private IP only (PSA) · Looker service credential · governance in model</text>
+
+    <!-- ================= RETURN PATH 8c ================= -->
+    <path d="M 860 1222 L 1185 1222 L 1185 80 L 165 80 L 165 146" fill="none" stroke="#1a7f4e" stroke-width="1.6" stroke-dasharray="7,4" marker-end="url(#arrg)"/>
+    <text x="1198 " y="660" font-size="11" font-weight="600" fill="#1a7f4e" transform="rotate(90 1198 660)">8c — response: Looker → reverse proxy → GKE API → Apigee → LB → browser</text>
+  </svg>
+  </div>
+
+  <h3>1.1 Flow vs. Description — Alignment Check</h3>
+  <p>The earlier summary flow and the detailed descriptions below it had four points of drift. The granular flow above resolves all of them; the descriptions in later sections were already correct, so no changes were needed there — the flow was the side that had to be corrected:</p>
+  <table>
+    <tr><th>#</th><th>Where</th><th>Mismatch found</th><th>Resolution in the flow above</th></tr>
+    <tr>
+      <td>1</td>
+      <td>Old step [4] vs Q3 / Layer L2</td>
+      <td>Flow said "Browser/SPA stores JWT → Authorization: Bearer" only, but the descriptions recommend an <strong>HttpOnly cookie set by Apigee</strong> as the primary pattern (Bearer header as fallback).</td>
+      <td>Step 4a/4c now shows the cookie model as primary, in-memory + Bearer header as the alternative — matching Q3 exactly.</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>Old step [7] vs Layers L5/L6 and §8.3</td>
+      <td>Flow attributed "embed/API auth to Looker" to the <strong>reverse proxy</strong>, but the descriptions clearly place embed-session / signed-URL generation in the <strong>GKE API</strong> (L5); the reverse proxy (L6) is transport-only.</td>
+      <td>Embed URL / API session generation moved to step 6d (GKE API); step 7 now lists only transport duties (TLS, WebSocket, rewrites, NetworkPolicy).</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td>Old step [1] vs Layers L1/L2</td>
+      <td>Flow merged the external LB + Cloud Armor and Apigee into one box, while the layered view correctly separates the <strong>edge perimeter (L1)</strong> from the <strong>gateway (L2)</strong> — they are different trust boundaries.</td>
+      <td>Split into step [1] (LB + Cloud Armor + PSC NEG) and step [2] (Apigee proxy), consistent with L1/L2.</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td>Old step [8] vs §8.4 / L8</td>
+      <td>Flow ended at "dashboard rendered back to user" with no return path and no mention of row-level security or caching, both of which the descriptions cover.</td>
+      <td>Steps 8a–8c now show RLS via user attributes, cache/PDT-first querying, and the full response path back through the chain.</td>
+    </tr>
+  </table>
+  <div class="good"><strong>Verdict after tally:</strong> the Q&amp;A sections (3–7), the layered view (Section 2), and the integration deep dive (Section 8) are internally consistent with each other. The only inconsistencies were in the summary flow itself — token storage, where embed auth happens, edge/gateway separation, and the missing return path — all corrected in the granular flow above.</div>
+</section>
+
+<!-- ================= 2. LAYERS ================= -->
+<section id="layers">
+  <h2><span class="sec-no">2.</span>Layered View of the High-Level Flow</h2>
+  <p class="lede">The same flow, decomposed into architectural layers — each layer has a single responsibility, a defined trust boundary, and explicit ingress/egress rules.</p>
+
+  <div class="layer">
+    <h4><span class="tag">L0</span>Client Layer — External User's Browser</h4>
+    <p>Untrusted zone. Only ever talks to the public hostname (e.g. <code>portal.yourdomain.com</code>).</p>
+    <ul>
+      <li>Runs the login SPA; holds JWT in memory or receives it as an HttpOnly cookie.</li>
+      <li>Never talks directly to the ID &amp; Auth service, GKE, or Looker.</li>
+      <li>TLS 1.2+ enforced at the edge; HSTS returned by the load balancer.</li>
+    </ul>
+  </div>
+
+  <div class="layer">
+    <h4><span class="tag">L1</span>Edge / Perimeter Layer — Apigee External Gateway Exposure</h4>
+    <p>The only internet-facing surface: the Apigee external gateway proxy, exposed through the Global External HTTPS Load Balancer (required Apigee X plumbing for a custom hostname) with a PSC NEG backend.</p>
+    <ul>
+      <li>Google-managed certificate, single public anycast IP, DNS mapped to it. No VM/GKE backend exposed here.</li>
+      <li>Akamai and Cloud Armor removed per architecture decision (v1.3). Consequence: <strong>Apigee SpikeArrest + JSON threat protection are the only brute-force/abuse controls</strong> on the login path — size them accordingly (tight per-IP limits on <code>/auth/login</code>, keyed on client IP from XFF).</li>
+      <li><strong>Architect flag:</strong> Cloud Armor can be re-attached to this same LB later with zero redesign — recommended as low-cost insurance if login abuse is observed.</li>
+    </ul>
+  </div>
+
+  <div class="layer">
+    <h4><span class="tag">L2</span>API Gateway Layer — Apigee (External Environment Group)</h4>
+    <p>Policy enforcement point: routing, threat protection, JWT verification, quota, analytics.</p>
+    <ul>
+      <li>Three logical proxies on one hostname: UI passthrough (<code>/login</code>, <code>/static/*</code>), auth broker (<code>/auth/*</code>), data API (<code>/api/*</code>).</li>
+      <li>SpikeArrest + JSON threat protection on the auth broker; VerifyJWT + claim extraction on the data API.</li>
+      <li>Strips all client-supplied identity headers before southbound routing; injects trusted headers (<code>X-User-Id</code>, <code>X-Tenant-Id</code>) from validated JWT claims.</li>
+    </ul>
+  </div>
+
+  <div class="layer">
+    <h4><span class="tag">L3</span>Identity Layer — Apigee Internal Proxy → ID&amp;A API → OSIS Database</h4>
+    <p>Reached only via proxy chaining from the external Apigee proxy — the internal proxy, the ID&amp;A API, and the OSIS database are never internet-exposed, and the browser can never call the internal proxy directly.</p>
+    <ul>
+      <li>The Apigee <strong>internal proxy</strong> fronts the ID&amp;A API: internal basepath, no external hostname binding, reachable only from the external proxy's chained call (and other internal consumers).</li>
+      <li>The <strong>ID&amp;A API validates userid/password against the OSIS database</strong> (the credential store). Confirm with the ID&amp;A team: passwords stored hashed + salted (bcrypt/scrypt/Argon2, never reversible), lockout counters in OSIS, and a least-privilege DB account for the API.</li>
+      <li>On success it returns JSON { jwt_token, expiry } and publishes a <strong>JWKS endpoint</strong> so Apigee verifies signatures with automatic key rotation.</li>
+      <li>Owns token TTL, refresh semantics, lockout policy, and revocation signals.</li>
+    </ul>
+  </div>
+
+  <div class="layer">
+    <h4><span class="tag">L4</span>Internal Transport Layer — PSC / Internal LB (Southbound)</h4>
+    <p>Private connectivity from Apigee's runtime into the workload VPC. No public GKE endpoints exist.</p>
+    <ul>
+      <li>Apigee → Internal HTTPS LB (or PSC service attachment) → GKE Gateway/Ingress.</li>
+      <li>mTLS between Apigee target endpoint and the GKE ingress is the strong control; at minimum, firewall/authorized-network restriction so only Apigee can reach it.</li>
+    </ul>
+  </div>
+
+  <div class="layer">
+    <h4><span class="tag">L5</span>Application Layer — GKE-Hosted API</h4>
+    <p>Business/data API pod(s) in GKE. Trusts only Apigee-injected headers; optionally re-validates the JWT as defense-in-depth.</p>
+    <ul>
+      <li>Maps the validated external identity to a Looker identity (embed user / API session).</li>
+      <li>Applies authorization: which dashboards, folders, row-level filters this user may see.</li>
+      <li>Runs with Workload Identity; secrets from Secret Manager, not baked into images.</li>
+    </ul>
+  </div>
+
+  <div class="layer">
+    <h4><span class="tag">L6</span>Presentation Broker Layer — Reverse Proxy (NGINX/Envoy) in GKE</h4>
+    <p>Fronts the Looker pods. Terminates internal TLS, normalizes headers, path-routes to Looker.</p>
+    <ul>
+      <li>Network policy: accepts traffic only from the GKE API namespace/service account.</li>
+      <li>Handles Looker-specific requirements (WebSocket upgrade for render streams, cookie domain rewrites for embed).</li>
+    </ul>
+  </div>
+
+  <div class="layer">
+    <h4><span class="tag">L7</span>Analytics Layer — Looker Instance (Containerized in GKE)</h4>
+    <p>The Looker image deployed in GKE — no user access via GCP console; consumption is via embed/API only.</p>
+    <ul>
+      <li>Signed SSO Embed or Looker API session generated by the L5 API after JWT validation.</li>
+      <li>Embed user attributes drive row-level security and content access per external user/tenant.</li>
+    </ul>
+  </div>
+
+  <div class="layer">
+    <h4><span class="tag">L8</span>Data Layer — Backing Database(s)</h4>
+    <p>Looker connects to the DB with its own service credentials over private IP.</p>
+    <ul>
+      <li>Cloud SQL / BigQuery / other, reachable only on private networking (Private Service Access / private IP).</li>
+      <li>Row/column governance enforced in Looker's model + user attributes, not by handing DB credentials downstream.</li>
+    </ul>
+  </div>
+
+  <div class="layer">
+    <h4><span class="tag">X</span>Cross-Cutting — Observability, Secrets, Governance</h4>
+    <ul>
+      <li><strong>Tracing:</strong> propagate a correlation ID from Apigee (<code>X-Request-Id</code>) through GKE API → reverse proxy → Looker logs; Cloud Trace + Cloud Logging sinks.</li>
+      <li><strong>Metrics/alerts:</strong> Apigee Analytics for auth failure spikes; GKE workload metrics; uptime checks on the external hostname.</li>
+      <li><strong>Secrets:</strong> Looker embed secret, DB creds, mTLS certs in Secret Manager; rotated; mounted via Workload Identity / CSI driver.</li>
+      <li><strong>Audit:</strong> Cloud Audit Logs for infra changes; Apigee message logging (redact credentials/JWTs) for API-level audit.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= Q1 ================= -->
+<section id="q1">
+  <h2><span class="sec-no">3.</span>Q1 — How can the login UI be exposed via Apigee?</h2>
+  <p>Apigee is an API gateway, not a web server — but it can absolutely front a UI. Two clean options:</p>
+  <ul>
+    <li><strong>Option A (recommended):</strong> Build the login screen as a lightweight SPA (React/plain HTML+JS). Host the static assets in GKE (small NGINX pod) or a GCS bucket. Create an Apigee proxy (e.g., <code>/login</code>) whose target is that hosting backend. Apigee simply passes through the HTML/JS/CSS. The user hits <code>https://portal.yourdomain.com/login</code> — Apigee serves it via the target.</li>
+    <li><strong>Option B:</strong> For a truly minimal screen, you can even return the HTML directly from an Apigee AssignMessage policy — but this is hacky and hard to maintain. Don't do this for anything real.</li>
+  </ul>
+  <p>So the pattern is: one Apigee proxy for the <strong>UI passthrough</strong> (<code>/login</code>, <code>/static/*</code>), and separate proxies for the <strong>auth API</strong> and <strong>data API</strong>.</p>
+</section>
+
+<!-- ================= Q2 ================= -->
+<section id="q2">
+  <h2><span class="sec-no">4.</span>Q2 — Do you need an external Apigee gateway for users to hit?</h2>
+  <p>Yes — one external entry point, but note the nuance:</p>
+  <ul>
+    <li>Apigee X itself sits in a Google-managed tenant project. You expose it externally by putting a <strong>Global External HTTPS Load Balancer</strong> in front, with a <strong>Private Service Connect (PSC) NEG</strong> pointing to the Apigee instance. Attach <strong>Cloud Armor</strong> (WAF, rate limiting, geo rules) and a Google-managed cert on the LB.</li>
+    <li>You do <strong>not</strong> need two physically separate Apigee instances for "external" and "internal." Use <strong>one Apigee instance with two environment groups / hostnames</strong>: an external hostname (behind the external LB) for the login UI + auth endpoints, and the data-API proxies can live on the same instance — the "internal proxy" is logical (different basepath/proxy with JWT enforcement), not a separate deployment. This keeps cost and ops down.</li>
+    <li>If your security team mandates physical separation, then yes: external Apigee environment for UI/auth, and southbound traffic from Apigee to GKE goes over PSC or an internal LB — never a public GKE endpoint.</li>
+  </ul>
+</section>
+
+<!-- ================= Q3 ================= -->
+<section id="q3">
+  <h2><span class="sec-no">5.</span>Q3 — How is the JWT supplied for user validation?</h2>
+  <p>Split this into issuance and usage:</p>
+  <ul>
+    <li><strong>Issuance:</strong> The SPA POSTs credentials to <code>https://portal.yourdomain.com/auth/login</code> (an Apigee proxy). Apigee routes this to the ID &amp; Auth team's service (ServiceCallout or as the proxy target). Their response JSON contains the JWT. Apigee returns it to the browser. Never let the browser call the ID team's service directly — always broker via Apigee so you can add threat protection, rate limiting on login attempts, and payload validation.</li>
+    <li><strong>Storage on client:</strong> Prefer an <strong>HttpOnly, Secure, SameSite cookie</strong> set by Apigee (AssignMessage on the response) over localStorage — protects against XSS token theft. If the ID team's JWT must go in a header, the SPA holds it in memory and sends <code>Authorization: Bearer &lt;jwt&gt;</code> on every data call.</li>
+    <li><strong>Validation:</strong> On every subsequent call, the Apigee <strong>VerifyJWT policy</strong> checks signature (against the ID team's JWKS URI or public key), <code>exp</code>, <code>iss</code>, <code>aud</code>, and any custom claims (tenant ID, role). Only after this does the request move southbound. Ask the ID team to expose a <strong>JWKS endpoint</strong> so key rotation is automatic — don't hardcode public keys.</li>
+  </ul>
+</section>
+
+<!-- ================= Q4 ================= -->
+<section id="q4">
+  <h2><span class="sec-no">6.</span>Q4 — How does Apigee route the request to the login screen?</h2>
+  <p>Conditional routing on the external proxy:</p>
+  <ul>
+    <li><code>GET /login</code> and <code>GET /static/**</code> → RouteRule targeting the UI hosting backend (no JWT check).</li>
+    <li><code>POST /auth/login</code> → RouteRule targeting the ID &amp; Auth validation service (no JWT check, but add SpikeArrest + JSON threat protection + optionally a CAPTCHA/bot check).</li>
+    <li><code>ANY /api/**</code> → VerifyJWT flow first, then RouteRule to the GKE data API.</li>
+  </ul>
+  <p>All three can be one proxy with conditional flows, or (cleaner) three proxies under one environment group sharing the same hostname. Unauthenticated hits to <code>/api/**</code> get a 401 from Apigee and the SPA redirects to <code>/login</code>.</p>
+</section>
+
+<!-- ================= Q5 ================= -->
+<section id="q5">
+  <h2><span class="sec-no">7.</span>Q5 — How does the login screen route to authentication, then to the internal path hitting the GKE API?</h2>
+  <p>Sequence:</p>
+  <ol>
+    <li>User submits the form → SPA does <code>fetch POST /auth/login</code> (same Apigee hostname, so no CORS pain).</li>
+    <li>Apigee applies input validation + rate limit → forwards to ID &amp; Auth service → receives <code>{ "jwt": "eyJ..." }</code>.</li>
+    <li>Apigee sets the JWT as an HttpOnly cookie (or returns it in the JSON body) → SPA redirects user to the dashboard page.</li>
+    <li>Dashboard page calls <code>/api/dashboard/...</code> with the JWT. Apigee's VerifyJWT policy authenticates it. Optionally use <strong>ExtractVariables</strong> to pull claims (user ID, tenant) and inject them as trusted headers (<code>X-User-Id</code>) southbound — the GKE API should trust only these Apigee-injected headers, stripped of anything client-supplied.</li>
+    <li>Apigee routes southbound over <strong>PSC/internal LB</strong> to the GKE API service. Lock the GKE ingress so it accepts traffic only from Apigee (mTLS between Apigee and the reverse proxy is the strong version of this; at minimum, network-level restriction).</li>
+    <li>The GKE API (or the NGINX/Envoy reverse proxy) forwards to Looker. For Looker, you'll typically exchange the validated identity for a <strong>Looker embed session (signed SSO embed URL) or Looker API token</strong> — external users shouldn't need native Looker credentials. This is where per-user row-level security in Looker gets enforced via embed user attributes.</li>
+  </ol>
+</section>
+
+<!-- ================= INTEGRATION ================= -->
+<section id="integration">
+  <h2><span class="sec-no">8.</span>Integration Details (Deep Dive)</h2>
+  <p class="lede">The four integration seams that make or break this architecture, with the concrete contract at each seam.</p>
+
+  <h3>8.1 Apigee ↔ ID &amp; Auth Team</h3>
+  <table>
+    <tr><th>Aspect</th><th>Contract / Recommendation</th></tr>
+    <tr><td>Interface</td><td>REST <code>POST /validate</code> (or equivalent) — request: <code>{userid, password}</code> over TLS; response: <code>{jwt_token, expiry, refresh_token?}</code>.</td></tr>
+    <tr><td>Connectivity</td><td>Proxy chaining: external Apigee proxy → Apigee <strong>internal proxy</strong> (internal basepath, never internet-exposed) → ID&amp;A API → <strong>OSIS database</strong>. The browser never reaches the internal proxy or the API directly — the external proxy is the only entry.</td></tr>
+    <tr><td>Credential store</td><td>userid/password persisted in the <strong>OSIS DB</strong>. Confirm: hashing (bcrypt/scrypt/Argon2), lockout counters, least-privilege DB account for the ID&amp;A API, and private-network-only access to OSIS.</td></tr>
+    <tr><td>Key material</td><td>ID team publishes a <strong>JWKS URI</strong> (<code>/.well-known/jwks.json</code>). Apigee VerifyJWT references it directly — key rotation needs zero Apigee redeploys.</td></tr>
+    <tr><td>Claims contract</td><td>Agree upfront on <code>iss</code>, <code>aud</code>, <code>sub</code> (external user ID), plus custom claims: <code>tenant_id</code>, <code>roles</code>, <code>dashboard_scope</code>. Document this as a versioned schema.</td></tr>
+    <tr><td>Failure semantics</td><td>Map auth-service errors to clean Apigee fault responses: 401 (bad credentials), 423 (locked), 503 (auth service down). Never leak the auth service's internal error bodies to the browser.</td></tr>
+    <tr><td>Abuse control</td><td>SpikeArrest per client IP on <code>/auth/login</code>, JSONThreatProtection, optional reCAPTCHA Enterprise token verified in Apigee before forwarding credentials.</td></tr>
+  </table>
+
+  <h3>8.2 Apigee ↔ GKE-Hosted API (Southbound)</h3>
+  <table>
+    <tr><th>Aspect</th><th>Contract / Recommendation</th></tr>
+    <tr><td>Connectivity</td><td>Apigee southbound → <strong>PSC service attachment</strong> or Internal HTTPS LB in the workload VPC → GKE Gateway API / Ingress. GKE service type stays internal; no public endpoint ever.</td></tr>
+    <tr><td>Trust</td><td>mTLS: Apigee TargetEndpoint presents a client cert; GKE ingress validates it. Certificates from Certificate Authority Service, rotated automatically.</td></tr>
+    <tr><td>Identity propagation</td><td>Apigee strips inbound <code>X-User-*</code> headers from the client, then injects <code>X-User-Id</code>, <code>X-Tenant-Id</code>, <code>X-Roles</code> from verified JWT claims. The GKE API treats these as authoritative <em>only because</em> the network path guarantees they came from Apigee.</td></tr>
+    <tr><td>Defense in depth</td><td>Optionally forward the original JWT too; the GKE API re-validates against the same JWKS (a sidecar or middleware library). Decide explicitly and document which validation is authoritative.</td></tr>
+    <tr><td>Resilience</td><td>Apigee target health checks, timeouts (&lt; browser timeout), retries only on idempotent GETs; circuit-break at Apigee if the GKE API degrades.</td></tr>
+  </table>
+
+  <h3>8.3 GKE API ↔ Looker (via Reverse Proxy)</h3>
+  <table>
+    <tr><th>Aspect</th><th>Contract / Recommendation</th></tr>
+    <tr><td>Consumption model</td><td><strong>Signed SSO Embed (recommended for dashboards):</strong> the GKE API builds a signed embed URL using the Looker embed secret, mapping JWT claims → embed user + user attributes (<code>external_user_id = sub</code>, <code>tenant_id</code> attribute for row-level filters). Browser loads the dashboard in an iframe via the same trusted path.</td></tr>
+    <tr><td>Alternative</td><td><strong>Looker API mode:</strong> the GKE API calls Looker's REST API (login as service account → <code>run_query</code>/<code>render_task</code>) and returns JSON/images to the SPA. Use when you want your own UI instead of embedded Looker chrome.</td></tr>
+    <tr><td>Reverse proxy duties</td><td>NGINX/Envoy in front of Looker pods: internal TLS termination, WebSocket upgrade support (Looker render streams need it), cookie <code>Domain</code>/<code>SameSite</code> rewrites for embed, request size limits.</td></tr>
+    <tr><td>Network policy</td><td>Kubernetes NetworkPolicy: Looker pods accept traffic only from the reverse-proxy pods; reverse proxy accepts only from the API namespace. Looker admin ports never exposed beyond an internal ops path (IAP or bastion).</td></tr>
+    <tr><td>Secrets</td><td>Looker embed secret + API client credentials in Secret Manager, mounted via Workload Identity; never in ConfigMaps or images.</td></tr>
+  </table>
+
+  <h3>8.4 Looker ↔ Database</h3>
+  <table>
+    <tr><th>Aspect</th><th>Contract / Recommendation</th></tr>
+    <tr><td>Connectivity</td><td>Private IP only (Private Service Access for Cloud SQL, private BigQuery access). No public DB endpoints.</td></tr>
+    <tr><td>Authorization model</td><td>Looker connects with one service credential; per-user data isolation is enforced by <strong>Looker access filters / user attributes</strong> driven by the embed identity — not by minting DB users per external consumer.</td></tr>
+    <tr><td>Performance</td><td>Enable Looker caching/PDTs for shared external dashboards; set per-tenant query limits to protect the DB from a single noisy tenant.</td></tr>
+  </table>
+
+  <h3>8.5 Session Lifecycle Across the Seams</h3>
+  <ul>
+    <li><strong>Login:</strong> credentials → ID team → JWT (short TTL, e.g. 15–60 min) + optional refresh token.</li>
+    <li><strong>Refresh:</strong> SPA calls <code>/auth/refresh</code> via Apigee before expiry; Apigee brokers to the ID team. Embed sessions in Looker have their own TTL — keep it ≤ JWT TTL so a revoked user can't outlive their token inside Looker.</li>
+    <li><strong>Logout:</strong> Apigee clears the cookie, optionally writes the JWT ID (<code>jti</code>) to an Apigee cache/KVM deny-list until natural expiry, and the GKE API kills the Looker embed session.</li>
+  </ul>
+</section>
+
+<!-- ================= CICD ================= -->
+<section id="cicd">
+  <h2><span class="sec-no">9.</span>CI/CD — How the Pipeline Works</h2>
+  <p class="lede">Four independently deployable components, one consistent pipeline shape: everything is code in Git, everything promotes dev → uat → prod with automated tests and manual approval gates at prod.</p>
+
+  <div class="flow">                       ┌────────────────────────────────────────────────────────────┐
+  Git push / PR merge  │                       Cloud Build / GitHub Actions          │
+ ────────────────────► │  build ─► test ─► scan ─► publish ─► deploy(dev) ─► promote │
+                       └────────────────────────────────────────────────────────────┘
+                                  │                                   │
+        ┌─────────────────────────┼───────────────────────┬───────────┴───────────┐
+        ▼                         ▼                       ▼                       ▼
+  [Apigee proxies]          [Login SPA]             [GKE Data API]         [Infra (IaC)]
+  apigeecli/Maven           npm build → GCS/        Docker → Artifact       Terraform plan
+  deploy to env:dev         NGINX image             Registry → GKE          → approval →
+  → integration tests       → cache invalidate      via Cloud Deploy /      apply (LB, Armor,
+  → promote uat → prod      → promote               ArgoCD (GitOps)         PSC, Apigee env)</div>
+
+  <h3>9.1 Repo &amp; Artifact Strategy</h3>
+  <table>
+    <tr><th>Component</th><th>Repo Content</th><th>Build Artifact</th><th>Deploy Mechanism</th></tr>
+    <tr><td>Apigee proxies + shared flows</td><td>Proxy bundles (XML policies), shared flows, KVM seed configs, JWKS/target configs per env</td><td>Proxy bundle (zip), revisioned</td><td><code>apigeecli</code> / Apigee Maven plugin from Cloud Build; deploy revision to env, then promote</td></tr>
+    <tr><td>Login SPA</td><td>React/HTML+JS source</td><td>Static bundle; or NGINX container image</td><td>Sync to GCS bucket + CDN cache invalidation, or rollout to the GKE UI pod</td></tr>
+    <tr><td>GKE Data API</td><td>API source + Dockerfile + Helm chart / Kustomize overlays</td><td>Container image in Artifact Registry (signed)</td><td>Cloud Deploy pipeline or ArgoCD (GitOps) with canary/blue-green</td></tr>
+    <tr><td>Looker deployment</td><td>Looker image version pin, Helm values, reverse-proxy config; LookML in its own repo</td><td>Vendored Looker image (re-tagged into Artifact Registry after scan)</td><td>Controlled rolling update in GKE; LookML promoted via Looker's Git integration (dev → prod branch)</td></tr>
+    <tr><td>Infrastructure</td><td>Terraform: LB, Cloud Armor, PSC, Apigee env groups, GKE, Secret Manager, CAS</td><td>Terraform plan artifact</td><td><code>plan</code> on PR → reviewed → <code>apply</code> on merge, per-env state</td></tr>
+  </table>
+
+  <h3>9.2 Pipeline Stages (applies to every component)</h3>
+  <ol>
+    <li><strong>Build:</strong> compile/bundle; container images built by Cloud Build with provenance (SLSA) and signed (Binary Authorization attestation).</li>
+    <li><strong>Test:</strong> unit tests; for Apigee, <code>apickli</code>/newman integration tests against the dev env (login happy path, bad password, expired JWT, tampered JWT, missing token → 401).</li>
+    <li><strong>Scan:</strong> container vulnerability scanning in Artifact Registry; SAST/dependency scanning on SPA and API; policy checks (no plaintext secrets, no public services) via Terraform validators.</li>
+    <li><strong>Deploy to dev:</strong> automatic on merge to main. Apigee deploys a new proxy <em>revision</em> (instant rollback = redeploy previous revision).</li>
+    <li><strong>Promote to UAT:</strong> same artifacts, environment config swapped (Apigee KVMs / Helm values per env — target URLs, JWKS URI, cookie domain). Smoke tests + a scripted end-to-end: login → JWT → dashboard fetch.</li>
+    <li><strong>Promote to prod:</strong> manual approval gate. GKE API via canary (5% → 50% → 100% with automatic rollback on SLO breach); Apigee via revision cutover; SPA via versioned bucket path + CDN flip.</li>
+  </ol>
+
+  <h3>9.3 Environment &amp; Config Separation</h3>
+  <ul>
+    <li>Apigee: <code>dev</code> / <code>uat</code> / <code>prod</code> environments in separate environment groups with distinct hostnames (<code>portal-dev...</code>, <code>portal...</code>). All env-specific values (auth service URL, JWKS URI, southbound target) live in per-env KVMs or Terraform-managed target servers — proxy bundles stay identical across envs.</li>
+    <li>GKE: separate clusters (or at minimum namespaces + separate node pools) per env; Helm/Kustomize overlays carry env differences.</li>
+    <li>Secrets: Secret Manager per project/env; CI service accounts have least-privilege deployer roles only (e.g. <code>roles/apigee.environmentAdmin</code> scoped, <code>roles/container.developer</code>).</li>
+  </ul>
+
+  <h3>9.4 Release Safety Nets</h3>
+  <ul>
+    <li><strong>Rollback:</strong> Apigee = previous revision redeploy (seconds); GKE = Cloud Deploy/Argo rollback to prior image; SPA = repoint CDN to previous bucket version.</li>
+    <li><strong>Contract tests:</strong> a small pact-style suite pinning the ID team's response schema and the JWT claims contract — pipeline fails if the auth team changes the contract unannounced.</li>
+    <li><strong>Post-deploy verification:</strong> synthetic login journey (test user) runs after every prod deploy and on a schedule; alerts on failure.</li>
+    <li><strong>Drift control:</strong> GitOps (ArgoCD) or scheduled <code>terraform plan</code> detects out-of-band changes to LB/Armor/Apigee config.</li>
+  </ul>
+  <div class="good"><strong>Principle:</strong> the artifact that passed tests in dev is byte-identical to what runs in prod — only configuration (KVM values, Helm values, Terraform vars) changes per environment.</div>
+</section>
+
+<!-- ================= ARCH NOTES ================= -->
+<section id="arch-notes">
+  <h2><span class="sec-no">10.</span>Architect's Flags &amp; Recommendations</h2>
+  <p>A few things I'd flag as an architect:</p>
+  <ul>
+    <li><strong>Don't double-authenticate ambiguously.</strong> Decide clearly: Apigee is the <em>only</em> JWT enforcement point, and everything behind it trusts Apigee via network + mTLS. Re-validating the JWT in the GKE API is fine as defense-in-depth, but define it explicitly.</li>
+    <li><strong>Looker embedding is the real design decision.</strong> If users see dashboards in a browser, you almost certainly want Looker <strong>Signed SSO Embed</strong> — your GKE API generates the signed embed URL after JWT validation, mapping the JWT claims to Looker embed user attributes. That's cleaner than proxying raw Looker traffic through the API.</li>
+    <li><strong>Session lifecycle:</strong> define JWT TTL, refresh strategy (refresh token vs re-login), and logout (cookie clear + optional revocation list in Apigee via cache).</li>
+    <li><strong>Cloud Armor on the external LB is non-negotiable</strong> for an internet-exposed login — brute-force and credential-stuffing protection at the edge, plus Apigee SpikeArrest per-IP on <code>/auth/login</code>.</li>
+  </ul>
+  <div class="note"><strong>Open decisions to confirm:</strong> Apigee X vs Hybrid; embedded dashboards vs API-driven data pulls; physical vs logical separation of external/internal Apigee environments; JWT storage model (HttpOnly cookie vs in-memory + header). These determine the exact PSC/mTLS wiring on the southbound leg.</div>
+</section>
+
+<footer>
+  External User Access to Looker on GKE — Apigee Brokered Auth &nbsp;·&nbsp; Solution Architecture Document &nbsp;·&nbsp; v1.3 (Akamai/Cloud Armor removed; auth via Apigee internal proxy → ID&amp;A API → OSIS DB)
+</footer>
+
+</div>
+</body>
+</html>

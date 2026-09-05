@@ -1,0 +1,179 @@
+<mxfile host="app.diagrams.net" modified="2024-05-15T00:00:00.000Z" agent="Mozilla/5.0" version="21.2.9" type="device">
+  <diagram id="gcp_architecture" name="Apigee_Looker_Auth_Flow">
+    <mxGraphModel dx="1600" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="bg_gcp" value="Google Cloud Edge &amp; Networking" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=18;fontStyle=1;fillColor=#f8f9fa;strokeColor=#dadce0;align=left;spacingLeft=15;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="250" y="50" width="1450" height="900" as="geometry" />
+        </mxCell>
+        <mxCell id="bg_apigee" value="Apigee X Managed VPC" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=16;fontStyle=1;fillColor=#e8eaed;strokeColor=#bdc1c6;align=left;spacingLeft=15;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="400" y="100" width="1050" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="bg_gke" value="Customer GKE VPC" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=16;fontStyle=1;fillColor=#e8f0fe;strokeColor=#adccf7;align=left;spacingLeft=15;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="350" y="450" width="900" height="450" as="geometry" />
+        </mxCell>
+        <mxCell id="user_browser" value="External User&#10;(Browser)" style="shape=image;image=https://cdn-icons-png.flaticon.com/512/3067/3067260.png;verticalLabelPosition=bottom;verticalAlign=top;imageBackground=#ffffff;imageBorder=none;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="50" y="300" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="user_browser_bottom" value="External User&#10;(Browser)" style="shape=image;image=https://cdn-icons-png.flaticon.com/512/3067/3067260.png;verticalLabelPosition=bottom;verticalAlign=top;imageBackground=#ffffff;imageBorder=none;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="50" y="650" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="xlb" value="Google Cloud&#10;Global External&#10;HTTPS LB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="280" width="100" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="psc_neg" value="PSC NEG" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="420" y="290" width="90" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="apigee_ext" value="Apigee External&#10;Gateway Proxy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="550" y="280" width="120" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="apigee_int" value="Apigee INTERNAL&#10;Proxy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="850" y="280" width="120" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="osis_top" value="OSIS Database&#10;(Credential Store)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="280" width="100" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="ui_backend" value="UI Hosting Backend&#10;(NGINX Pods)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="400" y="550" width="130" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="int_psc" value="Internal PSC Target" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="520" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ida_api" value="ID&amp;A API&#10;Microservice" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="650" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="osis_bottom" value="OSIS Database" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="610" y="770" width="100" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="gke_gateway" value="GKE Gateway / Ingress" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="800" y="520" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="gke_backend" value="GKE Backend API&#10;Microservice" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="520" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="rev_proxy" value="Reverse Proxy&#10;(NGINX/Envoy)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="800" y="650" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="looker" value="Looker Instance&#10;(Pods)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="650" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="data_warehouse" value="Data Warehouse DB&#10;(BigQuery/Cloud SQL)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="640" width="120" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="e_1" edge="1" parent="1" source="user_browser" target="xlb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l_1" value="[1] TLS Handshake" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="e_1">
+          <mxGeometry x="-0.2" y="-1" relative="1" as="geometry">
+            <mxPoint y="-15" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_1b" edge="1" parent="1" source="xlb" target="psc_neg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l_1b" value="[1b]" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="e_1b">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint y="-15" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_psc_api" edge="1" parent="1" source="psc_neg" target="apigee_ext">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_2b" edge="1" parent="1" source="apigee_ext" target="ui_backend">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="465" y="440" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="l_2b" value="[2b] /login /static" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="e_2b">
+          <mxGeometry x="0.1" relative="1" as="geometry">
+             <mxPoint x="-40" y="-10" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_2c" edge="1" parent="1" source="ui_backend" target="user_browser_bottom">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l_2c" value="[2c] SPA assets" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="e_2c">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint y="-15" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_3a" edge="1" parent="1" source="apigee_ext" target="apigee_int">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l_3a" value="[3a] POST /auth/login" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="e_3a">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint y="-15" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_3c" edge="1" parent="1" source="apigee_int" target="osis_top">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l_3c" value="[3c/3d] Validate" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="e_3c">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint y="-15" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_ui_ida" edge="1" parent="1" source="ui_backend" target="ida_api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l_ui_ida" value="[3a] Submit credentials" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="e_ui_ida">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint y="-15" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_ida_osis" edge="1" parent="1" source="ida_api" target="osis_bottom">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l_ida_osis" value="[3d] Validate" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="e_ida_osis">
+          <mxGeometry x="-0.2" relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_4c" edge="1" parent="1" source="apigee_ext" target="int_psc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l_4c" value="[4c/5a] GET /api/** JWT" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="e_4c">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint y="-10" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_6b" edge="1" parent="1" source="int_psc" target="gke_gateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l_6b" value="[6b] mTLS" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="e_6b">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint y="-15" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_6b2" edge="1" parent="1" source="gke_gateway" target="gke_backend">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_6d" edge="1" parent="1" source="gke_backend" target="rev_proxy">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l_6d" value="[6d] SSO URL" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="e_6d">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint x="-15" y="-10" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_7c" edge="1" parent="1" source="rev_proxy" target="looker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l_7c" value="[7c] Websocket/Cookies" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="e_7c">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+             <mxPoint y="-15" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_8b" edge="1" parent="1" source="looker" target="data_warehouse">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l_8b" value="[8b] Private IP" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="e_8b">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+             <mxPoint y="-15" as="offset" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
