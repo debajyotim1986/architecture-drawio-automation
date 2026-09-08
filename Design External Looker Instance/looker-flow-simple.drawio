@@ -1,0 +1,135 @@
+<mxfile host="app.diagrams.net" modified="2026-09-08T00:00:00.000Z" agent="architecture-doc" version="24.0.0" type="device">
+  <diagram id="simple-flow" name="Simple View — Step by Step">
+    <mxGraphModel dx="1200" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1300" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="External Users → Looker Dashboards — Step by Step (one action per box)" style="text;html=1;fontSize=21;fontStyle=1;fontColor=#1C2733;align=left;" vertex="1" parent="1">
+          <mxGeometry x="60" y="26" width="900" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Two ways in: (A) a person logs in at step 1 · (B) an external application that already holds a JWT joins at step 11. The JWT never detours to the browser mid-chain — Apigee receives it and calls GKE directly." style="text;html=1;fontSize=13;fontColor=#4A5A6A;align=left;" vertex="1" parent="1">
+          <mxGeometry x="60" y="62" width="1100" height="24" as="geometry" />
+        </mxCell>
+
+        <!-- ============ ROW 1 (steps 1-4) ============ -->
+        <mxCell id="s1" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;1. User clicks the portal link&lt;/font&gt;&lt;/b&gt;&lt;br&gt;browser goes to&lt;br&gt;portal.yourdomain.com" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1C2733;strokeWidth=2;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="60" y="100" width="255" height="88" as="geometry" />
+        </mxCell>
+        <mxCell id="s2" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;2. Front Door&lt;/font&gt;&lt;/b&gt;&lt;br&gt;the Apigee external proxy endpoint, exposed by the external HTTP(S) Load Balancer — the only internet-facing surface&lt;br&gt;&lt;font color=&quot;#0b5fa5&quot;&gt;&lt;b&gt;GCP: Cloud LB (L7) · Apigee X (external proxy) · PSC&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F1F8;strokeColor=#0B5FA5;strokeWidth=2;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="355" y="96" width="255" height="96" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;3. Routed to the UI screen&lt;/font&gt;&lt;/b&gt;&lt;br&gt;login page shows — the UI is &lt;b&gt;hosted internally in GKE&lt;/b&gt;, never exposed directly&lt;br&gt;&lt;font color=&quot;#0b5fa5&quot;&gt;&lt;b&gt;GCP: UI/NGINX pods on GKE&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1A7F4E;strokeWidth=2;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="650" y="96" width="255" height="96" as="geometry" />
+        </mxCell>
+        <mxCell id="s4" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;4. User enters userid + password&lt;/font&gt;&lt;/b&gt;&lt;br&gt;and presses Sign in&lt;br&gt;&lt;font color=&quot;#9a5b00&quot;&gt;(the only manual action)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1C2733;strokeWidth=2;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="945" y="96" width="255" height="96" as="geometry" />
+        </mxCell>
+
+        <!-- ============ ROW 2 (steps 5-8) ============ -->
+        <mxCell id="s5" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;5. Submit passes the front door&lt;/font&gt;&lt;/b&gt;&lt;br&gt;rate-limit + threat checks, then lands on the UI app in GKE&lt;br&gt;&lt;font color=&quot;#0b5fa5&quot;&gt;&lt;b&gt;GCP: Apigee SpikeArrest · Threat Protection → GKE&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F1F8;strokeColor=#0B5FA5;strokeWidth=2;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="60" y="255" width="255" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="s6" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;6. Handed to the INTERNAL Apigee proxy&lt;/font&gt;&lt;/b&gt;&lt;br&gt;from GKE the credentials pass to the internal proxy — never on the internet&lt;br&gt;&lt;font color=&quot;#0b5fa5&quot;&gt;&lt;b&gt;GCP: GKE → Apigee X (internal proxy)&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F1F8;strokeColor=#0B5FA5;strokeWidth=2;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="355" y="255" width="255" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="s7" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;7. Internal proxy calls the ID&amp;amp;A API&lt;/font&gt;&lt;/b&gt;&lt;br&gt;the identity team's validation service&lt;br&gt;&lt;font color=&quot;#0b5fa5&quot;&gt;&lt;b&gt;GCP: ID&amp;amp;A microservice on GKE&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4ECF8;strokeColor=#8E6AA8;strokeWidth=2;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="650" y="255" width="255" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="s8" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;8. Password checked against OSIS&lt;/font&gt;&lt;/b&gt;&lt;br&gt;ID&amp;amp;A compares the userid + password with the credential store" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4ECF8;strokeColor=#8E6AA8;strokeWidth=2;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="945" y="255" width="255" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="osis" value="&lt;b&gt;OSIS DB&lt;/b&gt;&lt;br&gt;credential store" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=11;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="258" width="100" height="82" as="geometry" />
+        </mxCell>
+
+        <!-- ============ ROW 3 (steps 9-12) ============ -->
+        <mxCell id="s9" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;9. ✔ Valid — ID&amp;amp;A creates the JWT&lt;/font&gt;&lt;/b&gt;&lt;br&gt;a signed JWT token — the user's pass for this session" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F5EE;strokeColor=#1A7F4E;strokeWidth=2;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="60" y="410" width="255" height="88" as="geometry" />
+        </mxCell>
+        <mxCell id="s10" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;10. JWT comes back to Apigee&lt;/font&gt;&lt;/b&gt;&lt;br&gt;via the internal proxy — it does NOT detour to the browser; Apigee carries on with the chain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F5EE;strokeColor=#1A7F4E;strokeWidth=2;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="355" y="410" width="255" height="88" as="geometry" />
+        </mxCell>
+        <mxCell id="s11" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;11. Apigee validates the JWT&lt;/font&gt;&lt;/b&gt;&lt;br&gt;signature + expiry check at the gateway&lt;br&gt;&lt;font color=&quot;#0b5fa5&quot;&gt;&lt;b&gt;GCP: Apigee X (VerifyJWT policy)&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F1F8;strokeColor=#0B5FA5;strokeWidth=2;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="650" y="410" width="255" height="88" as="geometry" />
+        </mxCell>
+        <mxCell id="s12" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;12. Apigee calls the GKE API&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;b&gt;Authorization: Bearer &amp;lt;JWT&amp;gt;&lt;/b&gt; + user/tenant details in the headers&lt;br&gt;&lt;font color=&quot;#0b5fa5&quot;&gt;&lt;b&gt;GCP: private network — PSC / Internal LB&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F1F8;strokeColor=#0B5FA5;strokeWidth=2;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="945" y="410" width="255" height="88" as="geometry" />
+        </mxCell>
+
+        <!-- ============ ROW 4 (steps 13-15) ============ -->
+        <mxCell id="s13" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;13. GKE validates the JWT AGAIN&lt;/font&gt;&lt;/b&gt;&lt;br&gt;double check — defense in depth&lt;br&gt;&lt;font color=&quot;#0b5fa5&quot;&gt;&lt;b&gt;GCP: Google Kubernetes Engine&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1A7F4E;strokeWidth=2;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="60" y="565" width="255" height="88" as="geometry" />
+        </mxCell>
+        <mxCell id="s14" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;14. GKE decides the user's data scope&lt;/font&gt;&lt;/b&gt;&lt;br&gt;which dashboards + which tenant's rows — prepares Looker access" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1A7F4E;strokeWidth=2;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="355" y="565" width="255" height="88" as="geometry" />
+        </mxCell>
+        <mxCell id="s15" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;15. Reverse proxy → Looker builds the dashboard&lt;/font&gt;&lt;/b&gt;&lt;br&gt;only this user's rows (row-level security)&lt;br&gt;&lt;font color=&quot;#0b5fa5&quot;&gt;&lt;b&gt;GCP: NGINX on GKE · Looker (containerized on GKE)&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1A7F4E;strokeWidth=2;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="650" y="565" width="255" height="88" as="geometry" />
+        </mxCell>
+        <mxCell id="dw" value="&lt;b&gt;Data Warehouse&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#0b5fa5&quot;&gt;&lt;b&gt;BigQuery / Cloud SQL&lt;/b&gt;&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=11;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="945" y="568" width="110" height="82" as="geometry" />
+        </mxCell>
+
+        <!-- ============ FINAL STEP ============ -->
+        <mxCell id="s16" value="&lt;b&gt;&lt;font style=&quot;font-size:15px&quot;&gt;16. Dashboard opens for the user&lt;/font&gt;&lt;/b&gt;&lt;br&gt;the rendered dashboard travels back the same chain to the browser — the user just experienced: password in → dashboard out" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F5EE;strokeColor=#1A7F4E;strokeWidth=2.5;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="710" width="545" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ============ EDGES ROW 1 ============ -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s1" target="s2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" value="routes /login" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=2;fontSize=10.5;fontColor=#4A5A6A;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s2" target="s3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" value="login page shown" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=2;fontSize=10.5;fontColor=#4A5A6A;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s3" target="s4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="w1" value="submit, over TLS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=2;fontSize=10.5;fontColor=#4A5A6A;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s4" target="s5">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1072" y="222" /><mxPoint x="187" y="222" /></Array></mxGeometry>
+        </mxCell>
+
+        <!-- ============ EDGES ROW 2 ============ -->
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s5" target="s6"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s6" target="s7"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s7" target="s8"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8osis" value="lookup" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#D79B00;strokeWidth=2;fontSize=10.5;fontColor=#9A5B00;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s8" target="osis"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="w2" value="✔ password correct" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1A7F4E;strokeWidth=2;fontSize=10.5;fontColor=#1A7F4E;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s8" target="s9">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1072" y="377" /><mxPoint x="187" y="377" /></Array></mxGeometry>
+        </mxCell>
+
+        <!-- ============ EDGES ROW 3 ============ -->
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1A7F4E;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s9" target="s10"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1A7F4E;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s10" target="s11"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e11" value="token OK" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=2;fontSize=10.5;fontColor=#4A5A6A;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s11" target="s12"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="w3" value="Bearer JWT, private network" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0B5FA5;strokeWidth=2;fontSize=10.5;fontStyle=1;fontColor=#0B5FA5;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s12" target="s13">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1072" y="532" /><mxPoint x="187" y="532" /></Array></mxGeometry>
+        </mxCell>
+
+        <!-- ============ EDGES ROW 4 ============ -->
+        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s13" target="s14"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s14" target="s15"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e15dw" value="query" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#D79B00;strokeWidth=2;fontSize=10.5;fontColor=#9A5B00;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s15" target="dw"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="w4" value="rendered dashboard back to the browser" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1A7F4E;strokeWidth=2.5;dashed=1;fontSize=10.5;fontStyle=1;fontColor=#1A7F4E;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s15" target="s16">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="777" y="688" /><mxPoint x="332" y="688" /></Array></mxGeometry>
+        </mxCell>
+
+        <!-- ============ ALTERNATE ENTRY: external application ============ -->
+        <mxCell id="altApp" value="&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;B. ALTERNATE ENTRY — External Application&lt;/font&gt;&lt;/b&gt;&lt;br&gt;a system (not a person) that &lt;b&gt;already holds a valid JWT&lt;/b&gt; — obtained from ID&amp;amp;A via its own machine login (steps 1–10 skipped)&lt;br&gt;&lt;font color=&quot;#9a5b00&quot;&gt;&lt;b&gt;Rule: it can NOT call the GKE API (step 13) directly — GKE only accepts traffic from Apigee. It enters through the same front door; Apigee validates its JWT at step 11, then steps 12–16 run exactly the same.&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#0b5fa5&quot;&gt;&lt;b&gt;GCP: same Apigee X external gateway — /api/** with Authorization: Bearer JWT&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7E8;strokeColor=#9A5B00;strokeWidth=2;dashed=1;fontSize=11.5;" vertex="1" parent="1">
+          <mxGeometry x="650" y="700" width="550" height="118" as="geometry" />
+        </mxCell>
+        <mxCell id="eAlt" value="calls /api/** with its JWT — joins at step 11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#9A5B00;strokeWidth=2;dashed=1;fontSize=10.5;fontStyle=1;fontColor=#9A5B00;exitX=0.08;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="altApp" target="s11">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="630" y="690" />
+              <mxPoint x="630" y="454" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ============ NOTES ============ -->
+        <mxCell id="noteAfter" value="&lt;b&gt;After the first open:&lt;/b&gt; the browser keeps the session token — filters, drill-downs and next dashboards repeat only steps 11 → 16 (the &lt;b&gt;password is never sent again&lt;/b&gt;; steps 4–10 run once per login). &lt;b&gt;Both paths converge at step 11:&lt;/b&gt; a returning user's request and an external application's request are treated identically — Apigee checks the JWT, then the same chain runs." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDF6E6;strokeColor=#D8B56A;fontSize=12;align=left;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="860" width="1140" height="58" as="geometry" />
+        </mxCell>
+        <mxCell id="keys" value="&lt;b&gt;3 things to remember&lt;/b&gt;&lt;br&gt;&lt;br&gt;🚪 &lt;b&gt;One front door:&lt;/b&gt; only step 2 (the Apigee external proxy behind the external HTTPS LB) faces the internet — the UI in GKE, the internal proxy, ID&amp;A, OSIS, the GKE API, Looker and the databases are all private.&lt;br&gt;&lt;br&gt;🎟️ &lt;b&gt;One token, checked twice, no detour:&lt;/b&gt; the password is used once (steps 4–8) to get a JWT; the JWT returns to Apigee (step 10) which validates it (step 11) and calls GKE with it as Bearer (step 12) — GKE validates it AGAIN (step 13) before Looker is touched.&lt;br&gt;&lt;br&gt;🔒 &lt;b&gt;Own data only:&lt;/b&gt; the token names the user's tenant, and Looker filters every query so each user sees only their rows (step 15, row-level security)." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3EEF7;strokeColor=#0B5FA5;fontSize=12.5;align=left;verticalAlign=top;spacing=14;" vertex="1" parent="1">
+          <mxGeometry x="60" y="940" width="1140" height="190" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
