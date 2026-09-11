@@ -29,10 +29,10 @@
         <mxCell id="loginUi" value="&lt;b&gt;[2c] Login UI rendered&lt;/b&gt;&lt;br&gt;SPA loaded in browser&lt;br&gt;&lt;font color=&quot;#0b5fa5&quot;&gt;&lt;b&gt;user enters userid + password&lt;/b&gt;&lt;/font&gt;&lt;br&gt;submit → POST /auth/login" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0B5FA5;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="70" y="400" width="240" height="110" as="geometry" />
         </mxCell>
-        <mxCell id="tokenClient" value="&lt;b&gt;[4] Token on Client&lt;/b&gt;&lt;br&gt;HttpOnly cookie arrives with the dashboard response — later requests (filters, next dashboards) reuse it; the password is never re-sent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0B5FA5;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="tokenClient" value="&lt;b&gt;[16] Token on Client&lt;/b&gt;&lt;br&gt;HttpOnly cookie arrives with the dashboard response · dashboard switching stays inside the Looker session — the API is not called again until the next login" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0B5FA5;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="70" y="620" width="240" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="dashCall" value="&lt;b&gt;[4c] Dashboard calls /api/**&lt;/b&gt;&lt;br&gt;cookie auto-attached, or&lt;br&gt;Authorization: Bearer &amp;lt;jwt&amp;gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0B5FA5;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="dashCall" value="&lt;b&gt;[16b] Tile clicks — NO API call&lt;/b&gt;&lt;br&gt;iframe.src = embed_base + id (PUBLIC Looker host)&lt;br&gt;live embed session · folder ACL + RLS enforce" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0B5FA5;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="70" y="790" width="240" height="90" as="geometry" />
         </mxCell>
 
@@ -67,24 +67,24 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
-        <mxCell id="dataProxy" value="&lt;b&gt;[5] Data Proxy — VerifyJWT on /api/**&lt;/b&gt;&lt;br&gt;5a — signature vs ID team's JWKS URI · exp · iss · aud · claims&lt;br&gt;5c — strip client identity headers → inject X-User-Id, X-Tenant-Id, X-Roles&lt;br&gt;&lt;font color=&quot;#9a5b00&quot;&gt;5b — fail → 401 to browser → SPA redirects to /login&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0B5FA5;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="dataProxy" value="&lt;b&gt;[11] Data Proxy — VerifyJWT, then the ONE call: /session/bootstrap&lt;/b&gt;&lt;br&gt;11 — signature vs ID&amp;amp;A JWKS URI · exp · iss · aud · claims&lt;br&gt;5c — strip client identity headers → inject X-User-Id, X-Tenant-Id, X-Roles&lt;br&gt;&lt;font color=&quot;#9a5b00&quot;&gt;5b — fail → 401 to browser → SPA redirects to /login&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0B5FA5;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="490" y="740" width="480" height="110" as="geometry" />
         </mxCell>
 
         <mxCell id="pscIlb" value="&lt;b&gt;[6a/6b] PSC / Internal HTTPS LB → GKE Ingress&lt;/b&gt;&lt;br&gt;Apigee presents mTLS client cert · only the Apigee path allowed in" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1A7F4E;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="490" y="1010" width="480" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="gkeApi" value="&lt;b&gt;[6c/6d] GKE Data API&lt;/b&gt;&lt;br&gt;6c — &lt;b&gt;re-validates the JWT&lt;/b&gt; (defense in depth), authorizes via claims (tenant, dashboards)&lt;br&gt;6d — generate Signed SSO Embed URL / Looker API session" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1A7F4E;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="gkeApi" value="&lt;b&gt;[13–14] partner-data-api (FastAPI) — ONE call per login: GET /session/bootstrap&lt;/b&gt;&lt;br&gt;13a — &lt;b&gt;re-validates the JWT&lt;/b&gt; (defense in depth) · 13b — &lt;b&gt;get_tenant(sub)&lt;/b&gt; from BigQuery tenant_registry (fail closed)&lt;br&gt;14 — folder list + Home default → &lt;b&gt;create_sso_embed_url&lt;/b&gt; via reverse proxy → returns {tiles, Home SSO URL, navigation base}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1A7F4E;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="490" y="1110" width="480" height="80" as="geometry" />
         </mxCell>
         <mxCell id="revProxy" value="&lt;b&gt;[7] Reverse Proxy (NGINX / Envoy)&lt;/b&gt;&lt;br&gt;7a — internal TLS · 7b — WebSocket upgrade, cookie rewrites · 7c — NetworkPolicy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1A7F4E;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="490" y="1220" width="480" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="looker" value="&lt;b&gt;[8a] Looker Instance&lt;/b&gt;&lt;br&gt;embed user + row-level security via user attributes&lt;br&gt;accepts traffic only from reverse-proxy pods" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1A7F4E;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="looker" value="&lt;b&gt;[15] Looker Instance&lt;/b&gt;&lt;br&gt;embed user auto-provisioned per external_user_id · RLS via user attributes&lt;br&gt;two doors: INTERNAL /api/4.0 (SDK) · PUBLIC /embed (browser) — both only via the reverse proxy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1A7F4E;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="490" y="1320" width="480" height="60" as="geometry" />
         </mxCell>
 
-        <mxCell id="db" value="&lt;b&gt;[8b] Backing Database&lt;/b&gt;&lt;br&gt;private IP only (PSA) · Looker service credential · governance in model" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A8A99;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="db" value="&lt;b&gt;[15e] BigQuery partner_dwh&lt;/b&gt;&lt;br&gt;private IP only (PSA) · single looker-bq-sa (jobUser + dataViewer@dataset) · WHERE tenant_id=… on every query" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A8A99;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="490" y="1470" width="480" height="60" as="geometry" />
         </mxCell>
 
@@ -116,10 +116,10 @@
         <mxCell id="eTokenToClient" value="16 — cookie set on the dashboard response" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0B5FA5;strokeWidth=1.6;dashed=1;fontSize=11;fontColor=#0B5FA5;exitX=0;exitY=0.7;entryX=1;entryY=0.3;" edge="1" parent="1" source="authBroker" target="tokenClient">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="eTokenDash" value="4b" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="tokenClient" target="dashCall">
+        <mxCell id="eTokenDash" value="16b — clicks go to Looker directly (public embed host)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="tokenClient" target="dashCall">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="eDashData" value="4c — /api/** + token" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="dashCall" target="dataProxy">
+        <mxCell id="eDashData" value="ALT apps / next login only — normal clicks never reach Apigee" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="dashCall" target="dataProxy">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e401" value="5b — 401 → back to /login" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#9A5B00;strokeWidth=1.3;dashed=1;fontSize=11;fontColor=#9A5B00;exitX=0;exitY=0.9;entryX=1;entryY=0.85;" edge="1" parent="1" source="dataProxy" target="loginUi">
@@ -130,7 +130,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="eFirstRender" value="11–12 — first render: Apigee VerifyJWT ✔ then continues server-side — Authorization: Bearer JWT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0B5FA5;strokeWidth=1.6;dashed=1;fontSize=11;fontStyle=1;fontColor=#0B5FA5;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="authBroker" target="dataProxy">
+        <mxCell id="eFirstRender" value="11→12 — the ONE Apigee→API call per login: VerifyJWT ✔ → GET /session/bootstrap (Bearer JWT)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#0B5FA5;strokeWidth=1.6;dashed=1;fontSize=11;fontStyle=1;fontColor=#0B5FA5;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="authBroker" target="dataProxy">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="eDataPsc" value="southbound (private, never public)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="dataProxy" target="pscIlb">
@@ -145,10 +145,10 @@
         <mxCell id="eRevLooker" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="revProxy" target="looker">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="eLookerDb" value="8b — cache/PDT first, then query" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="looker" target="db">
+        <mxCell id="eLookerDb" value="15e — cache/PDT first, then query — only tenant rows" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1C2733;strokeWidth=1.6;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="looker" target="db">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="eReturn" value="8c — response: Looker → reverse proxy → GKE API → Apigee → LB → browser" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1A7F4E;strokeWidth=1.6;dashed=1;fontSize=11;fontColor=#1A7F4E;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="1" source="looker" target="user">
+        <mxCell id="eReturn" value="16 — bootstrap payload + dashboard back: GKE API → Apigee → LB → browser (cookie on THIS response)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1A7F4E;strokeWidth=1.6;dashed=1;fontSize=11;fontColor=#1A7F4E;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="1" source="looker" target="user">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="1380" y="1350" />
@@ -156,6 +156,16 @@
               <mxPoint x="190" y="90" />
             </Array>
           </mxGeometry>
+        </mxCell>
+
+        <mxCell id="registry" value="&lt;b&gt;BigQuery&lt;/b&gt;&lt;br&gt;tenant_registry&lt;br&gt;(partner → tenant)&lt;br&gt;MERGE-only writes" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="1090" width="200" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="eReg" value="13b — get_tenant(sub) · fail closed · 60s cache" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#9A5B00;strokeWidth=1.6;fontSize=11;fontColor=#9A5B00;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="gkeApi" target="registry">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="noteV31" value="&lt;b&gt;v3.1 single-call pattern&lt;/b&gt;&lt;br&gt;• one Apigee→API call per login (bootstrap)&lt;br&gt;• payload: tiles + Home SSO URL + navigation base&lt;br&gt;• afterwards: iframe navigations only — folder ACL + RLS&lt;br&gt;• session_length = JWT lifetime (3600) — re-login renews&lt;br&gt;• Apigee never calls Looker; GKE only, via reverse proxy" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=10;spacingTop=6;fillColor=#FFF7E8;strokeColor=#9A5B00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="70" y="910" width="270" height="150" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>

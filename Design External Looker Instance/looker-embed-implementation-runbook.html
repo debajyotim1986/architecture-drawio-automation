@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Looker Partner Embed — Implementation Runbook v3 (GKE + Tenancy Registry + Full Source)</title>
+<style>
+:root{
+  --ink:#1c2733; --ink-soft:#4a5a6a; --paper:#fdfdfb; --panel:#f2f4f6; --line:#c9d2da;
+  --accent:#0b5fa5; --accent-soft:#e3eef7; --ok:#1a7f4e; --ok-soft:#e7f5ee;
+  --warn:#9a5b00; --warn-soft:#fdf4e0; --bad:#b3352b; --bad-soft:#fbeae8;
+  --code-bg:#0f1b26; --code-ink:#d7e3ee;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;font-size:15.5px;line-height:1.6}
+.doc{max-width:1020px;margin:0 auto;padding:0 26px 90px}
+header.h{border-bottom:3px solid var(--accent);padding:38px 0 22px;margin-bottom:28px}
+header.h h1{margin:0 0 8px;font-size:27px;font-weight:650}
+header.h p{margin:0;color:var(--ink-soft);max-width:88ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.meta span{background:var(--accent-soft);color:var(--accent);border:1px solid #bcd6ea;border-radius:4px;padding:2px 10px;font-size:12.5px}
+nav.toc{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px 22px;margin-bottom:36px}
+nav.toc strong{display:block;margin-bottom:6px}
+nav.toc ol{margin:0;padding-left:22px;columns:2;column-gap:36px}
+nav.toc li{margin:3px 0;font-size:14px}
+nav.toc a{color:var(--accent);text-decoration:none}
+nav.toc a:hover{text-decoration:underline}
+section{margin-bottom:54px}
+h2{font-size:21px;font-weight:650;margin:0 0 4px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+h2 .n{color:var(--accent);margin-right:8px}
+h3{font-size:16.5px;font-weight:650;margin:26px 0 10px;color:var(--ink)}
+p{max-width:84ch}
+.lede{color:var(--ink-soft);margin-top:2px;margin-bottom:16px}
+code{background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:.87em;color:#173a56}
+pre{background:var(--code-bg);color:var(--code-ink);border-radius:6px;padding:16px 20px;overflow-x:auto;font-family:Consolas,Menlo,monospace;font-size:13px;line-height:1.55;margin:10px 0 18px}
+pre code{background:none;border:none;color:inherit;padding:0;font-size:inherit}
+.step{display:flex;gap:14px;margin:14px 0;align-items:flex-start}
+.step .no{flex:0 0 auto;width:58px;height:32px;border-radius:5px;background:var(--accent);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
+.step .body{flex:1;min-width:0}
+.step .body>b{display:block;margin-bottom:3px;font-size:15px}
+.step .body p{margin:4px 0;font-size:14.5px}
+.step .body ul{margin:6px 0;font-size:14px;padding-left:20px}
+.step .body li{margin:3px 0}
+.ui{background:#fff;border:1px solid var(--line);border-radius:4px;padding:1px 8px;font-size:.88em;font-weight:600;color:var(--accent);white-space:nowrap}
+.note{border:1px solid #e5cf9a;border-left:5px solid var(--warn);background:var(--warn-soft);border-radius:5px;padding:11px 16px;margin:14px 0;font-size:14px}
+.good{border:1px solid #b7d9c6;border-left:5px solid var(--ok);background:var(--ok-soft);border-radius:5px;padding:11px 16px;margin:14px 0;font-size:14px}
+.danger{border:1px solid #e3b6b1;border-left:5px solid var(--bad);background:var(--bad-soft);border-radius:5px;padding:11px 16px;margin:14px 0;font-size:14px}
+table{border-collapse:collapse;width:100%;font-size:13.8px;margin:12px 0;background:#fff}
+th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+th{background:var(--panel);font-weight:650}
+.check{list-style:none;padding-left:0}
+.check li{margin:7px 0;padding-left:30px;position:relative;font-size:14.5px}
+.check li::before{content:"☐";position:absolute;left:2px;top:-1px;font-size:17px;color:var(--accent)}
+.tree{font-family:Consolas,Menlo,monospace;font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 18px;white-space:pre;overflow-x:auto}
+footer{margin-top:56px;padding-top:14px;border-top:1px solid var(--line);color:var(--ink-soft);font-size:12.5px}
+/* ---------- syntax colors ---------- */
+pre code.hljs{background:transparent;padding:0}
+pre .hljs-comment{color:#7f9aae;font-style:italic}
+pre .hljs-string{color:#ce9178}
+pre .hljs-keyword,pre .hljs-selector-tag{color:#c586c0}
+pre .hljs-number,pre .hljs-literal{color:#b5cea8}
+pre .hljs-attr,pre .hljs-attribute,pre .hljs-variable{color:#9cdcfe}
+pre .hljs-built_in,pre .hljs-type{color:#4ec9b0}
+pre .hljs-title,pre .hljs-function .hljs-title{color:#dcdcaa}
+pre .hljs-section,pre .hljs-meta{color:#569cd6}
+/* PYTHON blocks — python-blue styling */
+pre.code-py{position:relative;background:#101c2e;border-left:6px solid #3572A5}
+pre.code-py::before{content:"PYTHON";position:absolute;top:8px;right:14px;font-size:10px;font-weight:700;letter-spacing:1.5px;color:#6fa8dc}
+pre.code-py .hljs-keyword{color:#569cd6}
+pre.code-py .hljs-string{color:#f1c40f}
+pre.code-py .hljs-comment{color:#6a9955}
+pre.code-py .hljs-title{color:#dcdcaa}
+pre.code-py .hljs-built_in{color:#4ec9b0}
+pre.code-py .hljs-number{color:#b5cea8}
+pre.code-py .hljs-params{color:#d7e3ee}
+/* SQL blocks — classic SQL-editor light styling */
+pre.code-sql{position:relative;background:#fffaf0;color:#1c2733;border:1px solid #e7d9ae;border-left:6px solid #d19a2f}
+pre.code-sql::before{content:"SQL";position:absolute;top:8px;right:14px;font-size:10px;font-weight:700;letter-spacing:1.5px;color:#b8860b}
+pre.code-sql .hljs-keyword{color:#0433fa;font-weight:700}
+pre.code-sql .hljs-type{color:#2b91af;font-weight:600}
+pre.code-sql .hljs-string{color:#a31515}
+pre.code-sql .hljs-comment{color:#1a7f1a;font-style:italic}
+pre.code-sql .hljs-number{color:#098658}
+pre.code-sql .hljs-operator{color:#555}
+/* ---------- fixed glossary panel ---------- */
+#glossbtn{position:fixed;top:14px;right:14px;z-index:60;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+#gloss{position:fixed;top:54px;right:14px;width:272px;max-height:calc(100vh - 76px);overflow-y:auto;background:#ffffff;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;padding:12px 15px;font-size:12.4px;line-height:1.45;box-shadow:0 3px 14px rgba(0,0,0,.10);z-index:55}
+#gloss h4{margin:0 0 4px;font-size:13.5px;color:var(--accent)}
+#gloss .hint{margin:0 0 8px;color:var(--ink-soft);font-size:11.3px;font-style:italic}
+#gloss dl{margin:0}
+#gloss dt{font-weight:700;color:var(--ink);margin-top:7px}
+#gloss dd{margin:1px 0 0 0;color:var(--ink-soft)}
+body.gloss-off #gloss{display:none}
+@media(max-width:1360px){#gloss{width:246px;font-size:11.8px}}
+@media print{#gloss,#glossbtn{display:none}}
+/* mermaid container */
+pre.mermaid{background:#ffffff;border:1px solid var(--line);border-radius:6px;padding:12px;text-align:center;color:var(--ink);font-size:14px}
+@media(max-width:720px){nav.toc ol{columns:1}}
+</style>
+</head>
+<body>
+<button id="glossbtn" onclick="document.body.classList.toggle('gloss-off')">Glossary ⇄</button>
+<aside id="gloss">
+<h4>Quick glossary</h4>
+<p class="hint">Stays pinned while you scroll. Toggle with the button above.</p>
+<dl>
+<dt>SPA</dt><dd>Single-Page Application — the portal web app: one page loaded once in the browser; JavaScript updates it (renders tiles, swaps the iframe) without full page reloads.</dd>
+<dt>iframe</dt><dd>An HTML "window inside the page" — the portal embeds Looker inside it. Setting its <b>src</b> loads a URL into that inner window only.</dd>
+<dt>JWT</dt><dd>JSON Web Token — a signed identity "ticket" (who you are, your roles, expiry). Anyone can read it; nobody can alter it without breaking the signature.</dd>
+<dt>JWKS</dt><dd>The public keys (at a URL) used to verify JWT signatures — so no shared secret is needed to check a token.</dd>
+<dt>Bearer token</dt><dd>Sending a JWT as <b>Authorization: Bearer …</b> — "the bearer of this ticket is authorized."</dd>
+<dt>SSO / signed embed URL</dt><dd>Single Sign-On. Here: a one-time, HMAC-signed Looker URL — opening it <i>is</i> the Looker login; no Looker password exists.</dd>
+<dt>HMAC / signature</dt><dd>A cryptographic stamp made with a secret key; any change to the stamped data invalidates it.</dd>
+<dt>nonce</dt><dd>A one-time random value inside the signed URL — makes it single-use (a second open fails).</dd>
+<dt>Apigee</dt><dd>Google's API gateway — the guarded front door: rate-limits, verifies JWTs, forwards requests. Never talks to Looker here.</dd>
+<dt>SpikeArrest</dt><dd>Apigee's rate-limiter — slows repeated attempts (the only brute-force control in this design).</dd>
+<dt>WAF</dt><dd>Web Application Firewall — edge filter for malicious traffic. Deliberately absent here (flagged risk).</dd>
+<dt>PSC</dt><dd>Private Service Connect — private Google-network wiring between services; no public internet path.</dd>
+<dt>mTLS</dt><dd>Mutual TLS — both sides show certificates, so the API knows the caller really is Apigee.</dd>
+<dt>GKE</dt><dd>Google Kubernetes Engine — the managed cluster running the UI app, the Data API, and Looker itself.</dd>
+<dt>kubelet / probes</dt><dd>The per-node Kubernetes agent; it calls /healthz &amp; /readyz to decide if a pod is alive and ready for traffic.</dd>
+<dt>NetworkPolicy</dt><dd>Cluster firewall rules per pod — enforces "only Apigee reaches the API; only the API reaches Looker."</dd>
+<dt>Workload Identity</dt><dd>Lets a pod act as a Google service account without any key file to steal or rotate.</dd>
+<dt>Service account</dt><dd>A non-human identity for software (the API pod, the Looker→BigQuery connection).</dd>
+<dt>Secret Manager</dt><dd>Google's vault for secrets (API keys, the embed secret, DB password) — fetched at startup, never in files.</dd>
+<dt>Tenancy registry (BigQuery)</dt><dd>A dedicated BigQuery dataset holding the partner→tenant mapping — the authority the API consults (fail-closed; MERGE-only writes).</dd>
+<dt>Tenant / multi-tenant</dt><dd>One partner organization; many tenants share one Looker while seeing only their own data.</dd>
+<dt>Fail closed</dt><dd>On doubt or error → deny (403). Never guess a default — errors are the safe failure.</dd>
+<dt>Allow-list</dt><dd>Explicit list of what's permitted; anything not on it is refused.</dd>
+<dt>SDK</dt><dd>Software Development Kit — here <b>looker_sdk</b>: a Python library that calls Looker's REST API for you.</dd>
+<dt>Reverse proxy</dt><dd>NGINX in front of Looker — the single internal doorway routing traffic to it.</dd>
+<dt>Embed user</dt><dd>The Looker account it auto-creates per <b>external_user_id</b> on first signed login — no password, fully brokered.</dd>
+<dt>external_user_id</dt><dd>Your stable key ("tenant::partnerId") that Looker allocates its own user against, forever.</dd>
+<dt>User attribute</dt><dd>A per-user value stamped at login (here <b>tenant_id</b>) — the key row-level security filters on.</dd>
+<dt>RLS / access_filter</dt><dd>Row-Level Security — LookML rule making Looker append <b>WHERE tenant_id='…'</b> to every query, invisibly.</dd>
+<dt>LookML</dt><dd>Looker's modeling language — defines tables, joins, and the security filters, in version-controlled code.</dd>
+<dt>Folder ACL</dt><dd>Access-Control List on a Looker folder — which groups may see its content; the dashboard-selection control after bootstrap.</dd>
+<dt>HttpOnly cookie</dt><dd>A browser cookie JavaScript cannot read — safe carrier for the session token.</dd>
+<dt>SameSite=None; Secure</dt><dd>Cookie settings allowing it inside a cross-site iframe, HTTPS-only — required for embeds.</dd>
+<dt>WebSocket</dt><dd>A persistent two-way connection — Looker streams tile results over it (proxy must allow the upgrade).</dd>
+<dt>CSP</dt><dd>Content-Security-Policy — the portal header that must whitelist the Looker host for the iframe (frame-src).</dd>
+<dt>TTL cache</dt><dd>Remembered values that expire after a Time-To-Live (60 s tenant, 5 min dashboards) — speed without staleness.</dd>
+<dt>ServiceCallout</dt><dd>An Apigee policy where the proxy itself calls another API mid-flow — how the one bootstrap call is made.</dd>
+</dl>
+</aside>
+<div class="doc">
+
+<header class="h">
+  <h1>Looker Partner Embed on GKE — Implementation Runbook <span style="color:var(--accent)">v3</span></h1>
+  <p>Every step from claim mapping to a working, tenant-isolated dashboard. <b>v3 adds</b>: the extended 16-step flow with steps 13–16 unpacked end-to-end, a Mermaid diagram of the entire setup, the <b>full application source</b> (Python-styled) with per-file deployment patterns, and a per-endpoint reference (caller, inputs, returns, errors). <b>v3.1 switches to the SINGLE-CALL pattern</b>: Apigee calls the API exactly once per login; all dashboard switching happens in-session with no further API calls. The tenancy registry stands: OSIS holds credentials only — the partner→tenant mapping is owned by the Data API in a dedicated BigQuery dataset and resolved by one internal query per login. Includes the full API project (code + deployment pattern), Looker setup, row-level security, reverse-proxy gotchas, and IAM binding at user / group / tenant level for dashboards and BigQuery.</p>
+  <div class="meta"><span>Looker (self-hosted in GKE)</span><span>looker_sdk API 4.0</span><span>Signed SSO Embed</span><span>FastAPI Data API</span><span>BigQuery tenancy registry</span><span>Workload Identity</span><span>Secret Manager</span><span>BigQuery IAM</span><span>v1.4 flow · steps 13–16</span></div>
+</header>
+
+<nav class="toc"><strong>Contents</strong>
+<ol>
+  <li><a href="#flow">The 16-step flow — extended, steps 13–16 in detail</a></li>
+  <li><a href="#mmd">The entire setup — Mermaid diagram</a></li>
+  <li><a href="#map">Roadmap — the whole series at a glance</a></li>
+  <li><a href="#p0">Part 0 — Prerequisites &amp; inventory</a></li>
+  <li><a href="#pa">Part A — Identity mapping &amp; ROLE_MAP</a></li>
+  <li><a href="#pb">Part B — GKE Data API: registry, code, deployment</a></li>
+  <li><a href="#pc">Part C — Row-level security (WHERE tenant_id = …)</a></li>
+  <li><a href="#pd">Part D — Looker one-time setup</a></li>
+  <li><a href="#pe">Part E — Reverse proxy / GKE gotchas</a></li>
+  <li><a href="#pf">Part F — IAM binding: user / group / tenant</a></li>
+  <li><a href="#pg">Part G — Verification &amp; troubleshooting</a></li>
+</ol>
+</nav>
+
+<!-- ==================== FLOW ==================== -->
+<section id="flow">
+<h2><span class="n">Flow.</span>The 16-step flow — extended for Looker access (13–16 in full detail)</h2>
+<p class="lede">Steps 1–12 as agreed, then the part this runbook implements — 13 to 16 — broken down far enough that anyone can trace a click to a row of data and back.</p>
+
+<h3>Step 1 · the click and the front door</h3>
+<div class="step"><div class="no">1a</div><div class="body"><b>User clicks the portal link</b> (bookmark, email, or partner site). DNS resolves <code>portal.yourdomain.com</code> to the <b>Global External HTTPS Load Balancer</b>'s anycast IP; the browser starts the TLS handshake against the LB's Google-managed certificate.</div></div>
+<div class="step"><div class="no">1b</div><div class="body"><b>Why this LB exists at all:</b> it is required <b>Apigee X plumbing</b> — the external Application LB (L7) with a <b>PSC Network Endpoint Group</b> is how the Apigee X runtime is exposed on a custom hostname. (An L4 passthrough LB was evaluated and rejected — Apigee X exposure requires L7 + PSC NEG, and L4 would also lose HTTP routing and managed certs.)</div></div>
+<div class="step"><div class="no">1c</div><div class="body"><b>What is deliberately NOT here:</b> Akamai and Cloud Armor were <b>removed by decision</b> — there is no edge WAF and no edge rate-limiting. Consequence: <b>Apigee SpikeArrest (5b) is the only brute-force control</b> in the whole chain — flagged risk, with Cloud Armor re-attachable later at this exact point with zero redesign.</div></div>
+
+<h3>Step 2 · Apigee external gateway — the only internet-facing surface</h3>
+<div class="step"><div class="no">2a</div><div class="body"><b>The LB forwards through the PSC NEG to the Apigee external gateway proxy.</b> Nothing else in the estate accepts internet traffic: not the UI app, not the internal proxy, not the GKE API, not Looker. Every request — human or machine — enters here.</div></div>
+<div class="step"><div class="no">2b</div><div class="body"><b>Route match decides the lane:</b> <code>GET /login</code> and <code>GET /static/**</code> → the login-UI lane (no JWT required, step 3). <code>/auth/login</code> → the credential lane (step 5). <code>/api/**</code> → the JWT-protected data lane (step 11). Unknown paths → clean 404 at the gateway; nothing leaks southbound.</div></div>
+
+<h3>Step 3 · login page served from inside GKE</h3>
+<div class="step"><div class="no">3a</div><div class="body"><b>Apigee proxies the /login request to the UI App hosted internally in GKE.</b> The UI App is a private pod behind the internal gateway — it has no public IP and no internet route; only the Apigee path reaches it.</div></div>
+<div class="step"><div class="no">3b</div><div class="body"><b>The login page (HTML/JS/CSS) returns to the browser</b> through the same chain. One app, two duties: it <i>serves</i> the login page now and will <i>receive</i> the submit next — there is no separate static bucket/CDN in this design.</div></div>
+
+<h3>Step 4 · the only manual action in the entire flow</h3>
+<div class="step"><div class="no">4a</div><div class="body"><b>User types userid + password and presses Sign in.</b> This is the single thing a human ever enters. Everything after — tenant, dashboards, identity, permissions — is derived server-side; the user never supplies or sees any of it.</div></div>
+<div class="step"><div class="no">4b</div><div class="body"><b>The submit leaves the browser as <code>POST /auth/login</code> over TLS</b> to the same portal hostname — back through the LB into the Apigee external proxy. Credentials exist in transit only; the browser stores nothing.</div></div>
+
+<h3>Step 5 · front-door checks, then hand-off to the UI app</h3>
+<div class="step"><div class="no">5a</div><div class="body"><b>The external proxy inspects the submit BEFORE credentials travel further:</b> per-IP <b>SpikeArrest</b> (the brute-force control — see 1c), <b>JSONThreatProtection</b> (malformed/oversized payloads), and input validation (shape of userid/password fields).</div></div>
+<div class="step"><div class="no">5b</div><div class="body"><b>Failures die at the gate</b> with clean faults — the request never reaches identity systems. Passes → <b>the submit is forwarded to the UI App in GKE</b>, which owns the next hop.</div></div>
+
+<h3>Step 6 · UI app → Apigee INTERNAL proxy</h3>
+<div class="step"><div class="no">6a</div><div class="body"><b>From inside GKE, the UI App passes the credentials to the Apigee INTERNAL proxy.</b> This proxy has no external hostname and no PSC exposure to the internet — <b>the browser can never reach it directly</b>, which is the point: the credential path from here on runs entirely on private networking.</div></div>
+<div class="step"><div class="no">6b</div><div class="body"><b>Why the chain goes back through Apigee at all:</b> the internal proxy is the policy point for the identity leg — consistent fault mapping, logging, and one governed door in front of ID&amp;A instead of ad-hoc service-to-service calls.</div></div>
+
+<h3>Step 7 · internal proxy → ID&amp;A API</h3>
+<div class="step"><div class="no">7a</div><div class="body"><b>The internal proxy calls the ID&amp;A API</b> (the identity team's service) with the credentials. Contract per Part 0.3: ID&amp;A owns authentication only — it knows <i>who</i> the partner is, not <i>which tenant</i> they belong to.</div></div>
+
+<h3>Step 8 · ID&amp;A validates against OSIS</h3>
+<div class="step"><div class="no">8a</div><div class="body"><b>ID&amp;A checks userid + password against the OSIS database</b> — the credential store, and <i>only</i> a credential store: no tenant mapping lives there (that's the tenancy registry's job, step 13b).</div></div>
+<div class="step"><div class="no">8b</div><div class="body"><b>On failure</b>, the result maps to clean faults on the way back — <code>401</code> bad credentials, <code>423</code> account locked, <code>503</code> auth service down — and the browser returns to the login form. Repeated failures are throttled by SpikeArrest (5a), not by an edge WAF (there is none, 1c).</div></div>
+
+<h3>Steps 9–10 · JWT minted — and it never detours to the browser</h3>
+<div class="step"><div class="no">9a</div><div class="body"><b>✔ Valid → ID&amp;A creates the signed JWT:</b> claims are <code>sub</code> (the partner ID — the only identity field this design needs), <code>roles</code>, optional names, plus standard <code>exp/iss/aud</code>. <b>No <code>tenant_id</code> claim</b> — the Data API resolves that from its own registry at step 13b.</div></div>
+<div class="step"><div class="no">10a</div><div class="body"><b>The JWT travels back up the same private chain to Apigee — with NO browser detour.</b> Apigee holds the token and continues the flow server-side toward the first dashboard render; the browser is still waiting on its login submit. (The HttpOnly cookie is set only at step 16a, on the dashboard response — not here.)</div></div>
+
+<h3>Step 11 · Apigee VerifyJWT — the gate every /api/** request passes forever</h3>
+<div class="step"><div class="no">11a</div><div class="body"><b>Apigee's VerifyJWT policy validates the token</b>: signature against ID&amp;A's <b>JWKS URI</b> (public keys, so no shared secret), plus <code>exp</code>, <code>iss</code>, <code>aud</code>. Invalid/expired → 401 → the browser lands back on /login.</div></div>
+<div class="step"><div class="no">11b</div><div class="body"><b>This gate is permanent:</b> the session-bootstrap call at each login and every ALT external-application call enter at exactly this step with a token. (Human dashboard clicks after login never come back here — they ride the live Looker session, 16b.) Login (1–10) is just the way humans obtain a token.</div></div>
+
+<h3>Step 12 · Apigee → GKE Data API — exactly ONE call per login</h3>
+<div class="step"><div class="no">12a</div><div class="body"><b>Apigee strips ALL client-supplied identity headers</b> (nothing the browser sent survives), then injects trusted headers from the <i>verified</i> claims — <code>X-User-Id</code>, <code>X-Roles</code> — purely informational: the API re-derives everything from the JWT itself (13a) and resolves tenant on its own (13b).</div></div>
+<div class="step"><div class="no">12b</div><div class="body"><b>The call goes out as <code>Authorization: Bearer &lt;JWT&gt;</code> over PSC/mTLS</b> to the internal gateway fronting the Data API. The NetworkPolicy (B.21) makes this the <i>only</i> admissible path — no other pod, VPC peer, or internet source can reach the API. In the single-call pattern this request is <code>GET /api/v1/session/bootstrap</code> — the only Apigee→API call of the entire session. Hand-off complete: steps 13–16 below are what this runbook builds.</div></div>
+
+<h3>Step 13 · the API re-establishes trust — in code, not config</h3>
+<div class="step"><div class="no">13a</div><div class="body"><b>JWT re-validated inside the pod</b> (<code>app/auth.py</code>): signature fetched-and-cached from the JWKS URL, <code>exp/iss/aud/sub</code> required, <code>roles</code> claim must exist. Defense in depth — even if something ever bypassed Apigee, the pod refuses on its own.</div></div>
+<div class="step"><div class="no">13b</div><div class="body"><b>Tenant resolved from the tenancy registry</b> (<code>app/registry.py</code>): <code>get_tenant(sub)</code> — one internal SELECT on the BigQuery <code>tenant_registry</code> dataset joining <code>partner_users → tenants</code>, cached 60&nbsp;s per partner; with the single-call pattern this runs once per login, so BigQuery’s lookup latency never touches a click. <b>Not</b> an extra network hop in the flow; the JWT carries no tenant claim (OSIS doesn't know tenants — the registry is the authority).</div></div>
+<div class="step"><div class="no">13c</div><div class="body"><b>Fail closed:</b> unknown partner, disabled partner, or suspended tenant → <code>403 partner not provisioned</code>. Never a default tenant — an error is the safe failure. (Flipping a registry <code>status</code> is your ≤60&nbsp;s kill switch.)</div></div>
+
+<h3>Step 14 · from claims to a one-time Looker key</h3>
+<div class="step"><div class="no">14a</div><div class="body"><b>Dashboard resolved</b> (<code>app/looker.py</code>): the tenant's Looker folder <code>Partners/{tenant}</code> is listed via the SDK (5-min cache). First render (no click yet) → the dashboard titled <b>"Home"</b>, else the first in the folder. The allow-list governs this bootstrap selection; after bootstrap, dashboard switching is authorized by Looker folder ACLs (F.8/F.9) — see 16b.</div></div>
+<div class="step"><div class="no">14b</div><div class="body"><b>Capability chosen</b>: <code>roles[0]</code> from the JWT → hardcoded <code>ROLE_MAP</code> → <code>permissions</code> + <code>models</code>. Unknown role → 403.</div></div>
+<div class="step"><div class="no">14c</div><div class="body"><b>The signed SSO embed URL is minted</b> — <code>sdk.create_sso_embed_url(...)</code> with: <code>external_user_id = "{tenant}::{sub}"</code> (the identity Looker will allocate its own user for), <code>external_group_id = tenant</code>, <code>user_attributes = {"tenant_id": tenant}</code> (the RLS key), permissions/models, <code>session_length=3600</code>, <code>force_logout_login=True</code>. This call goes <b>from the GKE API through the reverse proxy to Looker</b> — Apigee is never involved with Looker in any direction. Looker signs the payload server-side with the <b>embed secret</b> and returns a URL valid for seconds, single-use (nonce). <b>This is the programmatic twin of the embed URL a Looker admin can generate by hand in the Looker UI</b> (a dashboard’s Embed / SSO-URL generator, or the docs’ sso-url tool) — same mechanism, but here it is minted <b>automatically, per user, per login, at exactly this stage</b>: inside the bootstrap, wire call <code>POST /api/4.0/embed/sso_url</code> (B.16b), before the bootstrap response is assembled. Nobody ever generates one manually in production.</div></div>
+<div class="step"><div class="no">14d</div><div class="body"><b>Returned upstream — the bootstrap payload</b>: <code>{tenant, dashboards[], home_dashboard_id, embed_url, navigation{embed_base, embed_domain, session_length}}</code> → Apigee → browser. One response carries everything the portal will need for the whole session; the signed URL is never logged or cached anywhere.</div></div>
+
+<h3>Step 15 · opening the URL IS the Looker login</h3>
+<div class="step"><div class="no">15a</div><div class="body"><b>The SPA sets the URL as the iframe <code>src</code>.</b> The browser loads it against the public embed host → reverse proxy → Looker.</div></div>
+<div class="step"><div class="no">15b</div><div class="body"><b>Looker verifies</b> the HMAC signature with the same embed secret, checks <code>time</code>/<code>nonce</code> (replay), and checks the parent origin against the <b>Embedded Domain Allowlist</b> (D.5). Any mismatch → refused frame.</div></div>
+<div class="step"><div class="no">15c</div><div class="body"><b>Identity allocation</b>: Looker looks up <code>external_user_id</code>. First ever visit → it <b>auto-creates an embed user</b> (its own internal user_id, keyed to yours forever). Returning visit → same user matched, and groups/permissions/attributes are <b>re-stamped from this login's payload</b> (grant changes apply on next login). Auto-added to <b>"Embed Group {tenant}"</b> → which folder ACLs (F.8) recognize.</div></div>
+<div class="step"><div class="no">15d</div><div class="body"><b>Session opens in the iframe</b> — Looker sets its session cookie (<code>SameSite=None; Secure</code>, E.1) and renders the requested dashboard shell.</div></div>
+<div class="step"><div class="no">15e</div><div class="body"><b>Every tile queries through RLS</b>: tiles stream over WebSockets (E.3); for each query, the LookML <code>access_filter</code> binds <code>orders.tenant_id</code> to the user attribute — Looker itself appends <code>WHERE orders.tenant_id = 'acme'</code>. The user cannot see, remove, or bypass it; it applies to drill-downs, downloads and merges too.</div></div>
+<div class="step"><div class="no">15f</div><div class="body"><b>Data comes back private</b>: the Looker connection runs as the single <code>looker-bq-sa</code> service account (jobUser@project + dataViewer@dataset only, F.2) against BigQuery / Cloud SQL over private IP. Only tenant-filtered rows flow up into the tiles.</div></div>
+
+<h3>Step 16 · the response, the cookie, and every request after</h3>
+<div class="step"><div class="no">16a</div><div class="body"><b>The dashboard travels back</b>: Looker → reverse proxy → (iframe content directly to the browser); the portal page around it came back through GKE API → Apigee → LB. On <b>this</b> response the portal's <b>HttpOnly session cookie</b> (carrying the JWT) is set — not earlier.</div></div>
+<div class="step"><div class="no">16b</div><div class="body"><b>Every dashboard switch after this is an iframe navigation — no Apigee, no GKE API, no new signed URL.</b> The SPA sets <code>iframe.src = navigation.embed_base + id + "?embed_domain=…"</code> (values from the bootstrap payload). The browser already holds the Looker embed-session cookie (15d): Looker authenticates the navigation from the session, <b>authorizes it via folder ACLs</b> (the user's embed group can open only <code>Partners/{tenant}</code>, F.8/F.9), and RLS applies to every tile query exactly as in 15e. A hand-crafted id from another tenant's folder → Looker refuses the page.</div></div>
+<div class="step"><div class="no">16c</div><div class="body"><b>What still reaches the API after login: nothing.</b> One bootstrap per login is the entire Apigee→GKE budget. ALT external applications are the exception by nature — each of their calls enters at step 11 with their own token. Registry suspension (13c) blocks a partner's <i>next login</i> within ≤60&nbsp;s; it does not kill a <i>live</i> embed session — for an immediate hard kill, disable the embed user in Looker admin (the session dies on its next request).</div></div>
+<div class="step"><div class="no">16d</div><div class="body"><b>Expiry — aligned by design:</b> <code>session_length=3600</code> matches the JWT lifetime: one login buys one working hour. When the Looker session lapses, the iframe bounces to a login redirect; the SPA detects it (or the timer from <code>navigation.session_length</code> fires) and returns the user to <code>/login</code> — a fresh login repeats steps 1–16 and issues exactly one new bootstrap. Grant changes (new dashboards, role changes) therefore take effect at next login, not mid-session — an accepted trade of the single-call pattern.</div></div>
+<div class="good"><b>ALT — external application:</b> a system already holding a valid JWT (machine login with ID&amp;A) calls <code>/api/**</code> through the <b>same front door</b> and joins at step 11; steps 1–10 are skipped. It can <b>never</b> call the GKE API directly — the NetworkPolicy admits only the Apigee path — and it passes the same registry + allow-list + RLS chain as a human. Machine partners need a <code>partner_users</code> row like anyone else.</div>
+</section>
+
+<!-- ==================== MERMAID ==================== -->
+<section id="mmd">
+<h2><span class="n">Map-2.</span>The entire setup — one diagram</h2>
+<p class="lede">Everything this runbook builds and touches, with the step numbers on the edges. (Renders in the browser via Mermaid; static text below if offline.)</p>
+<pre class="mermaid">
+flowchart LR
+  subgraph NET["Internet"]
+    U["Partner Browser<br/>(userid+password, clicks only)"]
+    XA["External App<br/>(holds JWT)"]
+  end
+  subgraph EDGE["GCP Edge + Apigee"]
+    LB["Global External HTTPS LB<br/>L7 + PSC NEG"]
+    APX["Apigee EXTERNAL proxy<br/>SpikeArrest · VerifyJWT(11)"]
+    API2["Apigee INTERNAL proxy"]
+  end
+  subgraph IDP["Identity (ID&amp;A team)"]
+    IDA["ID&amp;A API"]
+    OSIS[("OSIS DB<br/>credentials only")]
+  end
+  subgraph GKE["GKE cluster"]
+    UI["UI App (login page)"]
+    DAPI["partner-data-api (FastAPI)<br/>auth.py · registry.py · looker.py"]
+    RP["NGINX reverse proxy"]
+    LK["Looker (self-hosted)"]
+  end
+  subgraph GSVC["GCP services"]
+    SM["Secret Manager<br/>4 secrets"]
+    REG[("BigQuery<br/>tenant_registry dataset")]
+    BQ[("BigQuery partner_dwh<br/>private IP")]
+  end
+  U -- "1" --> LB --> APX
+  APX -- "2–5 login page + submit" --> UI
+  UI -- "6 credentials" --> API2
+  API2 -- "7" --> IDA
+  IDA -- "8" --> OSIS
+  IDA -- "9–10 JWT (no browser detour)" --> APX
+  XA -. "ALT: joins at 11" .-> LB
+  APX -- "12 ONE call: /session/bootstrap" --> DAPI
+  DAPI -- "13b get_tenant(sub)" --> REG
+  DAPI -- "startup: secrets via WI" --> SM
+  DAPI -- "14 create_sso_embed_url" --> RP --> LK
+  LK -- "15e RLS: WHERE tenant_id=…" --> BQ
+  LK -- "15–16 dashboard iframe" --> U
+  U -. "16b tile clicks: iframe → live Looker session (no API)" .-> RP
+</pre>
+</section>
+
+
+<!-- ==================== ROADMAP ==================== -->
+<section id="map">
+<h2><span class="n">Map.</span>Roadmap — the whole series at a glance</h2>
+<p class="lede">Recommended <b>execution order</b> (Part D runs before Part B finishes — D.2/D.4 produce the secret values B.2 stores). Amber gates are hard stop-points.</p>
+
+<div style="border:1px solid var(--line);border-radius:6px;background:#fff;padding:14px;overflow-x:auto;margin:14px 0 6px;">
+<svg viewBox="0 0 960 620" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:940px;display:block;margin:0 auto;font-family:'Segoe UI',Arial,sans-serif;">
+  <defs>
+    <marker id="rarr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0b5fa5"/>
+    </marker>
+    <marker id="warr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9a5b00"/>
+    </marker>
+  </defs>
+  <rect x="15" y="40" width="210" height="170" rx="8" fill="#f8fafc" stroke="#c9d2da" stroke-width="1.4"/>
+  <rect x="15" y="40" width="210" height="34" rx="8" fill="#1c2733"/>
+  <text x="120" y="62" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">Part 0 · Prerequisites</text>
+  <text x="30" y="96" font-size="11.5" fill="#1c2733">• Inventory: project, cluster, URLs</text>
+  <text x="30" y="116" font-size="11.5" fill="#1c2733">• Claims contract: sub only</text>
+  <text x="30" y="136" font-size="11.5" fill="#1c2733">• external_user_id convention</text>
+  <text x="30" y="156" font-size="11.5" fill="#1c2733">• Upstream flow (1–13) live</text>
+  <text x="30" y="188" font-size="10.5" font-weight="700" fill="#4a5a6a">5 steps · 0.1–0.5</text>
+  <line x1="225" y1="125" x2="248" y2="125" stroke="#0b5fa5" stroke-width="2" marker-end="url(#rarr)"/>
+  <rect x="252" y="40" width="210" height="170" rx="8" fill="#f8fafc" stroke="#c9d2da" stroke-width="1.4"/>
+  <rect x="252" y="40" width="210" height="34" rx="8" fill="#0b5fa5"/>
+  <text x="357" y="62" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">Part A · Identity Mapping</text>
+  <text x="267" y="96" font-size="11.5" fill="#1c2733">• Claim/registry → embed fields</text>
+  <text x="267" y="116" font-size="11.5" fill="#1c2733">• Hardcoded ROLE_MAP</text>
+  <text x="267" y="136" font-size="11.5" fill="#1c2733">• Fail-closed validation</text>
+  <text x="267" y="156" font-size="11.5" fill="#1c2733">• Unit tests incl. collision</text>
+  <text x="267" y="188" font-size="10.5" font-weight="700" fill="#4a5a6a">4 steps · A.1–A.4</text>
+  <line x1="462" y1="125" x2="485" y2="125" stroke="#0b5fa5" stroke-width="2" marker-end="url(#rarr)"/>
+  <rect x="489" y="40" width="210" height="170" rx="8" fill="#f8fafc" stroke="#c9d2da" stroke-width="1.4"/>
+  <rect x="489" y="40" width="210" height="34" rx="8" fill="#0b5fa5"/>
+  <text x="594" y="62" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">Part D · Looker Setup</text>
+  <text x="504" y="96" font-size="11.5" fill="#1c2733">• Service user + API3 keys</text>
+  <text x="504" y="116" font-size="11.5" fill="#1c2733">• Embed SSO ON + embed secret</text>
+  <text x="504" y="136" font-size="11.5" fill="#1c2733">• Domain allowlist (portal)</text>
+  <text x="504" y="156" font-size="11.5" fill="#1c2733">• Model/permission sets + roles</text>
+  <text x="504" y="188" font-size="10.5" font-weight="700" fill="#4a5a6a">11 steps · D.1–D.11</text>
+  <line x1="699" y1="125" x2="722" y2="125" stroke="#0b5fa5" stroke-width="2" marker-end="url(#rarr)"/>
+  <rect x="726" y="40" width="210" height="170" rx="8" fill="#f8fafc" stroke="#c9d2da" stroke-width="1.4"/>
+  <rect x="726" y="40" width="210" height="34" rx="8" fill="#0b5fa5"/>
+  <text x="831" y="62" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">Part B · GKE Data API</text>
+  <text x="741" y="96" font-size="11.5" fill="#1c2733">• Secrets · Workload Identity</text>
+  <text x="741" y="116" font-size="11.5" fill="#1c2733">• Tenancy registry (BigQuery)</text>
+  <text x="741" y="136" font-size="11.5" fill="#1c2733">• FastAPI code + endpoints</text>
+  <text x="741" y="156" font-size="11.5" fill="#1c2733">• Deploy: WI, probes, NetPol</text>
+  <text x="741" y="188" font-size="10.5" font-weight="700" fill="#4a5a6a">24 steps · B.1–B.24</text>
+  <path d="M 594 216 L 594 240 L 831 240 L 831 216" fill="none" stroke="#9a5b00" stroke-width="1.6" stroke-dasharray="6,4" marker-end="url(#warr)"/>
+  <text x="712" y="234" text-anchor="middle" font-size="10.5" font-weight="700" fill="#9a5b00">D.2 API keys + D.4 embed secret → stored in B.2</text>
+  <rect x="726" y="256" width="210" height="34" rx="6" fill="#fdf4e0" stroke="#9a5b00" stroke-width="1.4"/>
+  <text x="831" y="278" text-anchor="middle" font-size="11.5" font-weight="700" fill="#9a5b00">⛔ GATES B.6 secret · B.10 tenant</text>
+  <path d="M 831 296 L 831 318 L 120 318 L 120 344" fill="none" stroke="#0b5fa5" stroke-width="2" marker-end="url(#rarr)"/>
+  <rect x="15" y="348" width="210" height="170" rx="8" fill="#f8fafc" stroke="#c9d2da" stroke-width="1.4"/>
+  <rect x="15" y="348" width="210" height="34" rx="8" fill="#1a7f4e"/>
+  <text x="120" y="370" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">Part C · Row-Level Security</text>
+  <text x="30" y="404" font-size="11.5" fill="#1c2733">• tenant_id user attribute</text>
+  <text x="30" y="424" font-size="11.5" fill="#1c2733">• access_filter on EVERY explore</text>
+  <text x="30" y="444" font-size="11.5" fill="#1c2733">• Liquid only for derived tables</text>
+  <text x="30" y="464" font-size="11.5" fill="#1c2733">• WHERE tenant_id=… auto-applied</text>
+  <text x="30" y="496" font-size="10.5" font-weight="700" fill="#4a5a6a">9 steps · C.1–C.9</text>
+  <line x1="225" y1="433" x2="248" y2="433" stroke="#0b5fa5" stroke-width="2" marker-end="url(#rarr)"/>
+  <rect x="252" y="348" width="210" height="170" rx="8" fill="#f8fafc" stroke="#c9d2da" stroke-width="1.4"/>
+  <rect x="252" y="348" width="210" height="34" rx="8" fill="#1a7f4e"/>
+  <text x="357" y="370" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">Part E · Proxy Gotchas</text>
+  <text x="267" y="404" font-size="11.5" fill="#1c2733">• SameSite=None;Secure cookies</text>
+  <text x="267" y="424" font-size="11.5" fill="#1c2733">• X-Forwarded-Proto / Host</text>
+  <text x="267" y="444" font-size="11.5" fill="#1c2733">• WebSocket upgrade block</text>
+  <text x="267" y="464" font-size="11.5" fill="#1c2733">• Portal CSP frame-src</text>
+  <text x="267" y="496" font-size="10.5" font-weight="700" fill="#4a5a6a">5 steps · E.1–E.5</text>
+  <line x1="462" y1="433" x2="485" y2="433" stroke="#0b5fa5" stroke-width="2" marker-end="url(#rarr)"/>
+  <rect x="489" y="348" width="210" height="170" rx="8" fill="#f8fafc" stroke="#c9d2da" stroke-width="1.4"/>
+  <rect x="489" y="348" width="210" height="34" rx="8" fill="#1a7f4e"/>
+  <text x="594" y="370" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">Part F · IAM Binding</text>
+  <text x="504" y="404" font-size="11.5" fill="#1c2733">• BQ: jobUser + dataViewer@ds</text>
+  <text x="504" y="424" font-size="11.5" fill="#1c2733">• Folders ↔ Embed Group {tenant}</text>
+  <text x="504" y="444" font-size="11.5" fill="#1c2733">• User/group/tenant lanes + RACI</text>
+  <text x="504" y="464" font-size="11.5" fill="#1c2733">• Registry ownership row</text>
+  <text x="504" y="496" font-size="10.5" font-weight="700" fill="#4a5a6a">12 steps · F.1–F.12</text>
+  <line x1="699" y1="433" x2="722" y2="433" stroke="#0b5fa5" stroke-width="2" marker-end="url(#rarr)"/>
+  <rect x="726" y="348" width="210" height="170" rx="8" fill="#f8fafc" stroke="#c9d2da" stroke-width="1.4"/>
+  <rect x="726" y="348" width="210" height="34" rx="8" fill="#1a7f4e"/>
+  <text x="831" y="370" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">Part G · Verification</text>
+  <text x="741" y="404" font-size="11.5" fill="#1c2733">• Seed test_a / test_b tenants</text>
+  <text x="741" y="424" font-size="11.5" fill="#1c2733">• Registry fail-closed checks</text>
+  <text x="741" y="444" font-size="11.5" fill="#1c2733">• 16-point end-to-end checklist</text>
+  <text x="741" y="464" font-size="11.5" fill="#1c2733">• Symptom → cause table</text>
+  <text x="741" y="496" font-size="10.5" font-weight="700" fill="#4a5a6a">Definition of done</text>
+  <rect x="15" y="536" width="210" height="34" rx="6" fill="#fdf4e0" stroke="#9a5b00" stroke-width="1.4"/>
+  <text x="120" y="558" text-anchor="middle" font-size="11.5" font-weight="700" fill="#9a5b00">⛔ GATES C.8 CI + C.9 leak test</text>
+  <rect x="726" y="536" width="210" height="34" rx="6" fill="#fdf4e0" stroke="#9a5b00" stroke-width="1.4"/>
+  <text x="831" y="558" text-anchor="middle" font-size="11.5" font-weight="700" fill="#9a5b00">⛔ GATE G-2 all boxes ticked</text>
+  <line x1="120" y1="518" x2="120" y2="534" stroke="#9a5b00" stroke-width="1.4" stroke-dasharray="5,3"/>
+  <line x1="831" y1="518" x2="831" y2="534" stroke="#9a5b00" stroke-width="1.4" stroke-dasharray="5,3"/>
+  <text x="480" y="602" text-anchor="middle" font-size="11.5" font-style="italic" fill="#4a5a6a">After G: tenant onboarding = registry rows + seed data → tenant folder + Manage Access → issue logins. Nothing else.</text>
+</svg>
+</div>
+
+<div class="note"><b>Reading vs execution order:</b> the document reads 0→A→B→…→G, but run <b>Part D first among the build parts</b> (D.1–D.5 minimum) because B.2 cannot store the API keys and embed secret until D.2/D.4 produce them. Once Part B's gates pass, Parts C, E and F can run in parallel by different owners (Analytics, Platform, Platform+Data).</div>
+</section>
+
+<!-- ==================== PART 0 ==================== -->
+<section id="p0">
+<h2><span class="n">Part 0.</span>Prerequisites &amp; inventory</h2>
+<p class="lede">Collect these before touching anything. Every later step assumes they exist.</p>
+
+<div class="step"><div class="no">0.1</div><div class="body"><b>Confirm the upstream flow is live (steps 1–13 of the v1.4 flow).</b>
+<p>Your GKE Data API must already receive requests that carry a <b>validated JWT</b> (re-validated in the API, step 13) forwarded by Apigee. If this isn't true yet, stop — everything below builds on it.</p></div></div>
+
+<div class="step"><div class="no">0.2</div><div class="body"><b>Inventory the identifiers.</b>
+<table>
+<tr><th>Item</th><th>Example used throughout</th><th>You fill in</th></tr>
+<tr><td>GCP project</td><td><code>acme-analytics-prod</code></td><td></td></tr>
+<tr><td>GKE cluster / region</td><td><code>portal-prod</code> / <code>asia-south1</code></td><td></td></tr>
+<tr><td>Namespace / KSA of the Data API</td><td><code>data-api</code> / <code>data-api-sa</code></td><td></td></tr>
+<tr><td>Namespace of Looker</td><td><code>looker</code></td><td></td></tr>
+<tr><td>Internal Looker URL (via reverse proxy)</td><td><code>https://looker-rp.looker.svc.cluster.local:9999</code></td><td></td></tr>
+<tr><td>Public portal origin (iframe parent)</td><td><code>https://portal.yourdomain.com</code></td><td></td></tr>
+<tr><td><b>BigQuery dataset — tenancy registry</b></td><td><code>tenant_registry</code> (separate from <code>partner_dwh</code>; Looker SA has NO access)</td><td></td></tr>
+<tr><td>Looker "Partners" root folder id</td><td><code>142</code> (from the folder URL)</td><td></td></tr>
+<tr><td>LookML project / model</td><td><code>partner_analytics</code></td><td></td></tr>
+<tr><td>BigQuery dataset</td><td><code>partner_dwh</code></td><td></td></tr>
+<tr><td>Tenant key column in fact tables</td><td><code>tenant_id</code></td><td></td></tr>
+</table></div></div>
+
+<div class="step"><div class="no">0.3</div><div class="body"><b>Freeze the JWT claims contract with ID&amp;A (one meeting, in writing) — v2: sub only.</b>
+<ul>
+<li><code>sub</code> = the partner user ID as stored in OSIS (e.g. <code>PRT-ACME-0071</code>) — stable, never reused. <b>This is the only identity field required from ID&amp;A.</b></li>
+<li><b>No <code>tenant_id</code> claim is expected</b> — OSIS does not hold the partner→tenant mapping. The Data API resolves the tenant from its own <b>tenancy registry</b> (B-3, a BigQuery dataset) keyed by <code>sub</code>.</li>
+<li><code>roles</code> = array (e.g. <code>["viewer"]</code>, <code>["analyst"]</code>).</li>
+<li>Optional: <code>given_name</code>, <code>family_name</code>. Standard: <code>exp</code>, <code>iss</code>, <code>aud</code>, JWKS URI.</li>
+</ul>
+<div class="note"><b>Freeze these now.</b> <code>sub</code> must be stable and never recycled. The <code>tenant_id</code> values you define in the registry become the RLS key and part of every <code>external_user_id</code> — renaming a tenant later orphans users and content.</div></div></div>
+
+<div class="step"><div class="no">0.4</div><div class="body"><b>Decide the <code>external_user_id</code> convention and write it down.</b>
+<p>Recommended: <code>{tenant_id}::{sub}</code> → <code>acme::PRT-ACME-0071</code> (tenant from the registry, sub from the JWT). Rules: globally unique across all tenants, forever; never recycled to a different human; ≤ 255 chars; no PII you can't keep.</p></div></div>
+
+<div class="step"><div class="no">0.5</div><div class="body"><b>Tooling:</b> <code>gcloud</code> (authed, correct project), <code>kubectl</code> (cluster context), <code>bq</code> CLI, and Looker admin access on the GKE-hosted instance.</div></div>
+</section>
+
+<!-- ==================== PART A ==================== -->
+<section id="pa">
+<h2><span class="n">Part A.</span>Identity mapping &amp; ROLE_MAP</h2>
+<p class="lede">Nothing is invented at embed time — every field is a deterministic function of the verified JWT plus one registry lookup. Implemented as pure, unit-tested functions.</p>
+
+<div class="step"><div class="no">A.1</div><div class="body"><b>The mapping table (v2 — tenant comes from the registry, not the JWT).</b>
+<table>
+<tr><th>Source</th><th>Embed field</th><th>Rule</th></tr>
+<tr><td><code>tenant_id</code> (registry lookup on <code>sub</code>, B.10) + <code>sub</code> (JWT)</td><td><code>external_user_id</code></td><td><code>f"{tenant_id}::{sub}"</code> — the allocation key</td></tr>
+<tr><td><code>tenant_id</code> (registry)</td><td><code>external_group_id</code></td><td>verbatim — one embed group per tenant</td></tr>
+<tr><td><code>tenant_id</code> (registry)</td><td><code>user_attributes.tenant_id</code></td><td>verbatim — the RLS key (Part C)</td></tr>
+<tr><td><code>roles</code> (JWT)</td><td><code>permissions</code>, <code>models</code></td><td>via hardcoded ROLE_MAP (A.2)</td></tr>
+<tr><td><code>given_name</code>/<code>family_name</code> (JWT)</td><td><code>first_name</code>/<code>last_name</code></td><td>fallbacks "Partner"/"User"</td></tr>
+<tr><td>—</td><td><code>session_length</code></td><td>constant 900 (15 min) to start</td></tr>
+<tr><td>—</td><td><code>force_logout_login</code></td><td><code>True</code> — always kill stale Looker sessions</td></tr>
+</table></div></div>
+
+<div class="step"><div class="no">A.2</div><div class="body"><b>Hardcode the role map in the API (auditable; ID&amp;A does not control Looker capability):</b>
+<pre class="code-py"><code class="language-python">ROLE_MAP = {
+  "viewer": {
+    "permissions": ["access_data", "see_user_dashboards", "see_looks"],
+    "models":      ["partner_analytics"],
+  },
+  "analyst": {
+    "permissions": ["access_data", "see_user_dashboards", "see_looks",
+                    "explore", "download_full_results"],
+    "models":      ["partner_analytics"],
+  },
+}
+# Unknown role -> 403. Never a permissive default.</code></pre></div></div>
+
+<div class="step"><div class="no">A.3</div><div class="body"><b>Validation — fail closed everywhere.</b> Reject if: <code>sub</code> missing; role not in <code>ROLE_MAP</code>; registry lookup returns no <i>active</i> row (403 "partner not provisioned" — never a default tenant). The tenant format <code>^[a-z0-9_-]{2,32}$</code> is enforced at <b>registry write time</b> by a CHECK constraint (B.8), so a malformed RLS key is impossible by construction.</div></div>
+
+<div class="step"><div class="no">A.4</div><div class="body"><b>Unit tests:</b> normal user; missing names (fallbacks apply); unknown role → raises; unknown partner → 403; suspended tenant → 403; collision check that two different <code>sub</code>s can never yield the same <code>external_user_id</code>.</div></div>
+</section>
+
+<!-- ==================== PART B ==================== -->
+<section id="pb">
+<h2><span class="n">Part B.</span>GKE Data API — registry, code, deployment</h2>
+<p class="lede">The API is <b>your own FastAPI microservice deployed in GKE</b> (not Apigee config, not Looker). It is steps 13–14 of the flow: verify JWT → resolve tenant from the registry → resolve/validate dashboard → mint the signed embed URL. Only Apigee can call it.</p>
+<pre><code>Apigee ──(12: Bearer JWT)──▶ [ GKE Data API — YOUR pod ] ──┬──(SQL)──▶ BigQuery tenant_registry dataset
+                                                           └──(SDK, cluster-internal)──▶ Looker rp ──▶ Looker</code></pre>
+
+<h3>B-1 · Secrets in Secret Manager</h3>
+
+<div class="step"><div class="no">B.1</div><div class="body"><b>Create the four secret shells</b> (values arrive from D.2/D.4 and your DB provisioning):
+<pre><code class="language-bash">gcloud secrets create looker-api-client-id     --replication-policy=automatic
+gcloud secrets create looker-api-client-secret --replication-policy=automatic
+gcloud secrets create looker-embed-secret      --replication-policy=automatic</code></pre></div></div>
+
+<div class="step"><div class="no">B.2</div><div class="body"><b>Add versions once you have the values:</b>
+<pre><code class="language-bash">printf '%s' 'THE_CLIENT_ID'    | gcloud secrets versions add looker-api-client-id     --data-file=-
+printf '%s' 'THE_SECRET'       | gcloud secrets versions add looker-api-client-secret --data-file=-
+printf '%s' 'THE_EMBED_SECRET' | gcloud secrets versions add looker-embed-secret      --data-file=-</code></pre>
+<div class="danger"><b>The embed secret is a master key</b> — whoever holds it can mint any partner identity. Secret Manager only; never Git, ConfigMaps, or logs.</div></div></div>
+
+<h3>B-2 · Workload Identity (pod → GCP identity, no key files)</h3>
+
+<div class="step"><div class="no">B.3</div><div class="body"><b>Create the GCP service account:</b>
+<pre><code class="language-bash">gcloud iam service-accounts create data-api-gsa \
+  --display-name="Partner Data API (Looker embed broker + tenant registry reader)"</code></pre></div></div>
+
+<div class="step"><div class="no">B.4</div><div class="body"><b>Grant exactly what it needs — per-secret accessor + BigQuery registry access:</b>
+<pre><code class="language-bash">for s in looker-api-client-id looker-api-client-secret looker-embed-secret; do
+  gcloud secrets add-iam-policy-binding "$s" \
+    --member="serviceAccount:data-api-gsa@acme-analytics-prod.iam.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor"
+done
+
+gcloud projects add-iam-policy-binding acme-analytics-prod \
+  --member="serviceAccount:data-api-gsa@acme-analytics-prod.iam.gserviceaccount.com" \
+  --role="roles/bigquery.jobUser"          # run registry queries
+
+bq query --use_legacy_sql=false '
+GRANT `roles/bigquery.dataViewer`
+ON SCHEMA `acme-analytics-prod.tenant_registry`
+TO "serviceAccount:data-api-gsa@acme-analytics-prod.iam.gserviceaccount.com";'
+# onboarding automation additionally needs dataEditor on tenant_registry (B.11);
+# the API pod itself stays read-only.</code></pre>
+<div class="note">Bind <code>secretAccessor</code> on each <b>secret</b>, never at project level — project scope silently grants every secret in the project.</div></div></div>
+
+<div class="step"><div class="no">B.5</div><div class="body"><b>Bind the Kubernetes SA to the GCP SA:</b>
+<pre><code class="language-bash">kubectl create serviceaccount data-api-sa -n data-api
+
+gcloud iam service-accounts add-iam-policy-binding \
+  data-api-gsa@acme-analytics-prod.iam.gserviceaccount.com \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="serviceAccount:acme-analytics-prod.svc.id.goog[data-api/data-api-sa]"
+
+kubectl annotate serviceaccount data-api-sa -n data-api \
+  iam.gke.io/gcp-service-account=data-api-gsa@acme-analytics-prod.iam.gserviceaccount.com</code></pre></div></div>
+
+<div class="step"><div class="no">B.6</div><div class="body"><b>⛔ GATE — verify identity plumbing before writing code:</b>
+<pre><code class="language-bash">kubectl run wi-test -n data-api --rm -it --restart=Never \
+  --serviceaccount=data-api-sa --image=google/cloud-sdk:slim -- \
+  gcloud secrets versions access latest --secret=looker-api-client-id</code></pre>
+<p>Prints the value → proceed. 403 → fix B.3–B.5 first; every mysterious later failure traces back here.</p></div></div>
+
+<h3>B-3 · The tenancy registry (BigQuery) — partner → tenant mapping</h3>
+<div class="good"><b>Why this exists:</b> OSIS holds credentials only — it does <b>not</b> map partners to tenants. This registry, owned by the Data API, is the authority for "which tenant does <code>PRT-ACME-0071</code> belong to". Because that value becomes the RLS key, writes here get the same ceremony as an IAM change.</div>
+<div class="note"><b>Is BigQuery fine for this? Yes — under three conditions.</b> It fits <i>because</i> of the single-call pattern: one lookup per login + a 60&nbsp;s cache makes BQ’s ~0.5–1&nbsp;s point-lookup latency invisible, writes are onboarding-rare, and you run one data platform instead of adding a Cloud SQL instance. The conditions: (1) <b>BigQuery enforces no keys or CHECKs</b> — <code>PRIMARY KEY … NOT ENFORCED</code> is documentation, so ALL writes go through <b>MERGE</b> (duplicates impossible by construction), format validation moves to the write path, and reads treat a duplicate <code>partner_id</code> as an integrity breach (500 + alert), never "pick one"; (2) the registry lives in its <b>own dataset</b> <code>tenant_registry</code>, and the <b>Looker connection SA gets no access to it</b>; (3) if you ever move to per-request lookups or need sub-100&nbsp;ms logins, swap back to Cloud SQL — <code>get_tenant()</code> is the one-file seam.</div>
+
+<div class="step"><div class="no">B.7</div><div class="body"><b>Create the dataset (its own schema, its own permissions):</b>
+<pre><code class="language-bash">bq --location=asia-south1 mk --dataset \
+  --description "Partner->tenant registry (Data API authority; Looker SA: NO access)" \
+  acme-analytics-prod:tenant_registry</code></pre></div></div>
+
+<div class="step"><div class="no">B.8</div><div class="body"><b>Create the schema — three tables, one migration:</b>
+<pre class="code-sql"><code class="language-sql">CREATE TABLE `acme-analytics-prod.tenant_registry.tenants` (
+  tenant_id     STRING NOT NULL,                 -- 'acme' — the RLS key
+  display_name  STRING NOT NULL,
+  status        STRING NOT NULL,                 -- 'active' | 'suspended'
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
+  PRIMARY KEY (tenant_id) NOT ENFORCED           -- documentation only in BQ!
+);
+
+CREATE TABLE `acme-analytics-prod.tenant_registry.partner_users` (   -- ★ the mapping
+  partner_id    STRING NOT NULL,                 -- = JWT sub, e.g. PRT-ACME-0071
+  tenant_id     STRING NOT NULL,
+  status        STRING NOT NULL,                 -- 'active' | 'disabled'
+  created_by    STRING NOT NULL,                 -- onboarding audit trail
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
+  updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
+  PRIMARY KEY (partner_id) NOT ENFORCED,
+  FOREIGN KEY (tenant_id)
+    REFERENCES `acme-analytics-prod.tenant_registry.tenants` (tenant_id) NOT ENFORCED
+);
+
+CREATE TABLE `acme-analytics-prod.tenant_registry.tenant_dashboards` (  -- OPTIONAL
+  tenant_id     STRING NOT NULL,                 -- only if not using folders
+  dashboard_id  STRING NOT NULL,
+  is_default    BOOL   NOT NULL,
+  min_role      STRING NOT NULL,
+  PRIMARY KEY (tenant_id, dashboard_id) NOT ENFORCED
+);
+
+-- WRITE PATH (onboarding automation ONLY): MERGE makes duplicates impossible —
+-- this replaces the enforcement BigQuery does not provide.
+MERGE `acme-analytics-prod.tenant_registry.partner_users` pu
+USING (SELECT @partner_id AS partner_id, @tenant_id AS tenant_id,
+              @actor AS created_by) src
+ON pu.partner_id = src.partner_id
+WHEN MATCHED THEN UPDATE SET
+  tenant_id = src.tenant_id, status = 'active', updated_at = CURRENT_TIMESTAMP()
+WHEN NOT MATCHED THEN INSERT
+  (partner_id, tenant_id, status, created_by)
+  VALUES (src.partner_id, src.tenant_id, 'active', src.created_by);</code></pre>
+<p><b>Enforcement moved to the write path:</b> keys are NOT ENFORCED in BigQuery, so the MERGE above is the uniqueness guarantee, and the tenant-format rule <code>^[a-z0-9_-]{2,32}$</code> (A.3) is validated by the onboarding automation before it writes. The read side (B.10) alarms on duplicates as an integrity breach.</p></div></div>
+
+<div class="step"><div class="no">B.9</div><div class="body"><b>How the API connects</b> — the <code>google-cloud-bigquery</code> client over Workload Identity (B.4's <code>bigquery.jobUser</code> + dataset-scoped <code>dataViewer</code>); no password, no connector, no key file. See <code>app/registry.py</code> (B.12).</div></div>
+
+<div class="step"><div class="no">B.10</div><div class="body"><b>⛔ GATE — the tenant lookup: one internal DB query, NOT an extra API hop.</b>
+<pre class="code-py"><code class="language-python"># app/registry.py (delivered project) — BigQuery edition
+_tenant_cache = TTLCache(maxsize=10_000, ttl=60)   # 60s: fast path + quick cut-off
+
+def get_tenant(partner_id: str) -> str:
+    if partner_id in _tenant_cache:
+        return _tenant_cache[partner_id]
+    rows = list(bq.query("""
+        SELECT pu.tenant_id, pu.status AS pstatus, t.status AS tstatus
+        FROM `proj.tenant_registry.partner_users` pu
+        JOIN `proj.tenant_registry.tenants` t USING (tenant_id)
+        WHERE pu.partner_id = @partner_id""",
+        params={"partner_id": partner_id}).result())
+    if len(rows) > 1:                                  # MERGE makes this impossible;
+        raise HTTPException(500, "registry integrity error")  # if seen → page, never guess
+    if not rows or rows[0]["pstatus"] != "active" or rows[0]["tstatus"] != "active":
+        raise HTTPException(403, "partner not provisioned")   # FAIL CLOSED —
+    _tenant_cache[partner_id] = rows[0]["tenant_id"]          # never a default
+    return rows[0]["tenant_id"]</code></pre>
+<p><b>Confirmed semantics:</b> from the outside nothing changes — browser → Apigee → <b>one</b> call to this API. Inside it, one SELECT (cached 60s per partner; a user clicking around hits the DB ~once a minute). The trade: the registry is now a <b>runtime dependency</b> — BigQuery’s own HA covers the instance side; keep the <code>SELECT 1</code> readiness ping (B.19/B.21) and the 60&nbsp;s cache as a grace window. BQ specifics: ~0.5–1&nbsp;s per uncached lookup (fine at once-per-login) and the duplicate-row alarm above, because BQ enforces no keys. Gate: <code>get_tenant</code> returns the right tenant for a seeded row and 403s for an unknown id before you continue.</p></div></div>
+
+<div class="step"><div class="no">B.11</div><div class="body"><b>The write path — onboarding only, never the request path:</b>
+<ul>
+<li>Only onboarding automation (or an authenticated admin API) writes — and ONLY via the MERGE statement (B.8): in BigQuery that MERGE <i>is</i> the uniqueness enforcement. No hand-edits, no plain INSERTs, nothing during login. The automation SA holds <code>dataEditor</code> on <code>tenant_registry</code>; the API pod stays read-only.</li>
+<li><b>One-transaction rule:</b> "create OSIS credential" + "insert <code>partner_users</code> row" = a single onboarding step; if they diverge, a valid login gets a correct-but-confusing 403 (G-3).</li>
+<li><b>Suspension lever:</b> flipping <code>status</code> on a partner or tenant cuts access at the next request (≤ 60s cache) — your offboarding control, independent of ID&amp;A.</li>
+<li><code>created_by</code>/<code>updated_at</code> are the audit trail; ship changes to Cloud Logging if compliance asks.</li>
+</ul></div></div>
+
+<h3>B-4 · The application — project layout, routes, contracts</h3>
+
+<div class="step"><div class="no">B.12</div><div class="body"><b>The delivered project</b> (companion zip <code>partner-data-api.zip</code>):
+<div class="tree">partner-data-api/
+├── app/
+│   ├── main.py        # FastAPI app: routes + health probes
+│   ├── auth.py        # JWT re-validation vs ID&amp;A JWKS (step 13)
+│   ├── registry.py    # BigQuery registry client + get_tenant (fail closed, 60s cache)
+│   ├── looker.py      # folder-driven dashboard mapping + create_sso_embed_url
+│   ├── role_map.py    # ROLE_MAP (A.2)
+│   └── config.py      # env settings + Secret Manager loading
+├── requirements.txt
+├── Dockerfile
+└── k8s/               # deployment.yaml · service.yaml · httproute.yaml · networkpolicy.yaml</div></div></div>
+
+<div class="step"><div class="no">B.13</div><div class="body"><b>Where the route is defined — three layers that must agree on the path:</b>
+<ul>
+<li><b>Layer 1 — FastAPI (the real definition):</b> <code>@app.get("/api/v1/session/bootstrap")</code> in <code>app/main.py</code>. This code is containerized and deployed to GKE — the route lives in your code, nowhere else.</li>
+<li><b>Layer 2 — K8s Service + HTTPRoute (exposure, not definition):</b> forwards the <code>/api/</code> <i>prefix</i> to the pod; the pod matches the full path itself.</li>
+<li><b>Layer 3 — Apigee (the caller):</b> forwards the path <b>unchanged</b>. If the proxy basepath rewrites/strips <code>/api</code>, FastAPI 404s — write the agreed path into the proxy developer's spec.</li>
+</ul></div></div>
+
+<div class="step"><div class="no">B.14</div><div class="body"><b>The request contract — who passes what:</b>
+<pre><code>GET /api/v1/session/bootstrap                ← the ONE call, once per login
+Authorization: Bearer eyJhbGciOi...          ← Apigee forwards the JWT
+X-User-Id: PRT-ACME-0071                     ← injected by Apigee (informational)
+X-Tenant-Id: acme                            ← optional; API IGNORES it — tenant
+                                               comes from the registry (B.10)</code></pre>
+<table>
+<tr><th>Value</th><th>Passed by</th><th>Where</th><th>User-supplied?</th></tr>
+<tr><td>JWT (identity proof: sub, roles, names)</td><td>Apigee</td><td>Authorization header</td><td>No</td></tr>
+<tr><td><b>tenant_id</b></td><td><b>nobody — resolved by the API itself</b> via registry lookup on <code>sub</code></td><td>internal DB query</td><td>No</td></tr>
+<tr><td><code>dashboard_id</code> (post-bootstrap navigation)</td><td><b>never reaches this API</b> — SPA sets the iframe src against the public Looker host</td><td>iframe navigation</td><td>A click — authorized by the live Looker session + folder ACL (F.8/F.9)</td></tr>
+<tr><td>permissions, models, session_length</td><td>nobody — constants in the code (ROLE_MAP)</td><td>API source</td><td>No</td></tr>
+</table>
+<p><b>User input in the entire system:</b> (1) userid + password at login — consumed by ID&amp;A/OSIS, never seen by this API; (2) which dashboard tile they click. Nothing else — any identity-ish value arriving from the client is ignored by design.</p></div></div>
+
+<div class="step"><div class="no">B.15</div><div class="body"><b>Dashboard mapping — nobody "gives" the id; the JWT never carries it; LookML never stores it.</b> The Looker folder <code>Partners/{tenant}</code> IS the mapping (publish to folder = grant); the API lists it, the user picks, the API re-validates the pick:
+<pre class="code-py"><code class="language-python"># app/looker.py (delivered project) — 5-min cache per tenant
+def tenant_dashboards(tenant):        # folder contents = the tenant's list
+    folders = sdk.search_folders(name=tenant, parent_id=PARTNERS_ROOT_FOLDER_ID)
+    ...
+def resolve_dashboard(tenant, requested_id):
+    allowed = tenant_dashboards(tenant)
+    if requested_id is None:          # first render: 'Home'-titled dash, else first
+        ...
+    if requested_id not in allowed:   # ← THE control (the list endpoint is just UX)
+        raise HTTPException(403, "dashboard not permitted for tenant")</code></pre>
+<table>
+<tr><th>Mapping store</th><th>Choose when</th></tr>
+<tr><td><b>Looker folder (default, implemented)</b></td><td>Onboarding = publish to folder; the list, the allow-list check and folder ACL (F.8) can never disagree</td></tr>
+<tr><td>Registry table <code>tenant_dashboards</code> (B.8)</td><td>Per-role dashboard differences, dated entitlements, admin portal — swap inside <code>resolve_dashboard()</code>, one function</td></tr>
+</table>
+<div class="note"><b>Single-call pattern — where the control moved:</b> the allow-list runs once, at bootstrap (Home selection). Every dashboard switch after that is an iframe navigation authorized by <b>Looker folder ACLs</b> — F.8/F.9 are now THE dashboard-selection control, promoted to release-gate status.</div></div></div>
+
+<div class="step"><div class="no">B.16</div><div class="body"><b>The three endpoints (app/main.py) — each: verify JWT → get_tenant → act:</b>
+<pre><code>GET /api/v1/session/bootstrap        →  THE one call (Apigee, at login)
+
+# inside it:
+claims = verify_jwt(request)                  # 13a — re-validate vs JWKS
+tenant = get_tenant(claims["sub"])            # 13b — registry, fail closed
+tiles  = tenant_dashboards(tenant)            # folder = the mapping
+home   = resolve_dashboard(tenant, None)      # 'Home', else first
+url    = build_embed_url(claims, tenant, home)         # 14 — signed, single-use
+return { tenant, dashboards, home_dashboard_id, embed_url,
+         navigation: { embed_base, embed_domain, session_length } }
+
+# afterwards: ZERO API calls — tile clicks become
+iframe.src = navigation.embed_base + id + "?embed_domain=" + navigation.embed_domain
+# authorized by the live Looker session + folder ACL; RLS on every query</code></pre></div></div>
+
+<div class="step"><div class="no">B.16b</div><div class="body"><b>Inside the bootstrap — the exact Looker API calls GKE makes via the reverse proxy (Apigee never calls Looker).</b>
+<p>The bootstrap payload can mislead: the <code>embed_url</code> in the response is the <b>result</b> of Looker API calls that already happened <i>inside</i> the bootstrap — GKE is the only Looker API client, and Apigee has no route, credential, or network path to Looker (B.21).</p>
+<pre><code>Apigee ──one call──▶ GKE Data API
+                        │ 1. verify_jwt(request)                       [in-pod, no network]
+                        │ 2. get_tenant(sub)                           [→ BigQuery]
+                        │ 3. sdk.search_folders(name=tenant)           [→ looker-rp → Looker API]
+                        │ 4. sdk.folder_dashboards(folder_id)          [→ looker-rp → Looker API]
+                        │ 5. sdk.create_sso_embed_url(EmbedSsoParams)  [→ looker-rp → Looker API]
+                        │      ← Looker signs the payload, returns the SSO URL
+                        ▼ 6. assemble {tenant, dashboards, embed_url, navigation} → return
+Apigee ◀──response── (carries the already-minted SSO URL back toward the browser)
+Browser: iframe.src = embed_url   ← THIS is the single sign-on moment (step 15)</code></pre>
+<table>
+<tr><th>#</th><th>Wire call (over the reverse proxy, cluster-internal)</th><th>Auth</th><th>When</th></tr>
+<tr><td>0</td><td><code>POST /api/4.0/login</code> — API3 client_id/secret → access token</td><td>D.2 keys from Secret Manager</td><td>once at pod startup; SDK auto-refreshes</td></tr>
+<tr><td>3–4</td><td><code>GET /api/4.0/folders/search…</code> · <code>GET /api/4.0/folders/{id}/dashboards</code></td><td>that token</td><td>per bootstrap; 5-min cache per tenant</td></tr>
+<tr><td>5</td><td><code>POST /api/4.0/embed/sso_url</code> — Looker HMAC-signs with the embed secret <b>server-side</b>; the secret never leaves Looker/Secret Manager</td><td>that token</td><td>per bootstrap</td></tr>
+</table>
+<p><b>Two Looker doors, never confused:</b> <code>LOOKER_BASE_URL</code> (internal — only the SDK uses it) vs <code>PUBLIC_LOOKER_EMBED_URL</code> (public — only the browser opens it, for the SSO URL and later in-session navigation). The reverse proxy must route <code>/api/4.0/**</code> on the internal side.</p></div></div>
+
+<div class="step"><div class="no">B.17</div><div class="body"><b>Do-nots in the handlers:</b> never log the URL or payload (bearer credential); never cache/reuse a URL (nonce kills the second open anyway); never accept tenant from body/query/headers; never default a missing role or tenant.</div></div>
+
+
+<h3>B-4b · Full source — file by file (what it does, inputs, outputs, how it's deployed)</h3>
+<p>Everything below ships as <b>one container image</b> (B.18) — the files differ in <i>when they run</i> and <i>what they touch</i>:</p>
+<table>
+<tr><th>File</th><th>Runs</th><th>Consumes</th><th>Produces</th><th>Deployment pattern</th></tr>
+<tr><td><code>app/config.py</code></td><td>once at startup</td><td>Deployment env vars + Secret Manager (via Workload Identity)</td><td>settings + SDK credentials in process env</td><td>env in <code>k8s/deployment.yaml</code>; secrets never in YAML</td></tr>
+<tr><td><code>app/role_map.py</code></td><td>import time</td><td>—</td><td>role → permissions/models constants</td><td>changed only via PR + new image tag (auditable)</td></tr>
+<tr><td><code>app/auth.py</code></td><td>every request</td><td><code>Authorization</code> header; ID&amp;A JWKS (cached 5 min)</td><td>verified claims dict, or 401/403</td><td>stateless; JWKS URL from env</td></tr>
+<tr><td><code>app/registry.py</code></td><td>every request (cache 60 s)</td><td>BigQuery <code>tenant_registry.partner_users</code>+<code>tenants</code></td><td><code>tenant_id</code>, or 403 fail-closed; <code>ping()</code> for readiness</td><td>BigQuery client over WI; <code>bigquery.jobUser</code> + dataset <code>dataViewer</code> (B.4)</td></tr>
+<tr><td><code>app/looker.py</code></td><td>startup + every mint (cache 5 min)</td><td>Looker API over the cluster-internal rp</td><td>dashboard lists; signed SSO embed URLs</td><td>authenticates as the D.1 service user</td></tr>
+<tr><td><code>app/main.py</code></td><td>the process</td><td>HTTP from Apigee only</td><td>the ONE bootstrap route + 2 probes</td><td>uvicorn :8080; exposed via Service/HTTPRoute (B.20)</td></tr>
+</table>
+
+<div class="step"><div class="no">B.17a</div><div class="body"><b><code>app/config.py</code> — settings + secret loading (runs once at startup).</b>
+<pre class="code-py"><code class="language-python">"""Configuration — env vars first, secrets from Secret Manager at startup.
+
+Non-secret values come from the Deployment env; the four secrets are fetched
+via the pod's Workload Identity (runbook B.5) and never touch disk or YAML.
+"""
+import os
+from functools import lru_cache
+
+from google.cloud import secretmanager
+
+GCP_PROJECT = os.environ["GCP_PROJECT"]                    # e.g. "acme-analytics-prod"
+
+# --- non-secret settings (Deployment env) -----------------------------------
+LOOKER_BASE_URL = os.environ["LOOKER_BASE_URL"]            # e.g. "https://looker-rp.looker.svc.cluster.local:9999" (INTERNAL — SDK only)
+PORTAL_ORIGIN = os.environ["PORTAL_ORIGIN"]                # e.g. "https://portal.yourdomain.com" (the iframe parent page)
+PUBLIC_LOOKER_EMBED_URL = os.environ["PUBLIC_LOOKER_EMBED_URL"]  # e.g. "https://looker.yourdomain.com" — the host the BROWSER loads
+PARTNERS_ROOT_FOLDER_ID = os.environ["PARTNERS_ROOT_FOLDER_ID"]  # e.g. "142" — from the folder URL …/folders/142
+JWKS_URL = os.environ["JWKS_URL"]                          # e.g. "https://ida.internal/.well-known/jwks.json"
+JWT_ISSUER = os.environ["JWT_ISSUER"]                      # e.g. "https://ida.internal" — must equal the iss claim
+JWT_AUDIENCE = os.environ["JWT_AUDIENCE"]                  # e.g. "partner-portal" — must equal the aud claim
+REGISTRY_DATASET = os.environ.get("REGISTRY_DATASET", "tenant_registry")  # BigQuery dataset with tenants/partner_users — SEPARATE from partner_dwh
+EMBED_SESSION_LENGTH = int(os.environ.get("EMBED_SESSION_LENGTH", "3600"))  # align with JWT: one login = one session
+TENANT_CACHE_TTL = int(os.environ.get("TENANT_CACHE_TTL", "60"))        # seconds; also the max suspension lag
+DASHBOARD_CACHE_TTL = int(os.environ.get("DASHBOARD_CACHE_TTL", "300")) # seconds; folder-list cache per tenant
+
+_sm = secretmanager.SecretManagerServiceClient()
+
+
+@lru_cache(maxsize=None)
+def secret(name: str) -> str:
+    """Fetch latest secret version via Workload Identity (ADC)."""
+    path = f"projects/{GCP_PROJECT}/secrets/{name}/versions/latest"
+    return _sm.access_secret_version(name=path).payload.data.decode()
+
+
+def export_looker_sdk_env() -> None:
+    """looker_sdk reads its credentials from env — set them before init40()."""
+    os.environ["LOOKERSDK_BASE_URL"] = LOOKER_BASE_URL
+    os.environ["LOOKERSDK_VERIFY_SSL"] = os.environ.get("LOOKERSDK_VERIFY_SSL", "true")
+    os.environ["LOOKERSDK_CLIENT_ID"] = secret("looker-api-client-id")
+    os.environ["LOOKERSDK_CLIENT_SECRET"] = secret("looker-api-client-secret")</code></pre>
+<p><b>Why each setting exists — its exact role in minting the embed URL:</b></p>
+<table>
+<tr><th>Setting</th><th>Role in creating the signed embed URL</th><th>If wrong / missing</th></tr>
+<tr><td><code>GCP_PROJECT</code></td><td>Locates the Secret Manager secrets — without them the SDK cannot authenticate to Looker, so no URL can ever be minted.</td><td>Pod crashes at startup (secret fetch fails)</td></tr>
+<tr><td><code>LOOKER_BASE_URL</code></td><td>The <b>internal door</b>: where the SDK sends <code>POST /api/4.0/embed/sso_url</code> (and the folder reads). Purely server-to-server.</td><td>Mint call times out / 502 — no URL produced</td></tr>
+<tr><td><code>PUBLIC_LOOKER_EMBED_URL</code></td><td>Becomes the <b>host of <code>target_url</code></b> inside the signed URL — the address the BROWSER must be able to open. The signature covers it, so it must be right at mint time.</td><td>URL mints fine but the iframe can never load it (unreachable host)</td></tr>
+<tr><td><code>PORTAL_ORIGIN</code></td><td>Becomes <code>embed_domain</code> on the target_url and must match Looker's Embedded Domain Allowlist (D.5) — it tells Looker which parent page may frame the session.</td><td>Looker refuses the iframe: blank/denied frame</td></tr>
+<tr><td><code>PARTNERS_ROOT_FOLDER_ID</code></td><td>Where <code>search_folders</code> finds the tenant's folder — producing the dashboard list and the <b>Home dashboard id that goes into the URL path</b> (<code>/embed/dashboards/{id}</code>).</td><td>403 "tenant has no published content" — nothing to embed</td></tr>
+<tr><td><code>JWKS_URL</code> / <code>JWT_ISSUER</code> / <code>JWT_AUDIENCE</code></td><td>The gate before minting: they verify the JWT that supplies <code>sub</code> (→ half of <code>external_user_id</code>), <code>roles</code> (→ permissions/models) and names. No verified claims → no identity fields → no URL.</td><td>401 at 13a; nothing minted</td></tr>
+<tr><td><code>REGISTRY_DATASET</code></td><td>Produce the <b>tenant</b> — which fills the three tenant-scoped fields of the payload: <code>external_user_id = tenant::sub</code>, <code>external_group_id = tenant</code>, <code>user_attributes.tenant_id = tenant</code> (the RLS key). The embed URL is literally built around this value.</td><td>403 "partner not provisioned" (fail closed) — no URL</td></tr>
+<tr><td><code>EMBED_SESSION_LENGTH</code></td><td>Becomes <code>session_length</code> in the signed payload — how long the Looker session the URL opens will live (aligned to the JWT: 3600).</td><td>Too short → mid-hour bounce to login; too long → revocation lag grows</td></tr>
+<tr><td><code>TENANT_CACHE_TTL</code> / <code>DASHBOARD_CACHE_TTL</code></td><td><b>Not part of the URL</b> — performance only (registry and folder lookups). Listed so nobody hunts for their payload field.</td><td>Only latency / staleness effects</td></tr>
+<tr><td>secrets: <code>looker-api-client-id/-secret</code></td><td>Authenticate the SDK's mint call (<code>POST /api/4.0/login</code> → token). They authorize <i>the service</i> to mint; the partner's identity rides inside the payload.</td><td>SDK 401 — no URL</td></tr>
+<tr><td>secret: <code>looker-embed-secret</code> (the registry itself needs NO secret — WI only)</td><td><b>Deliberately never read by this code.</b> With the SDK route, <i>Looker signs server-side</i> — the secret stays inside Looker. It is vaulted in Secret Manager purely for custody/rotation/DR (D.4). If you ever hand-rolled the HMAC instead, this is the key you would use.</td><td>— (custody only)</td></tr>
+</table></div></div>
+
+<div class="step"><div class="no">B.17b</div><div class="body"><b><code>app/role_map.py</code> — capability constants (changed only via PR).</b>
+<pre class="code-py"><code class="language-python">"""Role → Looker capability map (runbook A.2).
+
+Kept in code deliberately: auditable, PR-reviewed, and ID&A does not control
+Looker capability. Unknown role => 403, never a permissive default.
+"""
+ROLE_MAP: dict[str, dict[str, list[str]]] = {
+    "viewer": {
+        "permissions": ["access_data", "see_user_dashboards", "see_looks"],
+        "models": ["partner_analytics"],
+    },
+    "analyst": {
+        "permissions": [
+            "access_data", "see_user_dashboards", "see_looks",
+            "explore", "download_full_results",
+        ],
+        "models": ["partner_analytics"],
+    },
+}</code></pre></div></div>
+
+<div class="step"><div class="no">B.17c</div><div class="body"><b><code>app/auth.py</code> — step 13a, JWT re-validation on every request.</b> Input: the <code>Authorization</code> header. Output: verified claims dict, or 401/403.
+<pre class="code-py"><code class="language-python">"""JWT re-validation (flow step 13 — defense in depth behind Apigee's step 11).
+
+Identity comes ONLY from the verified token. Client-sent identity headers are
+stripped by Apigee (5c) and ignored here regardless.
+"""
+import jwt
+from fastapi import HTTPException, Request
+from jwt import PyJWKClient
+
+from . import config
+
+_jwks = PyJWKClient(config.JWKS_URL, cache_keys=True, lifespan=300)
+
+
+def verify_jwt(request: Request) -> dict:
+    header = request.headers.get("authorization", "")
+    if not header.lower().startswith("bearer "):
+        raise HTTPException(401, "missing bearer token")
+    token = header[7:]
+    try:
+        key = _jwks.get_signing_key_from_jwt(token).key
+        claims = jwt.decode(
+            token,
+            key,
+            algorithms=["RS256"],
+            issuer=config.JWT_ISSUER,
+            audience=config.JWT_AUDIENCE,
+            options={"require": ["exp", "iss", "aud", "sub"]},
+        )
+    except jwt.PyJWTError as exc:
+        raise HTTPException(401, f"invalid token: {exc}") from exc
+
+    if not claims.get("roles"):
+        raise HTTPException(403, "no roles claim")
+    return claims</code></pre></div></div>
+
+<div class="step"><div class="no">B.17d</div><div class="body"><b><code>app/registry.py</code> — step 13b/13c, the tenancy lookup (BigQuery) + readiness ping.</b> Input: <code>partner_id</code> (= JWT <code>sub</code>). Output: <code>tenant_id</code>; 403 fail-closed; 500 on duplicate rows (integrity alarm).
+<pre class="code-py"><code class="language-python">"""Tenancy registry (runbook B-3) — partner_id -&gt; tenant_id, stored in BIGQUERY.
+
+OSIS does NOT hold this mapping; the tenant_registry dataset is the authority.
+BigQuery is analytical, so two rules keep it safe here:
+  1. Uniqueness of partner_id is enforced in the WRITE path (MERGE only) —
+     BigQuery's PRIMARY KEY is NOT ENFORCED and cannot protect us.
+  2. Reads treat a duplicate partner_id as an INTEGRITY BREACH (500 + alert),
+     never "pick one".
+One lookup per login (single-call pattern) + 60s cache keeps BQ latency off
+the hot path. FAIL CLOSED on anything unknown.
+"""
+import threading
+
+from cachetools import TTLCache
+from fastapi import HTTPException
+from google.cloud import bigquery
+
+from . import config
+
+_bq = bigquery.Client(project=config.GCP_PROJECT)
+_lock = threading.Lock()
+_tenant_cache: TTLCache = TTLCache(maxsize=10_000, ttl=config.TENANT_CACHE_TTL)
+
+_SQL = f"""
+    SELECT pu.tenant_id, pu.status AS pstatus, t.status AS tstatus
+    FROM `{config.GCP_PROJECT}.{config.REGISTRY_DATASET}.partner_users` pu
+    JOIN `{config.GCP_PROJECT}.{config.REGISTRY_DATASET}.tenants` t
+      USING (tenant_id)
+    WHERE pu.partner_id = @partner_id
+"""
+
+
+def get_tenant(partner_id: str) -&gt; str:
+    """Resolve tenant for a partner. 403 (fail closed) if not provisioned."""
+    with _lock:
+        if partner_id in _tenant_cache:
+            return _tenant_cache[partner_id]
+
+    job = _bq.query(
+        _SQL,
+        job_config=bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("partner_id", "STRING", partner_id)
+            ]
+        ),
+    )
+    rows = list(job.result())
+
+    if len(rows) &gt; 1:
+        # Impossible via the MERGE-only write path; if seen, the registry has
+        # been written around — refuse and page, never guess a tenant.
+        raise HTTPException(500, "registry integrity error")
+    if not rows or rows[0]["pstatus"] != "active" or rows[0]["tstatus"] != "active":
+        # Unknown / disabled partner or suspended tenant:
+        # never a default tenant — errors are the safe failure (C.3 principle).
+        raise HTTPException(403, "partner not provisioned")
+
+    tenant = rows[0]["tenant_id"]
+    with _lock:
+        _tenant_cache[partner_id] = tenant
+    return tenant
+
+
+def ping() -&gt; bool:
+    """Readiness: the pod is not ready if it cannot resolve tenants (B.19)."""
+    try:
+        list(_bq.query("SELECT 1").result())
+        return True
+    except Exception:
+        return False</code></pre></div></div>
+
+<div class="step"><div class="no">B.17e</div><div class="body"><b><code>app/looker.py</code> — step 14, folder-driven mapping + the signed URL.</b> Inputs: tenant, optional requested id, claims. Outputs: dashboard dict / validated id / signed embed URL.
+<pre class="code-py"><code class="language-python">"""Looker integration — folder-driven dashboard mapping + signed SSO embed URL.
+
+The Looker folder Partners/{tenant} IS the tenant->dashboards mapping
+(runbook B.15): publishing to the folder grants the dashboard; nothing else
+to keep in sync. The mint-side allow-list check here is the security control;
+the folder ACL (F.8) is the second lock.
+"""
+import threading
+
+import looker_sdk
+from cachetools import TTLCache
+from fastapi import HTTPException
+from looker_sdk import models40 as mdls
+
+from . import config
+from .role_map import ROLE_MAP
+
+sdk = None  # initialised in startup() after secrets are exported
+
+_lock = threading.Lock()
+_dash_cache: TTLCache = TTLCache(maxsize=500, ttl=config.DASHBOARD_CACHE_TTL)
+
+
+def startup() -> None:
+    global sdk
+    config.export_looker_sdk_env()
+    sdk = looker_sdk.init40()
+
+
+def tenant_dashboards(tenant: str) -> dict[str, str]:
+    """{dashboard_id: title} for one tenant, from its Partners/{tenant} folder."""
+    with _lock:
+        if tenant in _dash_cache:
+            return _dash_cache[tenant]
+
+    folders = sdk.search_folders(
+        name=tenant, parent_id=config.PARTNERS_ROOT_FOLDER_ID
+    )
+    if not folders:
+        raise HTTPException(403, "tenant has no published content")
+    dashes = sdk.folder_dashboards(folder_id=folders[0].id, fields="id,title")
+    result = {str(d.id): (d.title or "") for d in dashes}
+    if not result:
+        raise HTTPException(403, "tenant has no published content")
+
+    with _lock:
+        _dash_cache[tenant] = result
+    return result
+
+
+def resolve_dashboard(tenant: str, requested_id: str | None) -> str:
+    """Default ('Home', else first) for first render; allow-list check otherwise."""
+    allowed = tenant_dashboards(tenant)
+    if requested_id is None:
+        home = next((i for i, t in allowed.items() if t.lower() == "home"), None)
+        return home or next(iter(allowed))
+    if requested_id not in allowed:
+        raise HTTPException(403, "dashboard not permitted for tenant")
+    return requested_id
+
+
+def build_embed_url(claims: dict, tenant: str, dashboard_id: str) -> str:
+    role = claims["roles"][0]
+    if role not in ROLE_MAP:
+        raise HTTPException(403, "unknown role")
+    rm = ROLE_MAP[role]
+
+    resp = sdk.create_sso_embed_url(
+        body=mdls.EmbedSsoParams(
+            target_url=(
+                # PUBLIC host — the browser opens this URL; the SDK itself
+                # talks to Looker over LOOKER_BASE_URL (cluster-internal).
+                f"{config.PUBLIC_LOOKER_EMBED_URL}/embed/dashboards/{dashboard_id}"
+                f"?embed_domain={config.PORTAL_ORIGIN}"
+            ),
+            external_user_id=f"{tenant}::{claims['sub']}",
+            first_name=claims.get("given_name", "Partner"),
+            last_name=claims.get("family_name", "User"),
+            external_group_id=tenant,
+            user_attributes={"tenant_id": tenant},
+            permissions=rm["permissions"],
+            models=rm["models"],
+            session_length=config.EMBED_SESSION_LENGTH,
+            force_logout_login=True,
+        )
+    )
+    return resp.url  # single-use, expires in seconds — return, never store/log</code></pre></div></div>
+
+<div class="step"><div class="no">B.17f</div><div class="body"><b><code>app/main.py</code> — THE route (this file is where the API path is defined).</b>
+<pre class="code-py"><code class="language-python">"""Partner Data API — the GKE microservice at steps 13-14 of the v1.4 flow.
+
+SINGLE-CALL PATTERN: Apigee calls this API exactly ONCE per login
+(/api/v1/session/bootstrap). The response carries everything the portal
+needs — tenant, dashboard list, the Home embed URL, and the navigation
+base. All later dashboard switching happens INSIDE the established
+Looker embed session (iframe src change) with no further API calls;
+Looker folder ACLs (runbook F.8/F.9) authorize each navigation.
+"""
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+
+from . import config, looker, registry
+from .auth import verify_jwt
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    looker.startup()
+    yield
+
+
+app = FastAPI(title="partner-data-api", lifespan=lifespan)
+
+
+# --- health (kubelet only; outside /api/) -----------------------------------
+@app.get("/healthz")                    # liveness: no downstream calls
+def healthz():
+    return {"ok": True}
+
+
+@app.get("/readyz")                     # readiness: registry must be reachable
+def readyz():
+    ready = registry.ping()
+    return ({"ready": True} if ready
+            else ({"ready": False}, 503))
+
+
+# --- THE one API call (Apigee, once per login) ------------------------------
+@app.get("/api/v1/session/bootstrap")
+def session_bootstrap(request: Request):
+    """Everything the portal needs, in one response:
+    tenant, tiles, the signed Home embed URL, and the navigation base
+    the SPA uses for in-session dashboard switching (no more API calls)."""
+    claims = verify_jwt(request)                      # step 13a
+    tenant = registry.get_tenant(claims["sub"])       # step 13b — fail closed
+    dashboards = looker.tenant_dashboards(tenant)     # folder = the mapping
+    home = looker.resolve_dashboard(tenant, None)     # 'Home', else first
+    return {
+        "tenant": tenant,
+        "dashboards": [{"id": i, "title": t} for i, t in dashboards.items()],
+        "home_dashboard_id": home,
+        "embed_url": looker.build_embed_url(claims, tenant, home),  # step 14
+        "navigation": {
+            "embed_base": f"{config.PUBLIC_LOOKER_EMBED_URL}/embed/dashboards/",
+            "embed_domain": config.PORTAL_ORIGIN,
+            "session_length": config.EMBED_SESSION_LENGTH,
+        },
+    }</code></pre></div></div>
+
+<div class="step"><div class="no">B.17g</div><div class="body"><b><code>requirements.txt</code> + <code>Dockerfile</code> — how the code becomes the deployable image:</b>
+<pre><code class="language-plaintext">fastapi==0.115.*          uvicorn[standard]==0.30.*   looker-sdk==24.*
+PyJWT[crypto]==2.9.*      cachetools==5.*             google-cloud-secret-manager==2.*
+cloud-sql-python-connector[pg8000]==1.*               pg8000==1.*</code></pre>
+<pre><code class="language-dockerfile">FROM python:3.12-slim
+WORKDIR /srv
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY app ./app
+USER 65534
+EXPOSE 8080
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]</code></pre></div></div>
+
+<h3>B-4c · Endpoint reference — the single-call pattern</h3>
+
+<div class="step"><div class="no">EP.1</div><div class="body"><b><code>GET /api/v1/session/bootstrap</code> — THE one Apigee→API call, once per login.</b>
+<table>
+<tr><th>Caller</th><td><b>Apigee, server-side</b>, immediately after VerifyJWT (step 11) — ServiceCallout / target chain in the login flow, while the browser still waits on its submit. (Alternative wiring: the SPA fires it once right after login — same single-call budget.)</td></tr>
+<tr><th>Inputs</th><td>Header <code>Authorization: Bearer &lt;JWT&gt;</code> (required). No body, no params — dashboard selection is server-side ("Home", else first in the tenant folder).</td></tr>
+<tr><th>Processing</th><td>verify_jwt (13a) → get_tenant from the registry, fail closed (13b) → folder list (5-min cache) → Home default → signed embed URL (14)</td></tr>
+<tr><th>Returns 200</th><td><code>{"tenant":"acme","dashboards":[{"id":"42","title":"Home"},{"id":"43","title":"Sales"}],"home_dashboard_id":"42","embed_url":"https://looker.yourdomain.com/login/embed/...&amp;signature=...","navigation":{"embed_base":"https://looker.yourdomain.com/embed/dashboards/","embed_domain":"https://portal.yourdomain.com","session_length":3600}}</code></td></tr>
+<tr><th>Errors</th><td>401 bad/expired token · 403 partner not provisioned / tenant suspended / no published content · 503 registry down (readiness already failing)</td></tr>
+</table></div></div>
+
+<div class="step"><div class="no">EP.2</div><div class="body"><b>After bootstrap — how the portal runs with ZERO further API calls:</b>
+<pre><code class="language-bash"># SPA, once, from the bootstrap payload:
+tiles.render(resp.dashboards)
+iframe.src = resp.embed_url                       # opening it IS the Looker login (15a–15d)
+
+# every tile click after that — no Apigee, no GKE API, no new signed URL:
+iframe.src = resp.navigation.embed_base + id
+           + "?embed_domain=" + encodeURIComponent(resp.navigation.embed_domain)
+# the browser already holds the Looker embed-session cookie (15d);
+# Looker authorizes the navigation via folder ACLs (F.8/F.9); RLS applies as always (15e)</code></pre></div></div>
+
+<div class="step"><div class="no">EP.3</div><div class="body"><b><code>GET /healthz</code> · <code>GET /readyz</code> — kubelet only (outside <code>/api/</code>, unreachable via Apigee).</b> <code>/healthz</code> → <code>{"ok":true}</code>, no downstream calls. <code>/readyz</code> → registry <code>SELECT 1</code>; a pod that cannot resolve tenants takes no traffic.</div></div>
+
+<div class="note"><b>Trade-offs you accepted with single-call (know them):</b> (1) grant changes (new dashboard published, role change) reach a user at their <i>next login</i>, not mid-session; (2) hard revocation of a <i>live</i> session needs a Looker-side disable of the embed user — registry suspension blocks the next login within ≤60&nbsp;s but does not kill an open embed session before <code>session_length</code>; (3) F.9 folder-ACL closure is now the dashboard-selection control and must be release-gated.</div>
+
+<h3>B-5 · Deployment pattern (containerize → deploy → expose → lock down)</h3>
+
+<div class="step"><div class="no">B.18</div><div class="body"><b>Dockerfile (delivered):</b> <code>python:3.12-slim</code>, deps from <code>requirements.txt</code>, non-root (<code>USER 65534</code>), <code>uvicorn app.main:app --host 0.0.0.0 --port 8080</code>. Build &amp; push:
+<pre><code class="language-bash">gcloud builds submit -t asia-south1-docker.pkg.dev/acme-analytics-prod/apps/partner-data-api:1.0.0 .</code></pre></div></div>
+
+<div class="step"><div class="no">B.19</div><div class="body"><b>Deployment essentials (k8s/deployment.yaml):</b>
+<pre><code class="language-yaml">apiVersion: apps/v1
+kind: Deployment
+metadata: { name: data-api, namespace: data-api }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: data-api } }
+  template:
+    metadata: { labels: { app: data-api } }
+    spec:
+      serviceAccountName: data-api-sa            # ← Workload Identity (B.5)
+      containers:
+      - name: api
+        image: asia-south1-docker.pkg.dev/acme-analytics-prod/apps/partner-data-api:1.0.0
+        ports: [{ containerPort: 8080 }]
+        env:
+        - { name: GCP_PROJECT,             value: "acme-analytics-prod" }
+        - { name: LOOKER_BASE_URL,         value: "https://looker-rp.looker.svc.cluster.local:9999" }
+        - { name: PORTAL_ORIGIN,           value: "https://portal.yourdomain.com" }
+        - { name: PARTNERS_ROOT_FOLDER_ID, value: "142" }
+        - { name: PUBLIC_LOOKER_EMBED_URL,  value: "https://looker.yourdomain.com" }
+        - { name: EMBED_SESSION_LENGTH,     value: "3600" }
+        - { name: JWKS_URL,                value: "https://ida.internal/.well-known/jwks.json" }
+        - { name: JWT_ISSUER,              value: "https://ida.internal" }
+        - { name: JWT_AUDIENCE,            value: "partner-portal" }
+        - { name: REGISTRY_DATASET,        value: "tenant_registry" }
+        livenessProbe:  { httpGet: { path: /healthz, port: 8080 } }   # no downstream calls
+        readinessProbe: { httpGet: { path: /readyz,  port: 8080 } }   # includes registry
+        resources:                                                    #   SELECT 1 — pod is
+          requests: { cpu: 100m, memory: 256Mi }                      #   NOT ready if it
+          limits:   { cpu: "1",  memory: 512Mi }                      #   can't resolve tenants</code></pre>
+<p>Secrets are <b>not</b> in env — the app pulls them from Secret Manager at startup via Workload Identity (<code>app/config.py</code>).</p></div></div>
+
+<div class="step"><div class="no">B.20</div><div class="body"><b>Service + HTTPRoute (k8s/service.yaml, k8s/httproute.yaml):</b>
+<pre><code class="language-yaml">apiVersion: v1
+kind: Service
+metadata: { name: data-api, namespace: data-api }
+spec:
+  selector: { app: data-api }
+  ports: [{ port: 80, targetPort: 8080 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: data-api-route, namespace: data-api }
+spec:
+  parentRefs: [{ name: internal-gateway, namespace: gateway-infra }]  # Apigee's door
+  rules:
+  - matches: [{ path: { type: PathPrefix, value: /api/ } }]
+    backendRefs: [{ name: data-api, port: 80 }]</code></pre>
+<p><code>/healthz</code> and <code>/readyz</code> sit outside <code>/api/</code> — kubelet probes the pod directly; Apigee traffic can never reach them.</p></div></div>
+
+<div class="step"><div class="no">B.21</div><div class="body"><b>NetworkPolicy — lock both directions (k8s/networkpolicy.yaml):</b>
+<ul>
+<li><b>data-api pods:</b> ingress only from the internal Gateway (Apigee path); egress only to kube-dns, the Secret Manager/BigQuery (private Google access) path, and <code>looker-rp</code>.</li>
+<li><b>looker namespace:</b> reverse proxy accepts ingress only from data-api pods; Looker pods only from the reverse proxy.</li>
+</ul>
+<div class="note">This is what makes the design safe end-to-end: only Apigee reaches the API, only the API reaches Looker. If any pod in the cluster can hit <code>looker-rp</code>, any pod can mint embed sessions.</div></div></div>
+
+<div class="step"><div class="no">B.22</div><div class="body"><b>Deploy and smoke-test from inside:</b>
+<pre><code class="language-bash">kubectl apply -f k8s/ -n data-api
+kubectl -n data-api run smoke --rm -it --restart=Never --image=curlimages/curl -- \
+  curl -s http://data-api.data-api.svc.cluster.local/healthz     # {"ok":true}</code></pre></div></div>
+
+<div class="step"><div class="no">B.23</div><div class="body"><b>Point Apigee at it:</b> the data proxy's target = the internal LB / PSC attachment fronting <code>internal-gateway</code>; path pass-through verified with one end-to-end call carrying a real JWT (expect a JSON <code>embed_url</code>).</div></div>
+
+<div class="step"><div class="no">B.24</div><div class="body"><b>Ops notes:</b> min 2 replicas + PodDisruptionBudget; HPA on CPU later; structured logs with <code>sub</code>+tenant (never the URL); alert on 403-rate spikes ("partner not provisioned" bursts = onboarding drift, G-3) and on readiness flaps (registry health).</div></div>
+</section>
+
+<!-- ==================== PART C ==================== -->
+<section id="pc">
+<h2><span class="n">Part C.</span>Row-level security — where <code>WHERE tenant_id='acme'</code> actually happens</h2>
+<p class="lede">You never write that WHERE clause. The registry-resolved tenant lands in <code>user_attributes.tenant_id</code> at embed login (B.16); a user attribute (C-1) plus a LookML binding (C-2) make Looker append the predicate to every query. Then you make coverage enforceable (C-3).</p>
+
+<h3>C-1 · Create the user attribute (Looker Admin, one time)</h3>
+<div class="step"><div class="no">C.1</div><div class="body"><b>Go to</b> <span class="ui">Admin → Users → User Attributes</span> → <span class="ui">Create User Attribute</span>.</div></div>
+<div class="step"><div class="no">C.2</div><div class="body"><b>Fill exactly:</b> Name <code>tenant_id</code> (this exact string — LookML references it) · Label "Tenant ID" · Data Type <b>String</b> · <b>User Access: None</b> · "User can edit" <b>unchecked</b> · <b>no default value</b> — a default like <code>demo</code> would silently serve wrong-tenant data on any misconfigured login. Save.</div></div>
+<div class="step"><div class="no">C.3</div><div class="body"><b>Why no default matters:</b> with no default, a login that fails to set the attribute produces query <b>errors</b>, not another tenant's rows. Errors are the safe failure mode — the same fail-closed principle as the registry lookup (B.10).</div></div>
+
+<h3>C-2 · Bind it in LookML</h3>
+<div class="step"><div class="no">C.4</div><div class="body"><b>Ensure the dimension exists</b> in every tenant-scoped view:
+<pre><code>view: orders {
+  sql_table_name: `acme-analytics-prod.partner_dwh.orders` ;;
+  dimension: tenant_id {
+    type: string
+    sql: ${TABLE}.tenant_id ;;
+    hidden: yes          # partners never see or filter on it themselves
+  }
+}</code></pre></div></div>
+<div class="step"><div class="no">C.5</div><div class="body"><b>Add <code>access_filter</code> to EVERY explore that touches tenant data:</b>
+<pre><code>explore: orders {
+  access_filter: {
+    field:          orders.tenant_id     # the DB column (via the dimension)
+    user_attribute: tenant_id            # set at embed login from the registry
+  }
+  join: order_items { ... }
+}</code></pre>
+<p>Effect: every query from <code>acme::PRT-ACME-0071</code> gets <code>WHERE orders.tenant_id = 'acme'</code> — dashboards, drill-downs, downloads, merges. Unremovable, invisible, everywhere.</p></div></div>
+<div class="step"><div class="no">C.6</div><div class="body"><b>Derived tables / special cases</b> — where access_filter can't reach (filter needed <i>before</i> aggregation), use liquid inside the derived SQL:
+<pre><code>sql: SELECT tenant_id, SUM(amount) rev
+     FROM `partner_dwh.orders`
+     WHERE tenant_id = '{{ _user_attributes['tenant_id'] }}'
+     GROUP BY 1 ;;</code></pre>
+<div class="note">Prefer <code>access_filter</code> everywhere it works; liquid is the exception — easier to get subtly wrong and invisible to the C.8 checker unless you grep for it too.</div></div></div>
+<div class="step"><div class="no">C.7</div><div class="body"><b>Test in the IDE before shipping:</b> on the dev branch, sudo as a test embed user (G.2) and confirm the Explore SQL tab shows the tenant predicate.</div></div>
+
+<h3>C-3 · Make coverage enforceable</h3>
+<div class="step"><div class="no">C.8</div><div class="body"><b>CI gate in the LookML repo:</b> parse every <code>explore:</code> in partner-exposed models; fail the build if any lacks an <code>access_filter</code> on <code>tenant_id</code> (allow an explicit <code># rls-exempt: reason</code> annotation, reviewed in PR).</div></div>
+<div class="step"><div class="no">C.9</div><div class="body"><b>Release leak test (automated):</b> mint an embed session as tenant <code>test_a</code>, query every partner-facing explore via the API, assert zero rows where <code>tenant_id != 'test_a'</code> against seeded two-tenant data. Pipeline gate — a model change that drops a filter fails here, not in production.</div></div>
+<div class="danger"><b>The failure mode to respect:</b> an explore without an access_filter has <b>no row security at all</b>, and Looker will not warn you. C.8 + C.9 are the control, not optional hardening.</div>
+</section>
+
+<!-- ==================== PART D ==================== -->
+<section id="pd">
+<h2><span class="n">Part D.</span>Looker one-time setup (your GKE-hosted instance)</h2>
+<p class="lede">Order matters: API user → embed enable → secret → domains → permission/model sets → role → groups. D.2 and D.4 produce the values B.2 stores.</p>
+<div class="step"><div class="no">D.1</div><div class="body"><b>Create the service admin user for the SDK:</b> <span class="ui">Admin → Users → Add Users</span> → <code>svc-embed-broker@yourdomain.com</code> → role <b>Admin</b> (SSO embed URL creation + embed-user management require admin-level API capability). Name it clearly as a service account.</div></div>
+<div class="step"><div class="no">D.2</div><div class="body"><b>Generate its API3 credentials:</b> open the user → <span class="ui">Edit Keys</span> → <span class="ui">New API3 Key</span> → copy Client ID + Secret → store via B.2. Never use a human's keys.</div></div>
+<div class="step"><div class="no">D.3</div><div class="body"><b>Enable SSO embedding:</b> <span class="ui">Admin → Platform → Embed</span> → <b>Embed SSO Authentication</b> = ON (master Embedding ON; cookieless embed OFF for this design).</div></div>
+<div class="step"><div class="no">D.4</div><div class="body"><b>Generate the embed secret:</b> same page → <b>Embed Secret</b> → <span class="ui">Reset/Generate</span> → copy once → store via B.2. Regenerating later invalidates all in-flight signed URLs — that IS the rotation procedure; use a quiet window.</div></div>
+<div class="step"><div class="no">D.5</div><div class="body"><b>Allowlist the iframe parent:</b> same page → <b>Embedded Domain Allowlist</b> → add <code>https://portal.yourdomain.com</code> (exact scheme+host; staging origins separately). Missing → refused/blank iframe. B.16 also passes <code>embed_domain</code> — belt and braces.</div></div>
+<div class="step"><div class="no">D.6</div><div class="body"><b>Model set:</b> <span class="ui">Admin → Roles → Model Sets → New</span> → <code>partner_models</code> → tick only <code>partner_analytics</code>.</div></div>
+<div class="step"><div class="no">D.7</div><div class="body"><b>Permission sets (mirror A.2):</b> <span class="ui">Admin → Roles → Permission Sets → New</span> → <code>partner_viewer_perms</code> (access_data, see_looks, see_user_dashboards) · <code>partner_analyst_perms</code> (+ explore, download_full_results, see_drill_overlay).</div></div>
+<div class="step"><div class="no">D.8</div><div class="body"><b>Roles:</b> <span class="ui">Admin → Roles → New Role</span> → <code>partner_viewer</code> = viewer perms + partner_models; <code>partner_analyst</code> likewise.</div></div>
+<div class="step"><div class="no">D.9</div><div class="body"><b>Tenant groups are automatic:</b> a signed URL with <code>external_group_id: "acme"</code> makes Looker auto-create <b>"Embed Group acme"</b> and join the user. Folders and roles bind to these groups (F-2). Pre-create nothing per tenant.</div></div>
+<div class="step"><div class="no">D.10</div><div class="body"><b>Capability source of truth:</b> the signed URL's <code>permissions</code>/<code>models</code> arrays (what B.16 sends) govern embed sessions. Optionally also attach D.8 roles to the embed groups (<span class="ui">Admin → Groups → [Embed Group acme] → Roles</span>) as a belt for API-path access — keep ONE source authoritative and note it.</div></div>
+<div class="step"><div class="no">D.11</div><div class="body"><b>Close the defaults:</b> <span class="ui">Admin → Groups → All Users</span> — no role granting internal models may hang on All Users (embed users join it implicitly). Check <span class="ui">Shared folder</span> access before F.9.</div></div>
+</section>
+
+<!-- ==================== PART E ==================== -->
+<section id="pe">
+<h2><span class="n">Part E.</span>Reverse proxy / GKE specifics that break embeds</h2>
+<p class="lede">Looker-in-an-iframe behind NGINX in GKE has three classic failure modes. Configure them up front.</p>
+<div class="step"><div class="no">E.1</div><div class="body"><b>Third-party iframe cookies:</b> Looker's session cookie must be <code>SameSite=None; Secure</code>; the proxy must not strip/rewrite <code>Set-Cookie</code>. Symptom if wrong: iframe logs in, then instantly bounces or loops.</div></div>
+<div class="step"><div class="no">E.2</div><div class="body"><b>Forwarded proto/host:</b> NGINX sends <code>X-Forwarded-Proto: https</code> + stable <code>Host</code>/<code>X-Forwarded-Host</code>; Looker's configured host URL matches what the iframe loads. Mismatch → redirect loops or signature failures.</div></div>
+<div class="step"><div class="no">E.3</div><div class="body"><b>WebSockets (tiles stream over WS):</b>
+<pre><code>proxy_http_version 1.1;
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection "upgrade";
+proxy_read_timeout 300s;</code></pre>
+<p>Missing → frame loads, every tile spins forever.</p></div></div>
+<div class="step"><div class="no">E.4</div><div class="body"><b>Body size &amp; timeouts:</b> raise <code>client_max_body_size</code>; proxy timeouts ≥ slowest expected query.</div></div>
+<div class="step"><div class="no">E.5</div><div class="body"><b>CSP on the portal:</b> <code>frame-src https://&lt;public looker embed host&gt;</code> — the reverse direction of D.5's allowlist.</div></div>
+</section>
+
+<!-- ==================== PART F ==================== -->
+<section id="pf">
+<h2><span class="n">Part F.</span>IAM binding — user / group / tenant level, dashboards &amp; BigQuery</h2>
+<p class="lede">Two planes, deliberately separate: <b>GCP IAM</b> binds machinery to data; <b>Looker RBAC</b> binds people to content. "Tenant-level" is a pattern built from groups + attributes on both planes — plus, in v2, the tenancy registry as the user→tenant authority.</p>
+
+<div class="step"><div class="no">F.0</div><div class="body"><b>Why there is NO user-level IAM for external users — and how tenant-level access actually works.</b>
+<p>External partners have no Google identities: GCP IAM cannot bind roles to them, and inside the warehouse every query arrives as the single Looker connection SA (F.5). So per-user IAM is structurally impossible — and unnecessary. Instead, each person gets a <b>unique brokered identity</b>, <code>external_user_id = {tenant}::{partner_id}</code> (Looker allocates its own embed user against it, forever), and <b>every grant hangs off the tenant half of that key</b>, applied automatically at each login:</p>
+<table>
+<tr><th>What is granted</th><th>Tenant-level mechanism</th><th>Where it is enforced</th></tr>
+<tr><td><b>Content</b> — which dashboards exist for the user</td><td><code>external_group_id = tenant</code> → Looker auto-group <b>"Embed Group {tenant}"</b> → folder <code>Partners/{tenant}</code> Manage Access = View (F.8)</td><td>Looker folder ACL — also the post-bootstrap navigation control (16b)</td></tr>
+<tr><td><b>Rows</b> — which data inside any dashboard</td><td><code>user_attributes.tenant_id = tenant</code> → LookML <code>access_filter</code> → <code>WHERE tenant_id='…'</code> on every query (Part C)</td><td>Looker query engine — invisible, unremovable</td></tr>
+<tr><td><b>Capability</b> — what actions are possible</td><td><code>roles</code> claim → ROLE_MAP → <code>permissions</code>/<code>models</code> in the signed payload (A.2)</td><td>Looker permission system per session</td></tr>
+<tr><td><b>Warehouse</b></td><td>stays service-level: one <code>looker-bq-sa</code> with dataset-scoped IAM (F.2); tenant isolation is delivered by the rows row above. True per-tenant <i>warehouse</i> IAM only via F.6a (per-tenant SAs + connections).</td><td>GCP IAM at dataset scope</td></tr>
+</table>
+<p><b>The one chain to remember:</b> JWT <code>sub</code> → registry → <code>tenant</code> → three tenant-scoped fields in one signed payload → group + attribute + permissions stamped at login. A user-level exception (one person, one extra dashboard) is handled in <i>Looker</i> via purpose-group membership (F.11) — never in GCP IAM.</p></div></div>
+
+<h3>F-1 · GCP IAM — Looker's service identity → BigQuery</h3>
+<div class="step"><div class="no">F.1</div><div class="body"><b>Create the BigQuery service account Looker connects with:</b>
+<pre><code class="language-bash">gcloud iam service-accounts create looker-bq-sa \
+  --display-name="Looker BigQuery connection (partner_dwh)"</code></pre></div></div>
+<div class="step"><div class="no">F.2</div><div class="body"><b>Two roles — job rights at project, data rights at dataset only:</b>
+<pre><code class="language-bash">gcloud projects add-iam-policy-binding acme-analytics-prod \
+  --member="serviceAccount:looker-bq-sa@acme-analytics-prod.iam.gserviceaccount.com" \
+  --role="roles/bigquery.jobUser"
+
+bq query --use_legacy_sql=false '
+GRANT `roles/bigquery.dataViewer`
+ON SCHEMA `acme-analytics-prod.partner_dwh`
+TO "serviceAccount:looker-bq-sa@acme-analytics-prod.iam.gserviceaccount.com";'</code></pre>
+<div class="note">Never grant <code>dataViewer</code> at project level — that exposes every dataset in the project to the Looker connection. Dataset scope is the blast-radius control.</div></div></div>
+<div class="step"><div class="no">F.3</div><div class="body"><b>PDT rights (if used):</b> scratch dataset <code>looker_pdt</code> + <code>roles/bigquery.dataEditor</code> on that dataset only.</div></div>
+<div class="step"><div class="no">F.4</div><div class="body"><b>Wire the Looker connection:</b> <span class="ui">Admin → Database → Connections → New</span> → BigQuery Standard SQL → project + dataset → prefer <b>Workload Identity on the Looker pods</b> (ADC) over a key file; else use the SA key and schedule rotation. Test.</div></div>
+<div class="step"><div class="no">F.5</div><div class="body"><b>What single-SA means:</b> BigQuery sees every partner query as <code>looker-bq-sa</code> — per-tenant isolation lives in Looker RLS (Part C), not BigQuery IAM. Next step is the optional warehouse backstop.</div></div>
+<div class="step"><div class="no">F.6</div><div class="body"><b>Optional warehouse defense-in-depth — pick ONE if security requires:</b>
+<table>
+<tr><th>Pattern</th><th>How</th><th>When</th></tr>
+<tr><td><b>F.6a</b> Row-Access Policies + per-tenant connections</td><td>One SA + one Looker connection per tenant; <code>CREATE ROW ACCESS POLICY rap_acme ON partner_dwh.orders GRANT TO ("serviceAccount:looker-bq-acme-sa@…") FILTER USING (tenant_id='acme');</code> connection chosen via a user attribute</td><td>Regulated tenants demanding warehouse-enforced isolation; costs SA/connection sprawl</td></tr>
+<tr><td><b>F.6b</b> Authorized views per tenant</td><td>Per-tenant view datasets authorized against the base dataset</td><td>BQ-native shops preferring views; per-tenant view maintenance</td></tr>
+<tr><td><b>F.6c</b> None (default)</td><td>Single SA + Looker RLS with C.8/C.9 gates</td><td>Standard multi-tenant embed posture</td></tr>
+</table>
+<div class="note">With the default single SA, a row-access policy <b>cannot distinguish partners</b> — don't add RAPs expecting per-user effect without F.6a's per-tenant identities.</div></div></div>
+
+<h3>F-2 · Looker RBAC — binding people to dashboards</h3>
+<div class="step"><div class="no">F.7</div><div class="body"><b>Content layout — one folder per tenant:</b> <span class="ui">Shared folders → New Folder</span> → <code>Partners/acme</code>, <code>Partners/globex</code>… Publish each tenant's dashboards into their folder; include one titled <b>"Home"</b> (the B.15 first-render default). This folder IS the tenant→dashboard mapping.</div></div>
+<div class="step"><div class="no">F.8</div><div class="body"><b>Tenant-level binding (the workhorse):</b> <code>Partners/acme</code> → <span class="ui">⋮ → Manage Access</span> → remove inherited broad access → add group <b>"Embed Group acme"</b> with <b>View</b>. Scriptable at onboarding (create_folder + content_metadata access via SDK).</div></div>
+<div class="step"><div class="no">F.9</div><div class="body"><b>Close inheritance:</b> on <code>Partners</code> and <code>Shared</code>, no All-Users/broad-group access that leaks sideways; each tenant group sees exactly one branch. Verify by sudo that tenant A cannot even list tenant B's folder. <b>Single-call pattern: this is now THE dashboard-selection control after bootstrap — treat F.9 as a release gate.</b></div></div>
+<div class="step"><div class="no">F.10</div><div class="body"><b>Group-level (role tiers within a tenant):</b> keep ONE tenant group for content; drive capability via the signed URL's <code>permissions</code> per role (A.2). Add extra groups (via <code>group_ids</code>) only when <i>content itself</i> differs by role — then Manage Access those folders to that group.</div></div>
+<div class="step"><div class="no">F.11</div><div class="body"><b>User-level (exception lane):</b> one user needing extra content → add to a purpose group (<span class="ui">Admin → Users</span> → search the external_user_id → Groups; or <code>sdk.add_group_user</code>). Avoid direct user grants — groups keep the audit sane. Per-user attribute overrides are break-glass only (the signed URL re-stamps on next login).</div></div>
+<div class="step"><div class="no">F.12</div><div class="body"><b>Tenant-level attribute backstop:</b> <span class="ui">Admin → User Attributes → tenant_id → Group Values</span> → "Embed Group acme" = <code>acme</code> — so even API-path sessions (sudo, schedules) carry the right tenant. Per-login values from the signed URL still win for embed sessions.</div></div>
+
+<h3>F-3 · Who owns what (RACI)</h3>
+<table>
+<tr><th>Binding</th><th>Level</th><th>Mechanism</th><th>Owner</th></tr>
+<tr><td>Data API pod → secrets + registry</td><td>workload</td><td>Workload Identity + per-secret accessor + <code>bigquery.jobUser</code>/dataset <code>dataViewer</code> on <code>tenant_registry</code> (B.4–B.5)</td><td>Platform</td></tr>
+<tr><td><b>Partner → tenant</b></td><td>user</td><td><b>tenancy registry <code>tenant_registry.partner_users</code> (B-3, BigQuery)</b> — written only by onboarding automation via MERGE, one step with the OSIS credential</td><td>App team (writes) + Platform (BigQuery)</td></tr>
+<tr><td>Looker → BigQuery</td><td>service</td><td>jobUser @ project + dataViewer @ dataset (F.2)</td><td>Platform + Data</td></tr>
+<tr><td>Tenant → dashboards</td><td>tenant</td><td>Embed group ↔ folder Manage Access (F.8); folder = mapping (B.15)</td><td>Analytics</td></tr>
+<tr><td>Role tier → capability</td><td>group</td><td>ROLE_MAP → permissions array; optional roles on groups (D.10)</td><td>Analytics + App</td></tr>
+<tr><td>Person → exception content</td><td>user</td><td>purpose group membership (F.11)</td><td>Analytics</td></tr>
+<tr><td>Tenant → rows</td><td>tenant</td><td>user attribute + access_filter (Part C); optional F.6a/b</td><td>Analytics (+ Data)</td></tr>
+</table>
+</section>
+
+<!-- ==================== PART G ==================== -->
+<section id="pg">
+<h2><span class="n">Part G.</span>Verification checklist &amp; troubleshooting</h2>
+
+<h3>G-1 · Seed test identities</h3>
+<div class="step"><div class="no">G.1</div><div class="body"><b>Seed two test tenants everywhere they must exist:</b> registry rows via the MERGE path (<code>tenant_registry.tenants</code> + <code>partner_users</code>) for <code>test_a</code>/<code>test_b</code>, OSIS credentials for one user each, distinguishable warehouse rows (111… vs 222…), and a <code>Partners/test_a</code>, <code>Partners/test_b</code> folder each with a "Home" dashboard.</div></div>
+<div class="step"><div class="no">G.2</div><div class="body"><b>The sudo trick:</b> <span class="ui">Admin → Users</span> → search <code>test_a::</code> → <span class="ui">Sudo</span> — you see Looker exactly as that partner (folders, dashboards, and generated SQL in any Explore's SQL tab).</div></div>
+
+<h3>G-2 · End-to-end checklist (run in order)</h3>
+<ul class="check">
+<li>B.6 pod prints the secret (Workload Identity live)</li>
+<li>Registry reachable from the pod; <code>get_tenant("&lt;test_a user&gt;")</code> returns <code>test_a</code>; an UNKNOWN partner id returns 403 (fail closed, B.10)</li>
+<li>Suspending tenant <code>test_a</code> blocks its users within 60s (cache TTL); re-activating restores</li>
+<li><code>sdk.me()</code> from the pod returns the D.1 service user (Looker API auth live)</li>
+<li><code>/readyz</code> flips NotReady when the registry is unreachable (B.19)</li>
+<li>First login as the <code>test_a</code> user → embed user auto-created (Admin → Users shows <code>test_a::…</code>)</li>
+<li>Dashboard renders in the portal iframe (blank → D.5/E.5 · spinning tiles → E.3 · login loop → E.1/E.2)</li>
+<li>SQL tab under sudo shows <code>WHERE … tenant_id = 'test_a'</code> on every tile query</li>
+<li>test_a sees only 111… rows; zero test_b rows on every dashboard and download</li>
+<li>test_a cannot see or open <code>Partners/test_b</code> (F.9)</li>
+<li>Bootstrap returns only test_a's folder content; access logs show <b>exactly one</b> Apigee→API call per login</li>
+<li>In-session iframe navigation to a test_b dashboard id is refused by Looker (folder ACL, F.9)</li>
+<li>Second login reuses the same Looker user_id; a changed role in the JWT changes capability next login</li>
+<li>A signed URL opened twice fails the second time (nonce)</li>
+<li>Tampered JWT → rejected at Apigee (step 11) AND at the API (step 13)</li>
+<li>C.8 CI fails when an access_filter is deliberately removed on a branch; C.9 leak test wired as a gate</li>
+<li>Secrets exist only in Secret Manager; embed-secret rotation procedure written (D.4)</li>
+</ul>
+
+<h3>G-3 · Symptom → cause</h3>
+<table>
+<tr><th>Symptom</th><th>Most likely cause → fix</th></tr>
+<tr><td>Blank / refused iframe</td><td>Domain not in allowlist (D.5) or portal CSP missing frame-src (E.5)</td></tr>
+<tr><td>Iframe login loop / instant logout</td><td>Cookie not SameSite=None;Secure (E.1) or proto/host mismatch (E.2)</td></tr>
+<tr><td>Tiles spin forever</td><td>WebSocket upgrade not proxied (E.3)</td></tr>
+<tr><td>"Invalid signature" opening the URL</td><td>Embed secret mismatch (regenerated but B.2 not updated) or pod clock skew</td></tr>
+<tr><td>403 "partner not provisioned" on a valid login</td><td>OSIS credential exists but <code>partner_users</code> row missing/disabled — onboarding drift; fix the row, enforce the one-transaction rule (B.11)</td></tr>
+<tr><td>All embeds failing, logins fine</td><td>Registry queries failing — check <code>bigquery.jobUser</code> + dataset <code>dataViewer</code> on <code>tenant_registry</code> (B.4); <code>/readyz</code> should already be failing (B.19)</td></tr>
+<tr><td>500 "registry integrity error"</td><td>Duplicate <code>partner_id</code> rows — someone wrote around the MERGE path (B.8/B.11); fix the data AND the write path; treat as sev-2</td></tr>
+<tr><td>Query error "no value for user attribute tenant_id"</td><td>Correct, safe failure — the login didn't set the attribute; check B.16 payload; do NOT add a default (C.3)</td></tr>
+<tr><td>User sees another tenant's rows</td><td>Explore missing access_filter (C.5/C.8) or attribute defaulted (C.2) — sev-1 leak</td></tr>
+<tr><td>User sees another tenant's folder</td><td>Inherited access on Partners/Shared not closed (F.9)</td></tr>
+<tr><td>403 from BigQuery</td><td>jobUser missing at project or dataViewer at dataset (F.2)</td></tr>
+<tr><td>SDK 401/403 from the pod</td><td>API3 keys wrong/rotated (D.2→B.2) or rp blocking /api path</td></tr>
+<tr><td>404 from your own pod on /api/…</td><td>Apigee basepath rewriting the path — three-layer alignment broken (B.13)</td></tr>
+</table>
+
+<div class="good"><b>Definition of done:</b> every G-2 box checked, C.8 + C.9 wired as pipeline gates, and the F-3 table signed off by Platform, Data, Analytics and the App team. Tenant onboarding is then: <b>registry rows + OSIS credential (one transaction) → seed data → tenant folder with a "Home" dashboard + Manage Access → issue logins.</b> Nothing else.</div>
+</section>
+
+<footer>Looker Partner Embed on GKE — Implementation Runbook <b>v3.1</b> · single-call pattern · registry on BigQuery (<code>tenant_registry</code>, MERGE-only writes) · full source + endpoint reference + extended flow + Mermaid · tenancy registry integrated (partner→tenant resolved from the BigQuery <code>tenant_registry</code> dataset, not OSIS/JWT) · companion artifacts: v1.4 architecture pack, identity &amp; IAM deck, <code>partner-data-api.zip</code> (full API project) · example values use <code>acme-analytics-prod</code> — substitute from Part 0.</footer>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<script>
+  document.querySelectorAll('pre code').forEach(el => { if (!el.closest('pre.mermaid')) hljs.highlightElement(el); });
+  mermaid.initialize({ startOnLoad: true, theme: 'neutral', flowchart: { htmlLabels: true, curve: 'basis' } });
+  if (window.innerWidth < 1360) document.body.classList.add('gloss-off');
+</script>
+</body>
+</html>
