@@ -204,6 +204,9 @@
     <span>Apigee X</span><span>GKE</span><span>Looker (containerized)</span><span>Cloud Armor</span><span>PSC / Internal LB</span><span>JWT / JWKS</span>
   </div>
 </header>
+<div style="border:2px solid #8E6AA8;border-left:8px solid #8E6AA8;background:#F4ECF8;border-radius:6px;padding:12px 18px;margin:18px 0;font-size:14.5px;">
+<b style="color:#6d4f87">NEW in v1.5 — Write-Back flow [U1–U6]:</b> from the open dashboard, the <b>“Update dashboard”</b> option sends a request (with the user's new value) to the <b>Apigee INTERNAL proxy</b> → <b>ID&amp;A authenticates</b> → routed to the <b>API in GKE</b> (same cluster as Looker) which <b>runs a JavaScript that updates the BigQuery table</b>. Full detail: block <b>[U]</b> at the end of Section 1.
+</div>
 
 <nav class="toc">
   <strong>Contents</strong>
@@ -294,9 +297,25 @@
 [ALT] Alternate Entry — External Application (system-to-system)
     A1. A system already holding a valid JWT (machine login with ID&amp;A) calls /api/** through
         the SAME front door — it joins the chain at [4c] VerifyJWT; steps [1]–[4b] are skipped
-    A2. It can NEVER call the GKE API directly: GKE accepts traffic only from Apigee (mTLS/PSC)</div>
+    A2. It can NEVER call the GKE API directly: GKE accepts traffic only from Apigee (mTLS/PSC)
 
-  <div class="good"><strong>Validation (v1.4 — flow finalized):</strong> four refinements are now locked in: (1) the <strong>UI App is hosted in GKE</strong> and both serves the login page and receives the submit; (2) credentials travel Front Door → UI App (GKE) → <strong>Apigee internal proxy</strong> → ID&amp;A API → OSIS; (3) the issued <strong>JWT returns to Apigee and never detours to the browser</strong> — Apigee validates it and calls the GKE API with Authorization: Bearer JWT, GKE re-validates it (defense in depth), and the HttpOnly cookie is set only on the final dashboard response; (4) an <strong>external application</strong> holding a JWT may join at the VerifyJWT step through the same front door, never reaching GKE directly. Earlier v1.3 decisions still stand: Akamai and Cloud Armor are removed per decision — the internet-facing surface is now the <strong>Apigee external gateway proxy</strong> (exposed through the Global External HTTPS LB + PSC NEG, which remains as required Apigee X plumbing). Credential validation now runs through a <strong>proxy chain</strong>: Login UI → Apigee external proxy → Apigee <strong>internal proxy</strong> (never internet-exposed) → ID&amp;A API → <strong>OSIS database</strong> where userid/password are stored. One correction was applied to make the requested design work: a browser cannot call an internal proxy directly, so the UI's call to the ID&amp;A API is brokered by the external proxy chaining to the internal proxy — same intent, valid wiring. <strong>Risk flag for the architect team:</strong> with no edge WAF, Apigee SpikeArrest + JSON threat protection (step 3b) is the only brute-force / abuse control on an internet-exposed login; re-adding Cloud Armor later is low-cost insurance and needs no redesign.</div>
+[U] Write-Back — Updating a Value from the Dashboard  (v1.5 · via the INTERNAL proxy)
+    U1. In the OPEN dashboard (after step 16 — user already signed in via the embed flow), the
+        user picks the "Update dashboard" menu option and enters a NEW VALUE (values live in BigQuery)
+    U2. From that option, Looker sends the update request — CARRYING THE NEW VALUE — over the
+        private network to the Apigee INTERNAL proxy (second duty for the same proxy as step [3c])
+    U3. The internal proxy sends the request to the ID&amp;A team for AUTHENTICATION first —
+        no authentication, no write
+    U4. ✔ Authenticated → Apigee ROUTES the request to the backend API hosted in GKE — the SAME
+        GKE cluster/instance where Looker is deployed. That API RUNS A JAVASCRIPT which performs
+        the update; the user's new value arrives in the request payload
+    U5. The JavaScript validates the tenant (registry, fail closed) and UPDATES the BigQuery
+        table with the new value — a tenant-scoped write only; requires a scoped dataEditor
+        grant on the target table for the API's service account (write access is NEW — least-privilege it)
+    U6. The dashboard refreshes and the new value appears — row-level security still filters
+        every read; the write path never bypasses RLS on the way back</div>
+
+  <div class="good"><strong>Validation (v1.4 — flow finalized):</strong> four refinements are now locked in: (1) the <strong>UI App is hosted in GKE</strong> and both serves the login page and receives the submit; (2) credentials travel Front Door → UI App (GKE) → <strong>Apigee internal proxy</strong> → ID&amp;A API → OSIS; (3) the issued <strong>JWT returns to Apigee and never detours to the browser</strong> — Apigee validates it and calls the GKE API with Authorization: Bearer JWT, GKE re-validates it (defense in depth), and the HttpOnly cookie is set only on the final dashboard response; (4) an <strong>external application</strong> holding a JWT may join at the VerifyJWT step through the same front door, never reaching GKE directly. <strong>(v1.5)</strong> a <strong>write-back path</strong> is added: from the open dashboard, "Update dashboard" runs sends the request with the user’s new value to the <strong>Apigee internal proxy</strong> (its second duty) → <strong>ID&amp;A authenticates first</strong> → Apigee routes to the API hosted in GKE, which <strong>runs a JavaScript that updates the BigQuery table</strong> (tenant-scoped) — see block [U] in Section 1. Earlier v1.3 decisions still stand: Akamai and Cloud Armor are removed per decision — the internet-facing surface is now the <strong>Apigee external gateway proxy</strong> (exposed through the Global External HTTPS LB + PSC NEG, which remains as required Apigee X plumbing). Credential validation now runs through a <strong>proxy chain</strong>: Login UI → Apigee external proxy → Apigee <strong>internal proxy</strong> (never internet-exposed) → ID&amp;A API → <strong>OSIS database</strong> where userid/password are stored. One correction was applied to make the requested design work: a browser cannot call an internal proxy directly, so the UI's call to the ID&amp;A API is brokered by the external proxy chaining to the internal proxy — same intent, valid wiring. <strong>Risk flag for the architect team:</strong> with no edge WAF, Apigee SpikeArrest + JSON threat protection (step 3b) is the only brute-force / abuse control on an internet-exposed login; re-adding Cloud Armor later is low-cost insurance and needs no redesign.</div>
 
   <h3>Flow Diagram (Visual)</h3>
   <div style="border:1px solid var(--line);border-radius:6px;background:#fff;padding:14px;overflow-x:auto;">
@@ -779,7 +798,7 @@
 </section>
 
 <footer>
-  External User Access to Looker on GKE — Apigee Brokered Auth &nbsp;·&nbsp; Solution Architecture Document &nbsp;·&nbsp; v1.4 (flow finalized: UI App in GKE receives submit · JWT server-side, no browser detour · GKE re-validates · cookie on response · external-app entry at VerifyJWT)
+  External User Access to Looker on GKE — Apigee Brokered Auth &nbsp;·&nbsp; Solution Architecture Document &nbsp;·&nbsp; v1.5 (adds dashboard write-back: Looker → internal Apigee proxy → ID&amp;A auth → GKE API runs JavaScript → tenant-scoped BigQuery table update) · v1.4 base: UI App in GKE receives submit · JWT server-side, no browser detour · GKE re-validates · cookie on response · external-app entry at VerifyJWT
 </footer>
 
 </div>
