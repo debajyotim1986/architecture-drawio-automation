@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>10 AI Projects for Corporate &amp; Institutional Banking on Google Cloud</title>
+<style>
+  :root{
+    --ink:#1c2430;
+    --paper:#f6f8f7;
+    --panel:#ffffff;
+    --deep:#0e3b2e;
+    --leaf:#1c7c54;
+    --mint:#dcefe6;
+    --line:#c9d6cf;
+    --amber:#b3701a;
+    --slate:#5a6b76;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#e5ebe8; --paper:#101613; --panel:#18211c; --deep:#bfe3d2;
+      --leaf:#5cc492; --mint:#1e2f27; --line:#2c3d34; --amber:#e0a95c; --slate:#9bacb4;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#e5ebe8; --paper:#101613; --panel:#18211c; --deep:#bfe3d2;
+    --leaf:#5cc492; --mint:#1e2f27; --line:#2c3d34; --amber:#e0a95c; --slate:#9bacb4;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:Georgia,'Times New Roman',serif;
+    line-height:1.65; font-size:17px;
+  }
+  header{
+    background:linear-gradient(135deg,#0e3b2e,#1c7c54);
+    color:#f2f8f4; padding:3.2rem 1.5rem 2.6rem;
+  }
+  .wrap{max-width:960px; margin:0 auto; padding:0 1.2rem}
+  header .wrap{padding:0 .4rem}
+  h1{
+    font-size:clamp(1.7rem,4vw,2.5rem); line-height:1.2; margin:0 0 .8rem;
+    font-weight:700; letter-spacing:-.01em;
+  }
+  header p{max-width:46rem; margin:0; font-size:1.02rem; color:#d7e9df}
+  main{padding:2.2rem 0 3.5rem}
+  .intro{max-width:44rem; color:var(--slate); margin-bottom:2.4rem}
+  .project{
+    background:var(--panel); border:1px solid var(--line);
+    border-left:5px solid var(--leaf); border-radius:6px;
+    padding:1.6rem 1.8rem 1.8rem; margin-bottom:2rem;
+  }
+  .project h2{
+    margin:0 0 .3rem; font-size:1.28rem; color:var(--deep); line-height:1.3;
+  }
+  .num{
+    display:inline-block; background:var(--leaf); color:#fff;
+    font-family:Verdana,sans-serif; font-size:.8rem; font-weight:700;
+    border-radius:4px; padding:.15rem .55rem; margin-right:.5rem; vertical-align:2px;
+  }
+  .what{margin:.6rem 0 1rem}
+  .arch h3, .flow h3{
+    font-size:.95rem; color:var(--amber); margin:1.1rem 0 .45rem; font-weight:700;
+  }
+  table{
+    width:100%; border-collapse:collapse; font-size:.92rem;
+    font-family:Verdana,Geneva,sans-serif;
+  }
+  th,td{
+    text-align:left; padding:.5rem .65rem; border-bottom:1px solid var(--line);
+    vertical-align:top;
+  }
+  th{background:var(--mint); color:var(--deep); font-size:.82rem}
+  td:first-child{white-space:nowrap; font-weight:700; color:var(--deep); width:32%}
+  .tablebox{overflow-x:auto}
+  .flow p{
+    background:var(--mint); border-radius:6px; padding:.8rem 1rem;
+    font-family:Verdana,Geneva,sans-serif; font-size:.88rem; margin:.3rem 0 0;
+    color:var(--deep);
+  }
+  .flow b{color:var(--leaf)}
+  footer{
+    border-top:1px solid var(--line); padding:1.6rem 1.2rem 2.4rem;
+    color:var(--slate); font-size:.92rem;
+  }
+  footer .wrap{max-width:960px}
+  @media (max-width:600px){
+    .project{padding:1.2rem 1rem 1.4rem}
+    td:first-child{width:auto}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>10 AI Projects for Corporate &amp; Institutional Banking on Google Cloud</h1>
+    <p>Modelled on the Letter of Guarantee AI Review pattern: colleague-facing tools that read complex documents, validate them against agreed rules with Gemini, and keep expert judgement, governance and approvals fully in place.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="intro">Each project below follows the same proven blueprint — structured extraction, Gemini reasoning over bank-defined rules, a containerised FastAPI service, and full audit traceability — applied to a different high-volume banking process.</p>
+
+  <!-- 1 -->
+  <section class="project">
+    <h2><span class="num">1</span>Trade Finance Document Compliance Checker (LC / UCP 600)</h2>
+    <p class="what">Reviews Letters of Credit and presented shipping documents (invoices, bills of lading, insurance certs) against UCP 600 / ISBP rules, flags discrepancies with cited rationale, and drafts refusal or acceptance notices for the checker to approve.</p>
+    <div class="arch"><h3>Google services</h3><div class="tablebox"><table>
+      <tr><th>Service</th><th>Role</th></tr>
+      <tr><td>Document AI (Custom Extractor)</td><td>Structured field extraction from scanned trade documents</td></tr>
+      <tr><td>Vertex AI — Gemini 1.5 Pro</td><td>Cross-document consistency and UCP rule reasoning</td></tr>
+      <tr><td>Cloud Run</td><td>Containerised FastAPI backend + reviewer UI</td></tr>
+      <tr><td>Cloud Build + Artifact Registry</td><td>CI/CD of container images</td></tr>
+      <tr><td>Firestore</td><td>Case state, discrepancy findings, approvals</td></tr>
+      <tr><td>Cloud Logging + BigQuery</td><td>Model traces, audit trail, accuracy dashboards</td></tr>
+    </table></div></div>
+    <div class="flow"><h3>Flow</h3><p>Docs upload → <b>Document AI</b> extraction → rule engine + <b>Gemini</b> validation → discrepancy report with citations → human checker approves → decision logged to <b>BigQuery</b>.</p></div>
+  </section>
+
+  <!-- 2 -->
+  <section class="project">
+    <h2><span class="num">2</span>KYC / Client Onboarding Document Intelligence</h2>
+    <p class="what">Extracts and verifies data from certificates of incorporation, ownership charts, IDs and board resolutions; cross-checks against registries and screening results; produces a pre-filled KYC profile with confidence scores for analyst sign-off.</p>
+    <div class="arch"><h3>Google services</h3><div class="tablebox"><table>
+      <tr><th>Service</th><th>Role</th></tr>
+      <tr><td>Document AI (Identity + Custom processors)</td><td>ID and corporate-document parsing</td></tr>
+      <tr><td>Vertex AI — Gemini</td><td>Entity resolution, ownership-structure reasoning (UBO &gt; 25%)</td></tr>
+      <tr><td>Cloud Functions</td><td>Connectors to registries and sanctions screening APIs</td></tr>
+      <tr><td>Cloud Run + Cloud Build</td><td>Analyst-facing app, CI/CD</td></tr>
+      <tr><td>Cloud DLP</td><td>PII detection and masking in logs</td></tr>
+      <tr><td>Cloud KMS + VPC Service Controls</td><td>Encryption and data-perimeter security</td></tr>
+    </table></div></div>
+    <div class="flow"><h3>Flow</h3><p>Client pack ingested → extraction → <b>Gemini</b> builds ownership graph → registry/screening checks via <b>Cloud Functions</b> → analyst reviews exceptions → profile pushed to KYC system.</p></div>
+  </section>
+
+  <!-- 3 -->
+  <section class="project">
+    <h2><span class="num">3</span>Credit Agreement &amp; Covenant Extraction Engine</h2>
+    <p class="what">Reads facility agreements and term sheets, extracts covenants, ratios, dates and events of default into a monitoring schedule, and alerts relationship teams before covenant test dates.</p>
+    <div class="arch"><h3>Google services</h3><div class="tablebox"><table>
+      <tr><th>Service</th><th>Role</th></tr>
+      <tr><td>Vertex AI — Gemini 1.5 Pro (long context)</td><td>Whole-agreement reading (300+ page documents)</td></tr>
+      <tr><td>Document AI Layout Parser</td><td>Clause and table segmentation</td></tr>
+      <tr><td>BigQuery</td><td>Covenant register + financials for automated testing</td></tr>
+      <tr><td>Cloud Scheduler + Pub/Sub</td><td>Test-date triggers and alerting</td></tr>
+      <tr><td>Cloud Run</td><td>API + portfolio dashboard</td></tr>
+      <tr><td>Looker</td><td>Covenant-health reporting</td></tr>
+    </table></div></div>
+    <div class="flow"><h3>Flow</h3><p>Agreement uploaded → clause segmentation → <b>Gemini</b> extracts covenant terms to schema → stored in <b>BigQuery</b> → <b>Scheduler</b> runs tests against financials → breach alerts via <b>Pub/Sub</b>.</p></div>
+  </section>
+
+  <!-- 4 -->
+  <section class="project">
+    <h2><span class="num">4</span>Payment Investigations &amp; SWIFT Exception Copilot</h2>
+    <p class="what">Triages payment enquiries (MT199/gpi cases), reads SWIFT message history, identifies root cause (wrong BIC, missing intermediary, compliance hold), and drafts responses to correspondent banks for operator approval.</p>
+    <div class="arch"><h3>Google services</h3><div class="tablebox"><table>
+      <tr><th>Service</th><th>Role</th></tr>
+      <tr><td>Vertex AI — Gemini</td><td>Message-chain reasoning and response drafting</td></tr>
+      <tr><td>Pub/Sub</td><td>Real-time case-event ingestion</td></tr>
+      <tr><td>Vertex AI Vector Search</td><td>Retrieval of similar resolved cases and SOPs (RAG)</td></tr>
+      <tr><td>Cloud Run + Cloud Build</td><td>Operator workbench</td></tr>
+      <tr><td>Firestore</td><td>Case state and drafted responses</td></tr>
+      <tr><td>Cloud Logging</td><td>Full prompt/response traces for audit</td></tr>
+    </table></div></div>
+    <div class="flow"><h3>Flow</h3><p>Enquiry arrives via <b>Pub/Sub</b> → related messages assembled → similar cases retrieved from <b>Vector Search</b> → <b>Gemini</b> diagnoses + drafts MT199 → operator edits/sends → outcome fed back for learning.</p></div>
+  </section>
+
+  <!-- 5 -->
+  <section class="project">
+    <h2><span class="num">5</span>AML Alert Narrative &amp; SAR Drafting Assistant</h2>
+    <p class="what">For transaction-monitoring alerts, assembles customer profile, transaction patterns and screening hits into an investigation summary, recommends escalate/close with rationale, and drafts the Suspicious Activity Report narrative for investigator approval.</p>
+    <div class="arch"><h3>Google services</h3><div class="tablebox"><table>
+      <tr><th>Service</th><th>Role</th></tr>
+      <tr><td>BigQuery</td><td>Transaction history and alert data mart</td></tr>
+      <tr><td>Vertex AI — Gemini</td><td>Pattern narrative and SAR drafting</td></tr>
+      <tr><td>Vertex AI Vector Search</td><td>Typology library retrieval (grounding)</td></tr>
+      <tr><td>Cloud Run</td><td>Investigator UI (human-in-the-loop mandatory)</td></tr>
+      <tr><td>Cloud DLP + KMS</td><td>Sensitive-data controls</td></tr>
+      <tr><td>Cloud Logging + Model Armor</td><td>Traceability and prompt-safety filtering</td></tr>
+    </table></div></div>
+    <div class="flow"><h3>Flow</h3><p>Alert fires → <b>BigQuery</b> features assembled → typologies retrieved → <b>Gemini</b> writes structured narrative + recommendation → investigator decides → SAR draft exported; every step logged.</p></div>
+  </section>
+
+  <!-- 6 -->
+  <section class="project">
+    <h2><span class="num">6</span>Corporate RM Copilot — Client 360 &amp; Meeting Prep</h2>
+    <p class="what">Gives relationship managers a conversational assistant that summarises client exposure, recent news, call reports and product usage, and generates meeting-prep briefs and follow-up emails.</p>
+    <div class="arch"><h3>Google services</h3><div class="tablebox"><table>
+      <tr><th>Service</th><th>Role</th></tr>
+      <tr><td>Vertex AI Search (Agent Builder)</td><td>Grounded search over CRM notes, research, filings</td></tr>
+      <tr><td>Vertex AI — Gemini</td><td>Brief generation and Q&amp;A with citations</td></tr>
+      <tr><td>BigQuery</td><td>Exposure, revenue and product data</td></tr>
+      <tr><td>Cloud Run</td><td>Chat UI + API orchestration</td></tr>
+      <tr><td>Identity-Aware Proxy (IAP)</td><td>Per-RM access control (data entitlements respected)</td></tr>
+      <tr><td>Cloud Logging</td><td>Conversation audit</td></tr>
+    </table></div></div>
+    <div class="flow"><h3>Flow</h3><p>RM asks question → entitlement check via <b>IAP</b> → <b>Vertex AI Search</b> retrieves permitted documents → <b>Gemini</b> answers with citations → brief exported to email/CRM.</p></div>
+  </section>
+
+  <!-- 7 -->
+  <section class="project">
+    <h2><span class="num">7</span>Regulatory Change Horizon-Scanning &amp; Impact Mapper</h2>
+    <p class="what">Monitors regulator publications (PRA, FCA, EBA, Basel), summarises changes, maps them to the bank's internal policy library, and produces impact assessments with owners and deadlines for compliance review.</p>
+    <div class="arch"><h3>Google services</h3><div class="tablebox"><table>
+      <tr><th>Service</th><th>Role</th></tr>
+      <tr><td>Cloud Scheduler + Cloud Functions</td><td>Feed ingestion from regulator sites</td></tr>
+      <tr><td>Vertex AI — Gemini 1.5 Pro</td><td>Summarisation and obligation extraction</td></tr>
+      <tr><td>Vertex AI Vector Search</td><td>Semantic match: new rules ↔ internal policies</td></tr>
+      <tr><td>BigQuery</td><td>Obligation register and change tracker</td></tr>
+      <tr><td>Cloud Run + Looker</td><td>Compliance workbench and heat-map reporting</td></tr>
+    </table></div></div>
+    <div class="flow"><h3>Flow</h3><p>Daily crawl → <b>Gemini</b> extracts obligations → embeddings match against policy library → gap/impact scored → compliance owner validates → tracked in register.</p></div>
+  </section>
+
+  <!-- 8 -->
+  <section class="project">
+    <h2><span class="num">8</span>Financial Spreading &amp; Credit Memo Generator</h2>
+    <p class="what">Ingests borrower financial statements (PDF/scans), spreads them into standard templates, computes ratios and trends, and drafts the financial-analysis section of the credit memo for the analyst to refine.</p>
+    <div class="arch"><h3>Google services</h3><div class="tablebox"><table>
+      <tr><th>Service</th><th>Role</th></tr>
+      <tr><td>Document AI (Form/Custom Extractor)</td><td>Financial-statement table extraction</td></tr>
+      <tr><td>Vertex AI — Gemini</td><td>Mapping to chart of accounts, trend commentary drafting</td></tr>
+      <tr><td>BigQuery</td><td>Spread history and ratio computation</td></tr>
+      <tr><td>Cloud Run + Cloud Build</td><td>Analyst review app, CI/CD</td></tr>
+      <tr><td>Vertex AI Pipelines</td><td>Extraction-accuracy evaluation and retraining</td></tr>
+    </table></div></div>
+    <div class="flow"><h3>Flow</h3><p>Statements uploaded → tables extracted → <b>Gemini</b> maps lines to template → ratios computed in <b>BigQuery</b> → memo section drafted → analyst adjusts → versioned output.</p></div>
+  </section>
+
+  <!-- 9 -->
+  <section class="project">
+    <h2><span class="num">9</span>Contact-Centre &amp; Complaints Intelligence</h2>
+    <p class="what">Transcribes and summarises corporate-client calls, auto-classifies complaints against FCA categories, detects vulnerability signals and root causes, and drafts acknowledgement/resolution letters for agent approval.</p>
+    <div class="arch"><h3>Google services</h3><div class="tablebox"><table>
+      <tr><th>Service</th><th>Role</th></tr>
+      <tr><td>Speech-to-Text (Chirp)</td><td>Call transcription</td></tr>
+      <tr><td>Vertex AI — Gemini</td><td>Summaries, classification, letter drafting</td></tr>
+      <tr><td>Contact Center AI Insights</td><td>Sentiment, topic and driver analytics</td></tr>
+      <tr><td>BigQuery + Looker</td><td>Complaints MI and root-cause dashboards</td></tr>
+      <tr><td>Cloud Run</td><td>Agent-assist panel</td></tr>
+      <tr><td>Cloud DLP</td><td>Redaction of card/account details in transcripts</td></tr>
+    </table></div></div>
+    <div class="flow"><h3>Flow</h3><p>Call recorded → transcribed → <b>DLP</b> redaction → <b>Gemini</b> summarises + classifies → complaint case created → agent approves letter → trends surfaced in <b>Looker</b>.</p></div>
+  </section>
+
+  <!-- 10 -->
+  <section class="project">
+    <h2><span class="num">10</span>Internal Policy &amp; Procedures Knowledge Assistant</h2>
+    <p class="what">A grounded Q&amp;A assistant over the bank's operating procedures, product manuals and risk policies, so operations colleagues get cited answers ("Which approvals apply to a €5m guarantee amendment?") instead of searching SharePoint.</p>
+    <div class="arch"><h3>Google services</h3><div class="tablebox"><table>
+      <tr><th>Service</th><th>Role</th></tr>
+      <tr><td>Vertex AI Search (Agent Builder)</td><td>Document indexing, access-controlled retrieval</td></tr>
+      <tr><td>Vertex AI — Gemini</td><td>Answer synthesis with page-level citations</td></tr>
+      <tr><td>Cloud Storage</td><td>Policy corpus with versioning</td></tr>
+      <tr><td>Cloud Run + IAP</td><td>Chat UI with SSO and role-based access</td></tr>
+      <tr><td>Cloud Logging + BigQuery</td><td>Query analytics: what colleagues can't find → content gaps</td></tr>
+    </table></div></div>
+    <div class="flow"><h3>Flow</h3><p>Question asked → permitted documents retrieved → <b>Gemini</b> answers with citations and effective dates → thumbs-up/down feedback → unanswered queries reported to policy owners.</p></div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Common blueprint across all ten: Document AI / GenAI extraction → Gemini reasoning against bank-defined rules → containerised FastAPI on Cloud Run (built via Cloud Build) → Vertex AI for model serving and evaluation → traces in Cloud Logging and BigQuery for audit. Every project keeps a human approver in the loop and existing governance unchanged.</p>
+  </div>
+</footer>
+
+</body>
+</html>
