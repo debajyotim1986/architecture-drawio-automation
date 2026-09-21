@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-09-19T00:00:00.000Z" agent="Claude" version="21.0.0" type="device">
+  <diagram id="login-clean-v2" name="Lloyds Login - Animated (segregated lanes)">
+    <mxGraphModel dx="1950" dy="1250" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1950" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="Lloyds Bank — Login &amp; Looker Access Flow (Central GKE + Project GKE)" style="text;html=1;fontSize=19;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="370" y="30" width="1200" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ============ ZONES ============ -->
+        <mxCell id="zInternet" value="Internet" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;verticalAlign=top;fontSize=14;fontStyle=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="140" width="170" height="560" as="geometry" />
+        </mxCell>
+
+        <mxCell id="zEdge" value="GCP — Shared Networking / Edge" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F0FE;strokeColor=#4284F3;verticalAlign=top;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="250" y="140" width="360" height="560" as="geometry" />
+        </mxCell>
+
+        <mxCell id="zApigee" value="Apigee X (org-level, shared)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF7E0;strokeColor=#F4B400;verticalAlign=top;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="650" y="140" width="320" height="760" as="geometry" />
+        </mxCell>
+
+        <!-- Central platform: enlarged, starts at x=1050 leaving an 80px lane gap after Apigee -->
+        <mxCell id="zCentral" value="GCP — Central Platform Project (shared services)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1F5FE;strokeColor=#0288D1;verticalAlign=top;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="140" width="540" height="460" as="geometry" />
+        </mxCell>
+
+        <mxCell id="zCentralGke" value="Central GKE Cluster (shared, multi-tenant)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#0288D1;verticalAlign=top;fontSize=12;fontStyle=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="210" width="310" height="360" as="geometry" />
+        </mxCell>
+
+        <mxCell id="zProj" value="GCP — Your Project (lloyds-looker-prj)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F4EA;strokeColor=#34A853;verticalAlign=top;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="680" width="840" height="330" as="geometry" />
+        </mxCell>
+
+        <mxCell id="zProjGke" value="Project GKE Cluster (private)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#34A853;verticalAlign=top;fontSize=12;fontStyle=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1220" y="720" width="640" height="260" as="geometry" />
+        </mxCell>
+
+        <mxCell id="zIda" value="ID&amp;A Platform (Identity &amp; Authentication — central)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#8E24AA;verticalAlign=top;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="250" y="1040" width="720" height="180" as="geometry" />
+        </mxCell>
+
+        <!-- ============ NODES ============ -->
+        <mxCell id="user" value="External User (Browser)&#10;login.lloydsbank.com" style="shape=mxgraph.gcp2.hexIcon;prIcon=users;fillColor=#4284F3;strokeColor=none;html=1;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="80" y="380" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="dns" value="Cloud DNS" style="shape=mxgraph.gcp2.hexIcon;prIcon=cloud_dns;fillColor=#4284F3;strokeColor=none;html=1;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="190" width="50" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="xlb" value="External HTTPS LB&#10;TLS + single public entry" style="shape=mxgraph.gcp2.hexIcon;prIcon=cloud_load_balancing;fillColor=#4284F3;strokeColor=none;html=1;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="380" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="armor" value="Cloud Armor&#10;WAF / DDoS (covers login POST)" style="shape=mxgraph.gcp2.hexIcon;prIcon=cloud_armor;fillColor=#4284F3;strokeColor=none;html=1;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="570" width="50" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="pscneg" value="PSC NEG&#10;(LB backend)" style="shape=mxgraph.gcp2.hexIcon;prIcon=cloud_network;fillColor=#4284F3;strokeColor=none;html=1;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="490" y="380" width="50" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="extproxy" value="External Gateway Proxy&#10;lloyds-login-ext&#10;GET /login + POST /api/authenticate" style="shape=mxgraph.gcp2.hexIcon;prIcon=apigee_api_platform;fillColor=#4284F3;strokeColor=none;html=1;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="780" y="240" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="intproxy" value="Internal Proxy&#10;lloyds-auth-int&#10;fronts ID&amp;A API" style="shape=mxgraph.gcp2.hexIcon;prIcon=apigee_api_platform;fillColor=#4284F3;strokeColor=none;html=1;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="780" y="640" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ops" value="Apigee Analytics&#10;+ Cloud Logging" style="shape=mxgraph.gcp2.hexIcon;prIcon=cloud_logging;fillColor=#4284F3;strokeColor=none;html=1;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="700" y="810" width="50" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cilb" value="Internal LB / PSC&#10;(central)" style="shape=mxgraph.gcp2.hexIcon;prIcon=cloud_load_balancing;fillColor=#4284F3;strokeColor=none;html=1;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="255" width="50" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="loginpods" value="Central Login UI App&#10;serves login screen · orchestrates auth&#10;holds JWT after validation" style="shape=mxgraph.gcp2.hexIcon;prIcon=container_engine;fillColor=#4284F3;strokeColor=none;html=1;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1370" y="290" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="pilb" value="Internal LB / PSC&#10;cross-project entry&#10;exposes reverse proxy" style="shape=mxgraph.gcp2.hexIcon;prIcon=cloud_load_balancing;fillColor=#4284F3;strokeColor=none;html=1;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="800" width="50" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="revproxy" value="Reverse Proxy (NGINX/Envoy)&#10;JWT check · rewrite · headers" style="shape=mxgraph.gcp2.hexIcon;prIcon=cloud_network;fillColor=#4284F3;strokeColor=none;html=1;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="800" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="looker" value="Looker Instance&#10;(project GKE hosted)&#10;dashboards / analytics" style="image;html=1;image=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PGcgZmlsbD0iIzQyODRGMyI+PHJlY3QgeD0iMjciIHk9IjIiIHdpZHRoPSIxMCIgaGVpZ2h0PSIyMiIgcng9IjUiLz48cGF0aCBkPSJNMzIgMjZjLTkuNCAwLTE3IDcuNi0xNyAxN3M3LjYgMTcgMTcgMTcgMTctNy42IDE3LTE3LTcuNi0xNy0xNy0xN3ptMCAyNmE5IDkgMCAxIDEgMC0xOCA5IDkgMCAwIDEgMCAxOHoiLz48L2c+PC9zdmc+;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1620" y="795" width="66" height="66" as="geometry" />
+        </mxCell>
+
+        <mxCell id="idaapi" value="ID&amp;A API&#10;validates userid + passkey&#10;issues JWT" style="shape=mxgraph.gcp2.hexIcon;prIcon=cloud_iam;fillColor=#4284F3;strokeColor=none;html=1;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="330" y="1100" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="idadb" value="ID&amp;A Internal DB&#10;(credential store)" style="shape=mxgraph.gcp2.hexIcon;prIcon=cloud_sql;fillColor=#4284F3;strokeColor=none;html=1;verticalLabelPosition=bottom;verticalAlign=top;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="630" y="1100" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ============ EDGES ============ -->
+        <mxCell id="e0" value="1. DNS lookup" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;dashed=1;strokeColor=#999999;exitX=0.5;exitY=0;entryX=0;entryY=0.5;" edge="1" parent="1" source="user" target="dns">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="110" y="215" /></Array></mxGeometry>
+        </mxCell>
+
+        <mxCell id="eArmor" value="WAF applied" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;dashed=1;strokeColor=#999999;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="armor" target="xlb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" value="2. GET /login&#10;8. POST /api/authenticate&#10;(SAME path)" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;strokeColor=#4284F3;strokeWidth=3;fontStyle=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="user" target="xlb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e3" value="3 / 8a. To PSC NEG" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;strokeColor=#4284F3;strokeWidth=3;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="xlb" target="pscneg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e4" value="4 / 8b. PSC → Apigee&#10;external proxy" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;strokeColor=#F4B400;strokeWidth=3;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pscneg" target="extproxy">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="620" y="405" /><mxPoint x="620" y="270" /></Array></mxGeometry>
+        </mxCell>
+
+        <mxCell id="e5" value="5 / 8c. Route to CENTRAL Internal LB" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;strokeColor=#0288D1;strokeWidth=3;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="extproxy" target="cilb">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1000" y="270" /><mxPoint x="1000" y="280" /></Array></mxGeometry>
+        </mxCell>
+
+        <mxCell id="e6" value="6 / 8d. Central login app pods" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;strokeColor=#0288D1;strokeWidth=3;exitX=1;exitY=0.5;entryX=0;entryY=0.33;" edge="1" parent="1" source="cilb" target="loginpods">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e7" value="7. Login screen displayed" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;dashed=1;strokeColor=#4284F3;exitX=0.5;exitY=0;entryX=0.5;entryY=0;" edge="1" parent="1" source="loginpods" target="user">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1400" y="105" /><mxPoint x="110" y="105" /></Array></mxGeometry>
+        </mxCell>
+
+        <!-- purple auth: lane A (x=990) down; return lane B (x=1015) up, entering loginpods from bottom-left -->
+        <mxCell id="e9" value="9. Central login app calls&#10;Apigee internal proxy" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;strokeColor=#8E24AA;strokeWidth=2;exitX=0;exitY=0.75;entryX=1;entryY=0.5;" edge="1" parent="1" source="loginpods" target="intproxy">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="990" y="335" /><mxPoint x="990" y="670" /></Array></mxGeometry>
+        </mxCell>
+
+        <mxCell id="e10" value="10. Internal proxy calls ID&amp;A API" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;strokeColor=#8E24AA;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="intproxy" target="idaapi">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="810" y="1010" /><mxPoint x="360" y="1010" /></Array></mxGeometry>
+        </mxCell>
+
+        <mxCell id="e11" value="11. Validate against internal DB" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;dashed=1;strokeColor=#8E24AA;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="idaapi" target="idadb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e12" value="12. JWT returned (ID&amp;A → int proxy → central login app)" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;dashed=1;strokeColor=#8E24AA;strokeWidth=2;exitX=1;exitY=0.5;entryX=0.25;entryY=1;" edge="1" parent="1" source="idadb" target="loginpods">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1015" y="1130" /><mxPoint x="1015" y="635" /><mxPoint x="1385" y="635" /></Array></mxGeometry>
+        </mxCell>
+
+        <!-- teal: exits loginpods bottom-right, own lane x=1415 down, corridor y=655, into pilb top -->
+        <mxCell id="e13" value="13. Login app attaches JWT as Bearer →&#10;cross-project (PSC / Shared VPC)" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;strokeColor=#00897B;strokeWidth=2;exitX=0.75;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="loginpods" target="pilb">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1415" y="655" /><mxPoint x="1115" y="655" /></Array></mxGeometry>
+        </mxCell>
+
+        <mxCell id="e14" value="14. JWT validated (ID&amp;A JWKS), rewrite + headers" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;strokeColor=#00897B;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="pilb" target="revproxy">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e15" value="15. Proxies to Looker" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;strokeColor=#00897B;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="revproxy" target="looker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e16" value="16. Looker dashboard / data returned to user" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;dashed=1;strokeColor=#EA4335;exitX=0.5;exitY=1;entryX=0.5;entryY=1;" edge="1" parent="1" source="looker" target="user">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1653" y="1270" /><mxPoint x="110" y="1270" /></Array></mxGeometry>
+        </mxCell>
+
+        <mxCell id="eTel" value="telemetry" style="edgeStyle=orthogonalEdgeStyle;flowAnimation=1;rounded=1;html=1;fontSize=11;dashed=1;strokeColor=#999999;fontSize=10;exitX=0.25;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="intproxy" target="ops">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend" value="Blue thick: browser traffic (GET /login and POST userid+passkey — SAME public path, no direct browser→GKE). Purple: server-side auth — central app → Apigee int proxy → ID&amp;A → JWT back. Teal: central app carries JWT as Bearer cross-project to reverse proxy → Looker. Red dashed: response to user." style="text;html=1;fontSize=12;align=left;spacing=8;fillColor=#FFF3E0;strokeColor=#FB8C00;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="250" y="1300" width="1640" height="60" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
