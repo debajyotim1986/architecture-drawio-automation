@@ -1,0 +1,216 @@
+LOOKER WRITE-BACK TO BIGQUERY — END-TO-END FLOW
+================================================
+Reference diagram : looker-writeback-oauth2-entra-v3.drawio
+Version           : 1.0 — 24 Sep 2026
+Status            : DRAFT for review
+Users             : Internal users, authenticated by Microsoft Entra ID (SAML SSO into Looker)
+Authorities       : USER   -> Entra ID / AD group (via Microsoft Graph)
+                    SERVICE-> ID&A OAuth2 server, reached only through Apigee internal proxies
+Data              : BigQuery, append-only write-back log + current-state view + authorized view
+
+
+-------------------------------------------------------------------------------
+COMPONENTS
+-------------------------------------------------------------------------------
+0  Microsoft Entra ID          SAML identity provider; source of user identity and AD group membership
+1  Looker (Spoke 2 GKE)        Dashboard with "Write back" action; Action Hub signs outbound payloads
+2  Write-back API (GKE)        Gatekeeper: all trust decisions happen here
+3  Apigee internal proxies     lloyds-auth-int   -> token issuance (ID&A /oauth2/token)
+                               lloyds-writeback-int -> write-path gate (VerifyJWT, quota, spike arrest)
+4  Node.js Writer API (GKE)    Google reference implementation; performs the BigQuery write only
+5  BigQuery                    writeback_log (append-only) -> current_state view -> authorized view
+   Microsoft Graph             Live AD-group membership check
+   ID&A                        OAuth2 authorisation server (token issuance) + JWKS (public keys)
+   Secret Manager              LOOKER_SECRET, WRITEBACK_CLIENT_SECRET, GRAPH_CLIENT_SECRET
+   Cloud Logging / Monitoring  Audit trail and alerting
+
+
+-------------------------------------------------------------------------------
+PRE-CONDITIONS (one-time setup)
+-------------------------------------------------------------------------------
+P1  Looker is configured for SAML SSO against Entra ID.
+    Entra includes the user's group claim in the SAML assertion.
+P2  Looker maps the Entra/AD group "BQ-Writeback-<dataset>" to a Looker group;
+    only that Looker group is granted permission to see the "Write back" action.
+    (UI gating: users not in the AD group never see the button.)
+P3  The write-back action is registered in Looker Admin > Platform > Actions with
+    the Write-back API URL and the shared secret LOOKER_SECRET.
+P4  Write-back API is registered in ID&A as OAuth2 client "writeback-api" with
+    scope "bq.write"; its client secret is stored in Secret Manager.
+P5  An Entra app registration exists for the Write-back API with application
+    permission GroupMember.Read.All (admin-consented); its secret is in Secret Manager.
+P6  Apigee proxies lloyds-auth-int and lloyds-writeback-int are deployed;
+    lloyds-writeback-int has VerifyJWT configured against ID&A's JWKS URL.
+P7  Node.js Writer runs with a Workload Identity service account holding
+    bigquery.dataEditor on the tenant dataset only. No key files anywhere.
+P8  BigQuery: writeback_log table (partitioned by timestamp, clustered by dataset/key),
+    current_state view (latest row per key), authorized view exposed to Looker.
+
+
+-------------------------------------------------------------------------------
+RUNTIME FLOW
+-------------------------------------------------------------------------------
+
+STEP 0 — SAML LOGIN (once per session)
+  0.1  User opens Looker; Looker redirects to Entra ID for SAML authentication.
+  0.2  Entra authenticates the user (MFA per corporate policy) and returns a SAML
+       assertion containing oid, upn and group memberships.
+  0.3  Looker creates the session and populates user attributes:
+       entra_oid, upn, groups. Looker group membership is derived from the
+       AD group claim, which controls whether the "Write back" action is visible.
+
+STEP 1 — USER TRIGGERS WRITE-BACK
+  1.1  User edits a value in the dashboard and clicks "Write back".
+  1.2  Looker shows the action form (returned earlier by the API's /form endpoint):
+       new value, optional comment.
+  1.3  User submits the form. Looker's Action Hub builds the payload:
+       selected rows + form values + user attributes (entra_oid, upn, groups)
+       and signs it with LOOKER_SECRET (HMAC).
+
+STEP 2 — REQUEST REACHES THE WRITE-BACK API (GKE)
+  2.1  Looker POSTs the signed payload to the Write-back API:
+       POST /writeback  [HTTPS, via hub VPN, Spoke 2 -> Spoke 1]
+  2.2  Write-back API generates / propagates x_request_id (correlation id).
+  2.3  CHECK (1) — Looker signature: read LOOKER_SECRET from Secret Manager (cached),
+       recompute HMAC, compare. Mismatch -> 401, log WRITEBACK_DENIED(reason=bad_signature), stop.
+  2.4  CHECK (2) — Identity present: entra_oid must be in the payload.
+       Missing -> 403, log WRITEBACK_DENIED(reason=no_identity), stop.
+
+STEP 3 — USER AUTHORISATION (AD GROUP CHECK via Microsoft Graph)
+  3.1  Write-back API calls Microsoft Graph with its own app registration
+       (client credentials, GRAPH_CLIENT_SECRET from Secret Manager):
+         GET /users/{entra_oid}            -> accountEnabled must be true
+         GET /users/{entra_oid}/memberOf   -> must contain BQ-Writeback-<dataset>
+       (or POST /users/{oid}/checkMemberGroups for a narrower permission set)
+  3.2  Result cached for 5 minutes per user. Graph unreachable -> fail-closed:
+       503, log WRITEBACK_DENIED(reason=authz_unavailable), stop.
+  3.3  Not enabled or not in group -> 403, log WRITEBACK_DENIED(reason=not_in_group), stop.
+  3.4  CHECK (3) passed: user is authorised to write to this dataset right now.
+
+STEP 4 — SERVICE AUTHENTICATION (OAuth2 CLIENT-CREDENTIALS via APIGEE -> ID&A)
+  4.1  Write-back API checks its token cache. If a valid access token exists
+       (not within 60 s of expiry) skip to STEP 5.
+  4.2  Otherwise, read WRITEBACK_CLIENT_SECRET from Secret Manager and call
+       Apigee proxy lloyds-auth-int:
+         POST /oauth2/token
+         grant_type=client_credentials, client_id=writeback-api, scope=bq.write
+       (No workload ever calls ID&A directly; Apigee is the only path.)
+  4.3  Apigee forwards to ID&A /oauth2/token. ID&A authenticates the client and
+       issues a signed JWT access token (TTL ~30 min, claims: client_id, scope, exp).
+  4.4  Token is returned via Apigee to the Write-back API and cached in memory.
+       Failure -> 503, log WRITEBACK_DENIED(reason=token_unavailable), stop.
+       (The static client secret never travels on write requests — only the token does.)
+
+STEP 5 — DATASET POLICY AND WRITE CALL
+  5.1  CHECK (4) — Dataset policy: map the request to the target dataset/table;
+       enforce column allow-list, value/schema validation, row cap.
+       Violation -> 400/403, log WRITEBACK_DENIED(reason=policy), stop.
+  5.2  Build the write request:
+         POST /v1/write   (to Apigee proxy lloyds-writeback-int)
+         Authorization: Bearer <service access token>
+         X-Request-ID: <x_request_id>
+         body: { dataset, table, rows[], actor: entra_oid, actor_upn: upn,
+                 request_id: <idempotency key>, submitted_at }
+  5.3  Log WRITEBACK_REQUESTED { entra_oid, dataset, row_count, x_request_id }.
+
+STEP 6 — APIGEE WRITE-PATH GATE
+  6.1  lloyds-writeback-int receives the call.
+  6.2  VerifyJWT policy validates the bearer token LOCALLY using ID&A's JWKS
+       (public keys cached; refreshed periodically from ID&A — no per-request ID&A call):
+       signature, exp, issuer, client_id = writeback-api, scope contains bq.write.
+       Invalid -> 401 to Write-back API, stop.
+  6.3  Traffic policies: spike arrest, quota per client, threat protection.
+       Breach -> 429, stop.
+  6.4  Token and policies OK -> forward to the Node.js Writer API.
+
+STEP 7 — NODE.JS WRITER API (GKE)
+  7.1  Writer accepts requests only via Apigee; it re-checks the token's
+       client_id = writeback-api (defence in depth).
+  7.2  Writer authenticates to BigQuery with its Workload Identity service account
+       (bigquery.dataEditor on the tenant dataset only; no secret involved).
+
+STEP 8 — WRITE TO BIGQUERY (APPEND-ONLY)
+  8.1  Writer appends rows to writeback_log using the BigQuery Storage Write API,
+       each row carrying: key, new values, actor (entra_oid), actor_upn,
+       request_id, submitted_at, applied_at.
+  8.2  Idempotency: request_id is unique per submission; a retried request with the
+       same request_id is deduplicated (no duplicate rows).
+  8.3  No UPDATE/MERGE is executed. current_state view derives the latest row per key
+       (QUALIFY ROW_NUMBER() OVER (PARTITION BY key ORDER BY applied_at DESC) = 1).
+       Full history is retained for audit.
+  8.4  Log WRITEBACK_APPLIED { entra_oid, dataset, row_count, x_request_id }.
+       Failure -> log WRITEBACK_FAILED, return 5xx.
+
+STEP 9 — ACTION RESULT BACK TO THE USER (synchronous)
+  9.1  Writer returns 200 -> Apigee returns 200 -> Write-back API returns 200 to Looker.
+  9.2  Looker shows "Write-back successful" in the action dialog.
+       Any earlier stop returns the mapped status and Looker shows the error message
+       together with x_request_id for support.
+  9.3  Whole chain completes within the Looker action timeout (target < 5 s).
+
+STEP 10 — DASHBOARD REFRESH (normal read path)
+  10.1 On the next tile refresh / query run, Looker queries the authorized view,
+       which reads current_state, and the updated value is displayed.
+  10.2 This is ordinary read traffic and is not part of the write chain.
+
+
+-------------------------------------------------------------------------------
+DECISION SUMMARY — WHY TWO AUTHORISATIONS
+-------------------------------------------------------------------------------
+USER    (Step 3) : Entra SAML establishes WHO; the live AD-group check establishes
+                   MAY THEY WRITE NOW. Protects against offboarding / group removal
+                   during a long Looker session. Enforced in the API, not only in the UI.
+SERVICE (Steps 4–7): OAuth2 client-credentials establishes that the calling
+                   APPLICATION is permitted to use the write path. Short-lived token,
+                   central revocation at ID&A, quota and analytics at Apigee.
+Both must pass on every write. Different authorities (Entra vs ID&A), independently audited.
+
+
+-------------------------------------------------------------------------------
+FAILURE MATRIX
+-------------------------------------------------------------------------------
+Condition                                  | Where stopped | Status | Written? | Audit event
+-------------------------------------------|---------------|--------|----------|--------------------------
+Bad Looker HMAC                            | Step 2        | 401    | No       | DENIED(bad_signature)
+No entra_oid in payload                    | Step 2        | 403    | No       | DENIED(no_identity)
+User disabled / not in AD group            | Step 3        | 403    | No       | DENIED(not_in_group)
+Graph unreachable                          | Step 3        | 503    | No       | DENIED(authz_unavailable)
+Token request fails (Apigee/ID&A)          | Step 4        | 503    | No       | DENIED(token_unavailable)
+Dataset policy violation                   | Step 5        | 400/403| No       | DENIED(policy)
+Invalid/expired service token              | Step 6        | 401    | No       | (Apigee analytics)
+Quota / spike arrest                       | Step 6        | 429    | No       | (Apigee analytics)
+BigQuery write error                       | Step 8        | 5xx    | No       | WRITEBACK_FAILED
+Success                                    | —             | 200    | Yes      | WRITEBACK_APPLIED
+
+
+-------------------------------------------------------------------------------
+SECRETS AND IDENTITIES
+-------------------------------------------------------------------------------
+Secret Manager   : LOOKER_SECRET           (shared with Looker; HMAC verification)
+                   WRITEBACK_CLIENT_SECRET (OAuth2 client secret; used only to mint tokens)
+                   GRAPH_CLIENT_SECRET     (Entra app registration for Graph)
+Workload Identity: Write-back API SA  -> Secret Manager accessor, Logging writer
+                   Writer SA          -> bigquery.dataEditor on tenant dataset, Logging writer
+No service-account key files. No static API key on any request.
+
+
+-------------------------------------------------------------------------------
+AUDIT AND MONITORING
+-------------------------------------------------------------------------------
+Every event carries x_request_id, entra_oid, client_id, dataset, outcome, latency_ms.
+Events : WRITEBACK_REQUESTED, WRITEBACK_DENIED(reason), WRITEBACK_APPLIED, WRITEBACK_FAILED
+Alerts : DENIED(authz_unavailable) or DENIED(token_unavailable) rate > 1% over 5 min
+         WRITEBACK_FAILED > 5 per minute
+         p95 end-to-end latency > 4 s
+Retention: per corporate audit policy (recommend >= 1 year).
+
+
+-------------------------------------------------------------------------------
+OPEN ITEMS TO CONFIRM
+-------------------------------------------------------------------------------
+1  AD group "BQ-Writeback-<dataset>" is synchronised to Entra (Entra Connect) if it is on-prem.
+2  Entra emits the group claim in the SAML assertion to Looker (or Looker uses group mapping).
+3  ID&A issues JWT (not opaque) access tokens so Apigee can VerifyJWT locally via JWKS.
+4  Apigee accept-list and client credentials for writeback-api are provisioned.
+5  Entra app registration for Graph approved (GroupMember.Read.All) or checkMemberGroups used.
+6  Numeric values (token TTL 30 min, cache 5 min, timeout 5 s, alert thresholds) agreed.
