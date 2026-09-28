@@ -1,0 +1,65 @@
+PARTNER DASHBOARD ACCESS — STEP-BY-STEP FLOW
+Reference diagram: partner-dashboard-flow-v5-spacious.drawio
+(HUB and Spokes connected over HA VPN + Cloud Router BGP, Cloud DNS peering)
+
+A. LOGIN AND DASHBOARD LINK (Layer 1 — User & WebApp)
+1.  User logs in to the WebApp.
+2.  WebApp creates the user session and holds the user's JWT.
+3.  User clicks the "Open Dashboard" link in the WebApp.
+
+B. WEBAPP CALLS THE LOOKER API IN GKE (Layer 1 -> Layer 2 HUB -> Layer 3a Spoke 1)
+4.  WebApp attaches the JWT to the request (Authorization: Bearer <JWT>) and calls the Looker API hosted in GKE.
+5.  Request leaves the WebApp through its PSC endpoint (WebApp -> HUB).
+6.  PSC delivers the request privately into the HUB VPC, to the Hub Internal Load Balancer.
+7.  Hub Internal Load Balancer sends the request to the HUB HA VPN Gateway facing Spoke 1.
+8.  Hub Cloud Router has learned the Spoke 1 routes through BGP, so the request is routed into the IPsec tunnel.
+9.  Request travels through the IPsec tunnel from the HUB to Spoke 1.
+10. Spoke 1 HA VPN Gateway (with its Cloud Router) receives the request inside the Spoke 1 VPC.
+11. Request lands on the Looker API in the Tooling GKE cluster.
+
+C. VALIDATE THE USER WITH ID&A (Layer 3a -> Layer 4a Apigee -> Layer 4b ID&A)
+12. Looker API first calls ID&A to validate the user, passing the JWT.
+13. Request leaves Spoke 1 through the PSC endpoint (Spoke 1 -> Apigee).
+14. Request reaches the Apigee Internal Proxy (lloyds-auth-int).
+15. Apigee Internal Proxy forwards the JWT to the ID&A Auth API.
+16. ID&A Auth API checks the details against its internal database.
+17. ID&A confirms the user is valid.
+    - If not valid: ID&A returns a failure, the Looker API returns an error to the WebApp and the flow stops.
+18. ID&A returns the verified result to the Apigee Internal Proxy.
+19. Apigee Internal Proxy returns the result to the Looker API.
+
+D. ROUTE TO LOOKER VIA REVERSE PROXY (Layer 3a -> Layer 2 HUB -> Layer 3b Spoke 2)
+20. Verification OK: the Looker API routes the request to the Reverse Proxy (NGINX) in the Tooling cluster.
+21. Reverse Proxy resolves the Looker hostname (looker.*.internal):
+    21a. Reverse Proxy asks Spoke 1 Cloud DNS.
+    21b. Spoke 1 Cloud DNS forwards the query to Hub Cloud DNS through DNS peering.
+    21c. Hub Cloud DNS, peered with Spoke 2 Cloud DNS, returns the Looker private IP.
+    - If the name cannot be resolved: error returned and the flow stops.
+22. Reverse Proxy rewrites the path and injects the required headers.
+23. Reverse Proxy sends the request to the Spoke 1 HA VPN Gateway.
+24. Request travels through the IPsec tunnel from Spoke 1 to the HUB.
+25. Hub Cloud Router re-advertises the Spoke 2 routes, so the HUB transits the request (spoke-to-spoke through the hub).
+26. Request goes to the HUB HA VPN Gateway facing Spoke 2.
+27. Request travels through the IPsec tunnel from the HUB to Spoke 2.
+28. Spoke 2 HA VPN Gateway (with its Cloud Router) receives the request inside the Spoke 2 VPC.
+29. Request reaches the Spoke 2 Internal Load Balancer (Looker cluster entry).
+30. Spoke 2 Internal Load Balancer forwards the request to the Looker pods in the Looker GKE cluster.
+
+E. DASHBOARD RETURNED TO THE USER
+31. Looker renders the dashboard.
+32. Response goes back along the reverse path:
+    Looker -> Spoke 2 ILB -> Spoke 2 VPN -> HUB -> Spoke 1 VPN -> Reverse Proxy -> Looker API
+    -> Spoke 1 VPN -> HUB -> Hub ILB -> PSC -> WebApp.
+33. WebApp displays the Looker dashboard to the user.
+
+F. AUDIT AND MONITORING (Layer 4c — runs throughout)
+34. Looker API sends API and authentication call logs to Cloud Logging.
+35. ID&A sends authentication events to Cloud Logging.
+36. Looker sends dashboard activity logs to Cloud Logging.
+37. Cloud Logging feeds Cloud Monitoring, which raises alerts on failures and unusual activity.
+
+KEY POINTS
+- The WebApp enters the HUB only through its PSC endpoint.
+- ID&A is always reached through the Apigee Internal Proxy, never directly.
+- Spoke 1 to Spoke 2 traffic always passes through the HUB (HA VPN + Cloud Router BGP).
+- Cloud DNS finds the address (DNS peering); Cloud Router finds the path (BGP).

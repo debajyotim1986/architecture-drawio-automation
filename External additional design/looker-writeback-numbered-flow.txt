@@ -1,0 +1,85 @@
+LOOKER WRITE-BACK TO BIGQUERY — STEP-BY-STEP FLOW
+Reference diagram: looker-writeback-oauth2-entra-v3.drawio
+
+A. LOGIN AND OPEN DASHBOARD
+1.  User logs in to the WebApp using corporate credentials.
+2.  WebApp redirects the user to Microsoft Entra ID for SAML authentication.
+3.  Entra ID authenticates the user (with MFA as per corporate policy).
+4.  Entra ID returns a SAML assertion containing the user's ID (oid), email (upn) and AD group memberships.
+5.  User clicks the dashboard link in the WebApp.
+6.  Looker opens using the same Entra SAML sign-in (single sign-on, no second login).
+7.  Looker stores the user's oid, upn and AD groups as user attributes for the session.
+8.  Looker checks the user's AD group; only users in "BQ-Writeback-<dataset>" can see the "Write back" button.
+9.  Looker queries the BigQuery authorized view and displays the dashboard.
+
+B. USER TRIGGERS WRITE-BACK
+10. User edits a value on the dashboard and clicks "Write back".
+11. Looker shows the write-back form (new value, optional comment).
+12. User submits the form.
+13. Looker Action Hub builds the request: selected rows + form values + user attributes (oid, upn, groups).
+14. Looker Action Hub signs the request with the shared secret (HMAC).
+15. Looker sends the signed request to the Write-back API hosted in GKE (over the hub VPN).
+
+C. WRITE-BACK API VALIDATES THE REQUEST
+16. Write-back API reads the Looker secret from Secret Manager.
+17. Write-back API verifies the HMAC signature to confirm the request came from our Looker.
+    - If the signature is invalid: reject with 401 and stop.
+18. Write-back API checks that the user's oid is present in the request.
+    - If missing: reject with 403 and stop.
+
+D. USER AUTHORISATION (AD GROUP CHECK)
+19. Write-back API calls Microsoft Graph to check the user live.
+20. Microsoft Graph confirms the user account is enabled.
+21. Microsoft Graph confirms the user is still a member of the AD group "BQ-Writeback-<dataset>".
+    - If not enabled or not in the group: reject with 403 and stop.
+    - If Graph is unreachable: reject with 503 and stop (fail-closed).
+22. The result is cached for 5 minutes for that user.
+
+E. SERVICE AUTHENTICATION (OAUTH2 TOKEN VIA APIGEE -> ID&A)
+23. Write-back API checks whether it already holds a valid access token in its cache.
+    - If yes: skip to step 29.
+24. Write-back API reads its OAuth2 client secret from Secret Manager.
+25. Write-back API calls the Apigee internal proxy (lloyds-auth-int) to request a token (client_credentials).
+26. Apigee forwards the token request to ID&A.
+27. ID&A validates the client (writeback-api) and issues a short-lived JWT access token (about 30 minutes).
+28. The token returns through Apigee to the Write-back API and is cached in GKE.
+    - If the token request fails: reject with 503 and stop.
+
+F. DATASET POLICY
+29. Write-back API checks the dataset policy: allowed table, allowed columns, value format, row limit.
+    - If the policy is violated: reject with 400/403 and stop.
+30. Write-back API logs WRITEBACK_REQUESTED (user, dataset, rows, request id).
+
+G. WRITE CALL THROUGH APIGEE
+31. Write-back API calls the Apigee write proxy (lloyds-writeback-int) with:
+    Authorization: Bearer <access token>, rows, dataset, user oid, request id.
+32. Apigee verifies the JWT locally using ID&A public keys (JWKS, cached).
+    - If the token is invalid or expired: reject with 401 and stop.
+33. Apigee applies quota and spike-arrest policies.
+    - If the limit is exceeded: reject with 429 and stop.
+34. Apigee forwards the request to the Node.js Writer API in GKE.
+
+H. WRITE TO BIGQUERY
+35. Node.js Writer API re-checks that the token's client_id is "writeback-api".
+36. Node.js Writer API connects to BigQuery using its Workload Identity service account (no key file).
+37. Node.js Writer API appends the rows to the writeback_log table using the BigQuery Storage Write API,
+    recording the user oid, request id and timestamp.
+38. Duplicate submissions with the same request id are ignored (idempotent).
+39. The current_state view automatically shows the latest value per record; full history is kept.
+40. Node.js Writer API logs WRITEBACK_APPLIED (or WRITEBACK_FAILED on error).
+
+I. RESPONSE TO THE USER
+41. Node.js Writer API returns 200 OK to Apigee.
+42. Apigee returns 200 OK to the Write-back API.
+43. Write-back API returns 200 OK to Looker.
+44. Looker shows "Write-back successful" to the user.
+    - On any failure, Looker shows the error with the request id for support.
+
+J. DASHBOARD REFRESH
+45. User refreshes the dashboard (or the tile refreshes automatically).
+46. Looker queries the BigQuery authorized view.
+47. The updated value is displayed on the dashboard.
+
+K. AUDIT AND MONITORING (runs throughout)
+48. Every step writes audit events to Cloud Logging with user oid, client id, dataset, outcome and request id.
+49. Cloud Monitoring raises alerts on high denial rates, token failures, write failures or slow responses.
