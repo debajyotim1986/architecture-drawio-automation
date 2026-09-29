@@ -1,0 +1,136 @@
+PARTNER DASHBOARD ACCESS — STEP-BY-STEP FLOW (updated)
+Reference diagram: partner-dashboard-flow-v5-spacious-stage5-expanded-v3.drawio
+(HUB and Spokes over HA VPN + Cloud Router BGP · Cloud DNS peering · Stage 5 expanded)
+
+A. LOGIN AND DASHBOARD LINK (Layer 1 — User & WebApp)
+1.  User logs in to the WebApp.
+2.  WebApp creates the user session and holds the user's JWT (issued by ID&A).
+3.  User clicks the "Open Dashboard" link in the WebApp.
+
+B. WEBAPP CALLS THE LOOKER API IN GKE (Layer 1 -> Layer 2 HUB -> Layer 3a Spoke 1)
+4.  WebApp calls the Looker API hosted in GKE with two headers:
+      Authorization: Bearer <JWT>
+      X-Partner-Id: PRT-ACME-0071
+    (no tenant is ever sent by the caller)
+5.  Request leaves the WebApp through its PSC endpoint (WebApp -> HUB).
+6.  PSC delivers the request privately into the HUB VPC, to the Hub Internal Load Balancer.
+7.  Hub Internal Load Balancer sends the request to the HUB HA VPN Gateway facing Spoke 1.
+8.  Hub Cloud Router has learned the Spoke 1 routes through BGP, so the request goes into the IPsec tunnel.
+9.  Request travels through the IPsec tunnel from the HUB to Spoke 1.
+10. Spoke 1 HA VPN Gateway (with its Cloud Router) receives the request inside the Spoke 1 VPC.
+11. Request lands on the Looker API in the Tooling GKE cluster.
+
+C. VALIDATE THE USER WITH ID&A (Layer 3a -> Layer 4a Apigee -> Layer 4b ID&A)
+12. Looker API first calls ID&A to validate the user, passing the JWT.
+13. Request leaves Spoke 1 through the PSC endpoint (Spoke 1 -> Apigee).
+14. Request reaches the Apigee Internal Proxy (lloyds-auth-int).
+15. Apigee Internal Proxy forwards the JWT to the ID&A Auth API.
+16. ID&A Auth API checks the details against its internal database.
+17. ID&A confirms the user is valid.
+    - If not valid: the Looker API returns an error to the WebApp and the flow stops.
+18. ID&A returns the verified result to the Apigee Internal Proxy.
+19. Apigee Internal Proxy returns the result to the Looker API.
+
+D. STAGE 5 EXPANDED — AFTER THE LOOKER API IS CALLED (Spoke 1 Tooling GKE)
+
+   5.1 Verify the caller (JWKS)
+20. Looker API verifies the JWT itself using ID&A's public keys
+    (GET https://ida.internal/.well-known/jwks.json, keys cached 5 minutes).
+21. It checks signature, expiry, issuer (https://ida.internal/) and audience (partner-data-api).
+22. It checks that the X-Partner-Id header equals the JWT sub (PRT-ACME-0071).
+    - Any failure: 401 / 403 to the WebApp and the flow stops.
+
+   5.2 – 5.5 Partner Details API
+23. Looker API calls the Partner Details API:
+      GET /internal/partners/PRT-ACME-0071/details
+24. Partner Details API reads the Tenant Registry (Cloud SQL, private IP, cached 60 seconds):
+      tenant_id = acme, status, max_role, looker_group_id = 17, looker_folder_id = 512,
+      home_dashboard_id
+    - Unknown partner, disabled partner or suspended tenant: 403 and the flow stops.
+25. Effective role = the JWT role capped at the registry max_role.
+26. Partner Details API reads the read-only Looker API key (looker-ro client id / secret)
+    from Secret Manager using Workload Identity (read once per pod).
+27. Partner Details API logs in to the Looker API through the Reverse Proxy API door:
+      POST https://looker-api.rp.internal/api/4.0/login  -> access token
+28. Partner Details API lists the dashboards in the tenant's Looker folder:
+      GET https://looker-api.rp.internal/api/4.0/folders/512/dashboards?fields=id,title,deleted
+    Path: Reverse Proxy -> 5a DNS (looker.*.internal via DNS peering) -> 5b HUB transit -> Spoke 2 Looker.
+29. Looker returns the tenant's dashboards: 42 Home, 43 Monthly Revenue, 44 Settlement Exceptions.
+    - No dashboards or folder missing: 403 and the flow stops.
+30. Partner Details API returns all details to the Looker API (step 5.5):
+      partner_id, tenant_id, status, effective role, group_id, folder_id, dashboards[], home_dashboard_id
+
+   Choose the landing dashboard
+31. Looker API picks the ONE dashboard the signed URL will open, in this order:
+      1) dashboard the user asked for (if it is in the tenant list)
+      2) tenant default from the registry (home_dashboard_id)
+      3) dashboard titled "Home"
+      4) lowest dashboard id
+    Result: dashboard 42.
+
+   5.6 – 5.10 Embed URL API
+32. Looker API calls the Embed URL API with the details:
+      POST /internal/embed-url
+      { external_user_id: "acme::PRT-ACME-0071", group_ids: ["17"], external_group_id: "acme",
+        user_attributes: { tenant_id: "acme" }, permissions + models from role, dashboard_id: "42",
+        first_name: "Jane", last_name: "Doe" }
+33. Embed URL API confirms dashboard 42 is in the tenant's dashboard list.
+34. Embed URL API reads the Looker API key that is allowed to create signed URLs
+    (looker-embed client id / secret) from Secret Manager (step 5.7).
+35. Embed URL API logs in to the Looker API (step 5.8a):
+      POST https://looker-api.rp.internal/api/4.0/login  -> access token
+36. Embed URL API asks Looker to create the signed URL (step 5.8b):
+      POST https://looker-api.rp.internal/api/4.0/embed/sso_url
+      Authorization: token <access token>
+      body: target_url = https://analytics.partners.example/embed/dashboards/42?embed_domain=https://portal.partners.example,
+            session_length 3600, force_logout_login true, external_user_id acme::PRT-ACME-0071,
+            first/last name, user_timezone, permissions, models, group_ids ["17"],
+            external_group_id acme, user_attributes { tenant_id: acme }
+37. Looker creates and signs the URL with its embed secret and returns it (step 5.9):
+      { "url": "https://analytics.partners.example/login/embed/...&nonce=...&time=...&signature=..." }
+    The URL is single-use and valid for a few minutes.
+38. Embed URL API returns embed_url to the Looker API (step 5.10).
+    The backend never opens the URL, logs it or stores it.
+
+   5.11 Back to the WebApp
+39. Looker API returns to the WebApp (Spoke 1 -> HUB -> PSC -> WebApp):
+      { embed_url, dashboards[42, 43, 44], home_dashboard_id: 42, session_length: 3600 }
+40. WebApp builds its dashboard menu from dashboards[] (Home, Monthly Revenue, Settlement Exceptions).
+
+E. OPEN THE DASHBOARD (Stage 6 — browser, Looker in Spoke 2, BigQuery)
+41. WebApp sets the iframe address to the signed URL: iframe.src = embed_url.
+42. The user's browser sends one GET to the signed URL on the public embed host
+    (External LB -> Reverse Proxy embed door -> HUB -> Spoke 2 Looker).
+43. Looker checks the URL: signature, time is fresh, nonce not used before,
+    and the parent page is https://portal.partners.example (embedded domain allowlist).
+    - Any mismatch: the frame is refused.
+44. Looker looks up external_user_id "acme::PRT-ACME-0071":
+      known   -> reuses that user and refreshes group, permissions and tenant_id attribute
+      unknown -> creates a new embed user for it
+45. Looker adds the user to group 17, which can open only folder Partners/acme.
+46. Looker sets its session cookie in the browser and redirects to dashboard 42.
+47. Every tile query gets WHERE tenant_id = 'acme' (LookML access_filter) and runs on BigQuery over private IP.
+48. Only the tenant's rows come back and dashboard 42 (Home) is displayed in the WebApp.
+
+F. SWITCHING TO ANOTHER DASHBOARD (same session)
+49. User clicks "Monthly Revenue" in the WebApp menu (the menu is WebApp, not Looker).
+50. WebApp sets iframe.src = https://analytics.partners.example/embed/dashboards/43?embed_domain=https://portal.partners.example
+    (a plain link — no new signed URL, no call to GKE).
+51. Looker recognises the session cookie, checks that group 17 may open dashboard 43, and displays it filtered to acme.
+52. A new signed URL (steps 4–48) is needed only when the Looker session expires (3600 s) or the user logs in again.
+
+G. AUDIT AND MONITORING (Layer 4c — runs throughout)
+53. Looker API, Partner Details API and Embed URL API write audit events (partner_id, tenant_id,
+    dashboard_id, outcome, x_request_id) to Cloud Logging. The signed URL itself is never logged.
+54. ID&A sends authentication events to Cloud Logging.
+55. Looker sends dashboard activity logs to Cloud Logging.
+56. Cloud Logging feeds Cloud Monitoring, which raises alerts on failures and unusual activity.
+
+KEY POINTS
+- The caller sends only the JWT and the partner id; the tenant always comes from the Tenant Registry.
+- ID&A is always reached through the Apigee Internal Proxy, never directly.
+- Looker is reached only through the Reverse Proxy; Spoke 1 to Spoke 2 always passes through the HUB.
+- Two Looker service users: looker-ro (list dashboards) and looker-embed (create signed URLs).
+- One signed URL per login: it opens one dashboard; the session covers the whole tenant folder.
+- The backend creates the signed URL; only the user's browser opens it.
+- Cloud DNS finds the address (DNS peering); Cloud Router finds the path (BGP).
