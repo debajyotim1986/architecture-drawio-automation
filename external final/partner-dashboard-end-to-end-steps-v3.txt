@@ -1,0 +1,251 @@
+PARTNER DASHBOARD ACCESS — END-TO-END STEPS (v3)
+From onboarding a partner company to an external user seeing a row-filtered Looker dashboard.
+Reference diagrams: partner-dashboard-flow-v5-spacious-stage5-expanded-v3.drawio, gke-to-cloudsql-registry.drawio
+Reference page:     partner-folder-access-complete.html   Schema: tenant_registry_schema.sql
+
+Example values used throughout
+  tenant_id            acme                      (our own identifier; nothing creates it for us)
+  partner_id           PRT-ACME-0071             (= JWT sub, issued by ID&A)
+  external_user_id     PRT-ACME-0071::acme       (partner_id::tenant_id, generated column in Cloud SQL)
+  Looker groups        17 "Partner acme", 31 "Partner acme – Retail"      (ids assigned by Looker)
+  Looker folders       512 Shared/Partners/acme, 530 Shared/Partners/acme/Retail  (ids assigned by Looker)
+  Dashboards           42 Home, 43 Monthly Revenue (folder 512), 44 Retail KPIs (folder 530)
+  Business group       retail
+  Looker user id       2381                      (assigned by Looker at first login)
+
+
+====================================================================================================
+PART 1 — ONE-TIME PLATFORM SET-UP
+====================================================================================================
+1.  Create the Tenant Registry in Cloud SQL for PostgreSQL (Spoke 1): private IP only, no public IP,
+    IAM database authentication on. Run tenant_registry_schema.sql (7 tables, triggers, roles).
+2.  Create two database users through IAM:
+      partner-details@...iam  -> DB role data_api   (SELECT only)  — used by the APIs
+      onboarding@...iam       -> DB role onboarding (write)        — used by the onboarding job
+3.  In the Tooling GKE cluster, run a Cloud SQL Auth Proxy sidecar next to the Partner Details API and
+    Embed URL API (--private-ip --auto-iam-authn). Workload Identity maps KSA partner-details-ksa to
+    GSA partner-details@ (roles cloudsql.client, cloudsql.instanceUser). No DB password exists.
+4.  How the API reaches Cloud SQL at run time:
+      a. API connects to 127.0.0.1:5432 (the proxy).
+      b. Proxy gets a token from the GKE metadata server (Workload Identity).
+      c. Proxy fetches a short-lived client certificate from the Cloud SQL Admin API (Private Google Access).
+      d. Proxy connects to the instance private IP over Private Services Access, TLS, IAM login.
+      e. Rows come back; the API caches them for 60 seconds.
+5.  In Looker, create two API service users and store their API3 client id / secret in Secret Manager:
+      looker-ro     — lists folders and dashboards
+      looker-embed  — creates signed embed URLs
+6.  In Looker Admin › User Attributes create tenant_id and business_group:
+    string, user access None, hidden, no default value (no value = no rows).
+7.  In Looker Admin › Embed: signed embedding on; embedded domain allowlist = https://portal.partners.example.
+8.  In Looker create the parent folder Shared › Partners (no partner group gets access to it) and
+    Shared › Templates (internal only, where analysts build dashboards).
+9.  In LookML add access filters to every explore the partner dashboards use:
+      explore: orders {
+        access_filter: { field: orders.tenant_id       user_attribute: tenant_id }
+        access_filter: { field: orders.business_group  user_attribute: business_group }
+      }
+10. In BigQuery make sure every row carries tenant_id and business_group — as columns on the fact
+    tables, or through one mapping table (account_access) joined in the explore.
+
+
+====================================================================================================
+PART 2 — ONBOARD A TENANT (once per partner company)
+====================================================================================================
+11. Insert the tenant into the registry:
+      INSERT INTO tenants (tenant_id, display_name, status, updated_by)
+      VALUES ('acme', 'Acme Ltd', 'active', 'onboarding');
+12. Create the tenant group in Looker (Admin › Users › Groups, or sdk.create_group).
+    Looker assigns the id: 17 "Partner acme". Optionally 31 "Partner acme – Retail" for the retail business group.
+13. Create the tenant folder under Shared › Partners, named after the tenant: acme -> Looker assigns folder id 512
+    (and Retail inside it -> 530).
+14. Lock each folder: switch off "inherit access", give View to its group only (512 -> group 17, 530 -> group 31).
+15. Publish dashboards into the folders from Shared › Templates: copy (new id per tenant), move (keeps its id),
+    or keep one shared dashboard in Partners/Common with View for every tenant group.
+    Looker assigns the dashboard ids: 42, 43 in 512; 44 in 530.
+16. Record the Looker ids in the registry:
+      tenant_groups  ('acme','17','Partner acme','tenant'), ('acme','31','Partner acme – Retail','business_group','retail')
+      group_folders  ('17','512','Partners/acme'), ('31','530','Partners/acme/Retail')
+      UPDATE tenants SET home_dashboard_id = '42' WHERE tenant_id = 'acme';
+17. Tag the tenant's data in BigQuery with tenant_id = 'acme' (and business_group values).
+
+
+====================================================================================================
+PART 3 — ONBOARD A PARTNER USER (once per external user)
+====================================================================================================
+18. ID&A creates the user's identity (userid, password, partner id PRT-ACME-0071) in OSIS.
+19. Insert the user into the registry:
+      INSERT INTO partner_users (partner_id, tenant_id, kind, status, max_role, business_groups, updated_by)
+      VALUES ('PRT-ACME-0071','acme','human','active','analyst','retail','onboarding');
+    PostgreSQL fills looker_external_user_id = 'PRT-ACME-0071::acme' automatically (generated column).
+20. Grant the user's groups (this decides which folders, and therefore which dashboards, they can open):
+      INSERT INTO partner_groups (partner_id, tenant_id, looker_group_id, granted_reason, updated_by)
+      VALUES ('PRT-ACME-0071','acme','17','CHG-1001','onboarding'),
+             ('PRT-ACME-0071','acme','31','CHG-1001','onboarding');
+21. Nothing is done in Looker. The user does not exist in Looker yet, and admins never add external users
+    to groups by hand. Every change is written to registry_audit by trigger.
+
+
+====================================================================================================
+PART 4 — LOGIN AND DASHBOARD LINK (Layer 1 — User & WebApp)
+====================================================================================================
+22. User logs in to the WebApp; ID&A issues the JWT (sub = PRT-ACME-0071, roles, names).
+23. WebApp holds the session and the JWT.
+24. User clicks "Open Dashboard".
+
+
+====================================================================================================
+PART 5 — WEBAPP CALLS THE LOOKER API IN GKE (Layer 1 -> HUB -> Spoke 1)
+====================================================================================================
+25. WebApp calls the Looker API with two headers:
+      Authorization: Bearer <JWT>
+      X-Partner-Id: PRT-ACME-0071
+    The caller never sends a tenant, a group or a folder.
+26. Request leaves the WebApp through its PSC endpoint into the HUB VPC (Hub Internal Load Balancer).
+27. Hub Cloud Router has learned the Spoke 1 routes over BGP; the request goes through the HA VPN IPsec
+    tunnel to Spoke 1.
+28. Request lands on the Looker API in the Tooling GKE cluster.
+
+
+====================================================================================================
+PART 6 — VALIDATE THE USER WITH ID&A (Spoke 1 -> Apigee internal proxy -> ID&A)
+====================================================================================================
+29. Looker API calls ID&A through the Apigee Internal Proxy (lloyds-auth-int) via the PSC endpoint.
+30. ID&A checks the token against OSIS and returns the result through Apigee.
+    Not valid -> error to the WebApp, flow stops.
+
+
+====================================================================================================
+PART 7 — STAGE 5: FROM REGISTRY TO SIGNED URL (Spoke 1 Tooling GKE)
+====================================================================================================
+   5.1 Verify the caller
+31. Looker API verifies the JWT with ID&A's public keys (JWKS, cached 5 minutes):
+    signature, expiry, issuer, audience.
+32. X-Partner-Id must equal the JWT sub. Any failure -> 401/403, flow stops.
+
+   5.2 – 5.3 Read the registry (Partner Details API -> Cloud SQL, one query)
+33. Partner Details API runs query Q1 through the Auth Proxy (steps 4a–4e):
+      partner_users JOIN tenants JOIN partner_groups (valid today) JOIN tenant_groups (active) JOIN group_folders
+    Result:
+      partner_id PRT-ACME-0071 | tenant acme | external_user_id PRT-ACME-0071::acme
+      partner active | tenant active | max_role analyst | business_groups retail | home dashboard 42
+      looker_group_ids {17,31} | looker_folder_ids {512,530}
+34. Unknown partner, disabled partner, suspended tenant or no active groups -> 403, flow stops (fail closed).
+35. Effective role = JWT role capped at max_role; permissions and models come from role_capabilities.
+
+   5.4 List what the user may open (Looker API, read-only key)
+36. Partner Details API reads the looker-ro client id / secret from Secret Manager (Workload Identity).
+37. It logs in: POST https://looker-api.rp.internal/api/4.0/login -> access token.
+38. For each folder id (512, 530): GET /api/4.0/folders/{id}/dashboards?fields=id,title,deleted
+    Path: Reverse Proxy API door -> Cloud DNS peering -> HUB -> Spoke 2 Looker.
+39. Allowed dashboards = union of all folders: 42 Home, 43 Monthly Revenue, 44 Retail KPIs.
+    No dashboards -> 403, flow stops.
+
+   5.5 Return the details
+40. Partner Details API returns to the Looker API:
+      partner_id, tenant_id, external_user_id, effective role, group_ids, folder_ids,
+      business_groups, dashboards[], home_dashboard_id
+
+   Choose the landing dashboard
+41. Looker API picks the one dashboard the signed URL will open:
+      1) dashboard the user asked for — must be in the allowed list, otherwise 403
+      2) tenants.home_dashboard_id
+      3) dashboard titled "Home"
+      4) lowest dashboard id
+    Result: 42.
+
+   5.6 – 5.10 Create the signed URL (Embed URL API)
+42. Looker API calls POST /internal/embed-url with the details.
+43. Embed URL API checks again that dashboard 42 is in the allowed list (nothing is signed otherwise).
+44. It reads the looker-embed client id / secret from Secret Manager and logs in to Looker.
+45. It asks Looker to sign: POST https://looker-api.rp.internal/api/4.0/embed/sso_url
+      {
+        "target_url":        "https://analytics.partners.example/embed/dashboards/42?embed_domain=https://portal.partners.example",
+        "external_user_id":  "PRT-ACME-0071::acme",
+        "group_ids":         ["17", "31"],                       <- decides folders
+        "external_group_id": "acme",
+        "user_attributes":   { "tenant_id": "acme", "business_group": "retail" },   <- decides rows
+        "permissions":       [ from role_capabilities ],
+        "models":            [ "partner_analytics" ],
+        "first_name": "Jane", "last_name": "Doe",
+        "session_length":    3600,
+        "force_logout_login": true
+      }
+46. Looker signs it with its embed secret and returns
+      { "url": "https://analytics.partners.example/login/embed/...&nonce=...&time=...&signature=..." }
+    Single use, valid for a few minutes. The backend never opens, logs or stores it.
+
+   5.11 Back to the WebApp
+47. Looker API returns to the WebApp (Spoke 1 -> HUB -> PSC -> WebApp):
+      { embed_url, dashboards [42, 43, 44], home_dashboard_id 42, session_length 3600 }
+48. WebApp builds its dashboard menu from dashboards[].
+
+
+====================================================================================================
+PART 8 — OPEN THE DASHBOARD (Stage 6 — browser, Looker in Spoke 2, BigQuery)
+====================================================================================================
+49. WebApp sets iframe.src = embed_url; the browser opens it once
+    (External LB -> Reverse Proxy embed door -> HUB -> Spoke 2 Looker).
+50. Looker checks the signature, time, nonce (no replay) and that the parent page is on the allowlist.
+51. Looker looks up external_user_id "PRT-ACME-0071::acme":
+      first login  -> creates an embed user and gives it its own id (2381), linked to this key for good
+      later logins -> reuses user 2381
+52. Looker sets the user's groups to exactly 17 and 31 (groups not in the list are removed) and sets
+    tenant_id = acme, business_group = retail. This happens at every login.
+53. Looker sets its session cookie and redirects to dashboard 42.
+54. Looker checks that group 17 may view folder 512 (where dashboard 42 lives).
+55. Every tile query gets WHERE tenant_id = 'acme' AND business_group = 'retail' (LookML access filter)
+    and runs on BigQuery over private IP.
+56. Only acme / retail rows come back; dashboard 42 is shown in the WebApp.
+57. (Optional) A job copies Looker's user id 2381 into partner_users.looker_user_id for support.
+
+
+====================================================================================================
+PART 9 — SWITCHING DASHBOARDS (same session)
+====================================================================================================
+58. User clicks "Retail KPIs" in the WebApp menu (the menu belongs to the WebApp, not Looker).
+59. WebApp sets iframe.src = https://analytics.partners.example/embed/dashboards/44?embed_domain=https://portal.partners.example
+    — a plain link, no new signed URL, no call to GKE.
+60. Looker recognises the session, checks that group 31 may view folder 530, and shows dashboard 44
+    filtered to acme / retail.
+61. A dashboard outside folders 512 / 530 is refused by Looker, even if the user types its id.
+62. A new signed URL (steps 25–56) is created only when the Looker session expires (3600 s) or the
+    user logs in again.
+
+
+====================================================================================================
+PART 10 — CHANGING OR REMOVING ACCESS (applies at the user's next login)
+====================================================================================================
+63. Give an extra folder      -> INSERT a partner_groups row for that folder's group.
+64. Take a folder away        -> set valid_to on that partner_groups row.
+65. Change the rows they see  -> UPDATE partner_users.business_groups.
+66. Block one user            -> partner_users.status = 'disabled' (no signed URL is created, 403).
+67. Block a whole tenant      -> tenants.status = 'suspended'.
+68. End an open session now   -> a Looker admin disables Looker user 2381.
+69. Move a user to another tenant -> change partner_users.tenant_id; the key becomes PRT-ACME-0071::<new tenant>,
+    so Looker creates a new user and old saved content stays behind.
+70. A nightly job compares Looker folder permissions with group_folders and reports differences.
+
+
+====================================================================================================
+PART 11 — AUDIT AND MONITORING (runs throughout)
+====================================================================================================
+71. Every registry change is written to registry_audit by trigger (old and new row, who, when).
+72. Looker API, Partner Details API and Embed URL API write audit events (partner_id, tenant_id,
+    dashboard_id, outcome, x_request_id) to Cloud Logging. The signed URL is never logged.
+73. ID&A sends authentication events, and Looker sends dashboard activity, to Cloud Logging.
+74. Cloud Monitoring alerts on failures and unusual activity.
+
+
+KEY POINTS
+- The caller sends only the JWT and partner id. Tenant, groups, folders and row filters always come
+  from the Tenant Registry.
+- Access chain: partner_users -> partner_groups -> tenant_groups -> group_folders -> Looker folder -> dashboards.
+  There is no direct user-to-dashboard mapping.
+- group_ids decide which dashboards; user_attributes decide which rows.
+- external_user_id = partner_id::tenant_id (PRT-ACME-0071::acme), a generated column in partner_users.
+  Fix the format before go-live and never change it.
+- Checked twice: the API before signing, and Looker on every open and every switch.
+- Cloud SQL is reached only through the Auth Proxy over private IP with IAM login; no passwords.
+- ID&A is always reached through the Apigee Internal Proxy; Looker only through the Reverse Proxy;
+  Spoke 1 to Spoke 2 always passes through the HUB.
+- One signed URL per login, opened only by the user's browser.
