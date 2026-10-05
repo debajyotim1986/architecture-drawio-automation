@@ -1,0 +1,208 @@
+LOOKER WRITE-BACK — OPTION 3 (Looker action secret + Looker group + Workload Identity)
+Complete steps in sequence
+Reference diagram: looker-writeback-option3-detailed.drawio
+Reference pages:   looker-writeback-option3-guide.html, writeback-api-catalogue.html
+
+Example values used below
+  Project            lbg-partner-tooling
+  GKE cluster        tooling-gke (Spoke 1), namespace writeback
+  Services           writeback-api (Write-back API), writer (Writer API)
+  Google SAs         writeback-api@lbg-partner-tooling.iam.gserviceaccount.com
+                     writer@lbg-partner-tooling.iam.gserviceaccount.com
+  Kubernetes SAs     writeback-ksa, writer-ksa
+  Secret             looker-action-secret
+  Looker group       Writeback Users (manual)   User attribute  writeback_allowed (no / yes)
+  BigQuery table     writeback.writeback_log   view writeback.current_state
+  Write-back URL     https://writeback-api.internal      Writer URL   https://writer.internal
+
+
+====================================================================================================
+PART A — ONE-TIME SET-UP (do in this order)
+====================================================================================================
+
+A1. ENTRA — sign-in only
+  1.  Nothing to add. Users keep signing in to Looker through the existing Entra SAML app
+      (authentication only). No Entra group, claim or app registration is needed for write-back.
+
+A2. LOOKER — group, user attribute and role
+  2.  Admin › Users › Groups › Add Group: "Writeback Users" (manual group).
+  3.  A Looker admin adds the users who may write back to "Writeback Users".
+  4.  Admin › Users › User Attributes › Create: writeback_allowed
+        type String · default value "no" · user access None · hide values Yes.
+  5.  Open writeback_allowed › Group Values › add "Writeback Users" = "yes".
+      Created once; it applies to every user automatically: everyone gets "no" (default),
+      members of Writeback Users get "yes" (group value). Never set a value on an individual
+      user (it would override the group). Give a value only on Writeback Users.
+      (Optional: script it with the Looker API — create_user_attribute, then
+       set_user_attribute_group_values.)
+  6.  Admin › Users › Roles: give "Writeback Users" a role with send_to_integration on the
+      write-back model (only this group sees the action).
+  7.  The built-in attributes email and id identify the user for the audit trail (no set-up).
+
+A3. BIGQUERY — table and view
+  8.  Create table writeback.writeback_log
+        (request_id, record_key, field, new_value, actor_email, actor_id, written_at),
+        partitioned by DATE(written_at), clustered by record_key.
+  9.  Create view writeback.current_state = latest row per (record_key, field).
+  10. Point the LookML view used by the dashboard at current_state.
+
+A4. SECRET MANAGER — the Looker action secret
+  11. Generate and store a random 64-hex-character value:
+        openssl rand -hex 32 | gcloud secrets create looker-action-secret \
+          --replication-policy=user-managed --locations=europe-west2 --data-file=-
+      Sample value (never use it): 9f2c4a7e1b0d63a8c5e2f71d4b9a0c38e6f1a2b7d4c9e0f3a6b1c8d5e2f7a490
+
+A5. GOOGLE SERVICE ACCOUNTS AND PERMISSIONS
+  12. Create writeback-api@ and writer@ (no key files).
+  13. Grant writeback-api@ roles/secretmanager.secretAccessor on looker-action-secret only.
+  14. Grant writer@ roles/bigquery.dataEditor on table writeback.writeback_log only.
+
+A6. WORKLOAD IDENTITY
+  15. (Standard clusters) enable workload pool on the cluster and GKE_METADATA on the node pool.
+  16. Create namespace writeback and KSAs writeback-ksa, writer-ksa.
+  17. Bind roles/iam.workloadIdentityUser:
+        writeback-ksa → writeback-api@,  writer-ksa → writer@.
+  18. Annotate each KSA with iam.gke.io/gcp-service-account=<its Google SA>.
+
+A7. NETWORK
+  19. Expose the Write-back API only through an internal load balancer (no public IP).
+  20. Private DNS: writeback-api.internal → ILB IP.
+  21. VPC firewall: allow tcp to the API only from Looker's egress range (Spoke 2, via HUB).
+  22. Confirm the HUB Cloud Router advertises the route from Spoke 2 to this subnet.
+  23. NetworkPolicy in writeback: default deny; Writer accepts traffic only from writeback-api pods.
+      Also: add the internal CA that signs writeback-api.internal to Looker's trust store.
+
+A8. DEPLOY THE SERVICES
+  24. Deploy writeback-api (serviceAccountName: writeback-ksa, 2 replicas) with endpoints:
+        POST /                              action list for Looker (asks for writeback_allowed,
+                                            email and id as parameters)
+        POST /actions/writeback/form        input form (if used)
+        POST /actions/writeback/execute     main write-back call
+        GET  /healthz, /readyz              probes
+  25. Deploy writer (Node.js, serviceAccountName: writer-ksa, 2 replicas, ClusterIP only):
+        POST /v1/write                      insert into BigQuery
+        GET  /healthz                       probe
+
+A9. REGISTER THE ACTION IN LOOKER
+  26. Looker › Admin › Platform › Actions › Add Action Hub:
+        URL                  https://writeback-api.internal
+        Authorization Token  the value of looker-action-secret (value only)
+  27. Save; Looker calls POST / and lists "Write back". Switch the action to Enabled.
+  28. LookML: add tags: ["writeback_key"] to the editable field; deploy to production.
+
+A10. TEST BEFORE GO-LIVE
+  29. Writeback user clicks Write back → "success", one row in writeback_log, new value on dashboard.
+  30. Call the API with no / wrong secret → 401.
+  31. Remove a user from Writeback Users, click again → 403 straight away;
+      a user never in the group does not see the action.
+  32. Call the Writer from another pod → blocked.
+  33. Send the same request twice → one row only.
+  34. Read the secret from a pod with another KSA → 403 PERMISSION_DENIED.
+  35. Cloud Logging shows one audit entry per write (request_id, user email, Looker id).
+
+
+====================================================================================================
+PART B — RUNTIME FLOW (every "Write back" click)
+====================================================================================================
+
+STEP 0 — SIGN-IN AND GROUP MEMBERSHIP
+  0.1 User opens Looker; Looker redirects the browser to Entra (SAML).
+  0.2 Entra signs the user in (password, MFA, Conditional Access) — authentication only.
+  0.3 Looker opens the session; built-in attributes email and id identify the user.
+  0.4 Beforehand, a Looker admin added the user to the manual group "Writeback Users".
+  0.5 Through that group, writeback_allowed = "yes" for this user (everyone else "no").
+      Only this group's role can use the action, so others don't see it.
+
+STEP 1 — THE CLICK
+  1.1 User edits a value on the tagged field and clicks "Write back".
+  1.2 Looker's server (not the browser) builds the payload: cell value, form fields and the
+      parameters writeback_allowed, user_email, looker_user_id (filled from the user's attributes).
+  1.3 Looker POSTs to https://writeback-api.internal/actions/writeback/execute with
+        Authorization: Token token="<looker-action-secret>"
+  1.4 Traffic goes Spoke 2 → HUB (HA VPN, Cloud Router) → Spoke 1 internal LB; the firewall
+      admits only Looker's range.
+
+  WHO CALLS THE API AND WHEN
+    Who   : Looker's own server (Looker application in Spoke 2) — not the browser, not your code.
+    When  : once per click, when the user clicks "Write back" on a tagged cell
+            (or presses Submit on the action form).
+    Before: Looker shows the action only if it is enabled, the field has tag writeback_key and the
+            user's role (from Writeback Users) has send_to_integration. This hides the button; the
+            API is still the real check.
+    Not triggered by: loading/refreshing the dashboard, the browser directly (it never sees the URL
+            or token), or schedules unless you set one up with this action.
+    URL and token: entered once in Admin › Platform › Actions › Add Action Hub; the execute path
+            came from the API's POST / reply when the hub was registered.
+    Values at click time: writeback_allowed = user value (none set) → group value "yes" for
+            Writeback Users → default "no"; email and id from the user's account.
+    Certificate: Looker's server must trust the internal certificate of writeback-api.internal
+            (add the internal CA to Looker's trust store).
+
+STEP 2 — THE API GETS ITS GOOGLE IDENTITY
+  2.1 Write-back API asks the GKE metadata server for a Google token.
+  2.2 Workload Identity maps writeback-ksa → writeback-api@.
+  2.3 Token valid about 1 hour, refreshed automatically; no key file.
+
+STEP 3 — IS THE CALLER LOOKER?
+  3.1 API reads looker-action-secret from Secret Manager (cached 5 minutes).
+  3.2 Compares it with the Authorization header in constant time.
+  3.3 Missing or wrong → 401, audit event, stop.
+
+STEP 4 — MAY THIS USER WRITE?
+  4.1 API reads writeback_allowed, user_email, looker_user_id from the payload
+      (trusted: step 3 proved the sender is Looker; users cannot edit these attributes).
+  4.2 writeback_allowed must be "yes" — true only while the user is in "Writeback Users".
+  4.3 Anything else → 403, audit event, stop.
+      (Optional extra check: ask the Looker API for the user's group_ids with a read-only key.
+       Not needed; it would add a second secret and a network path to Looker.)
+
+STEP 5 — VALIDATE THE CHANGE
+  5.1 Required fields, allowed columns, value type and range, row limit, dataset allowed.
+      Invalid → 400 with a message Looker shows to the user.
+  5.2 request_id (from Looker or generated) set as the idempotency key.
+
+STEP 6 — CALL THE WRITER
+  6.1 API gets a Google ID token (audience https://writer.internal) as writeback-api@.
+  6.2 POST https://writer.internal/v1/write
+        Authorization: Bearer <Google ID token>
+        body: request_id, record_key, field, new_value, actor_email, actor_id
+  6.3 Writer verifies the token with Google's keys, the audience, and caller = writeback-api@.
+      Anything else → 401 / 403.
+
+STEP 7 — WRITE TO BIGQUERY
+  7.1 Writer gets its own token as writer@ (Workload Identity).
+  7.2 Appends one row to writeback_log with insertId = request_id (a retried request is dropped
+      as a duplicate).
+  7.3 writer@ can write only to this table.
+
+STEP 8 — RESULT
+  8.1 Writer returns 200 → Write-back API → Looker:
+        {"looker": {"success": true, "refresh_query": true}}
+  8.2 Looker shows "success" to the user.
+  8.3 API writes an audit record to Cloud Logging: request_id, user email and id, table, key,
+      value, outcome.
+  8.4 The dashboard re-runs, reads current_state and shows the new value.
+
+
+====================================================================================================
+PART C — OPERATIONS
+====================================================================================================
+  C1. Rotate the action secret quarterly:
+        add a new version in Secret Manager → API accepts old and new for 5 minutes →
+        update Authorization Token in Looker's action hub → disable the old version.
+  C2. Add or remove a writer: Looker › Admin › Users › Groups › Writeback Users (takes effect on
+      the user's next click; no GCP change).
+  C3. Open write-back on another table: grant writer@ dataEditor on it and add it to the API's
+      allowed list.
+  C4. Monitor: alerts on 401 spikes, 403 spikes, Writer 5xx.
+  C5. Review monthly: Writeback Users members, IAM on the secret and table, sample audit records.
+
+
+KEY POINTS
+- Looker calls the API from its server with the action secret; no user token is involved.
+- Permission to write = membership of the manual Looker group "Writeback Users", carried to the
+  API as writeback_allowed = "yes" on every click. No separate API or Microsoft Graph call needed.
+- Entra is used only to sign in to Looker.
+- All Google access uses Workload Identity; the only shared secret is looker-action-secret.
+- The Writer is the only component that can write to BigQuery, and only to one table.
+- No ID&A, Apigee, Microsoft Graph, key files or user bearer tokens in this flow.
