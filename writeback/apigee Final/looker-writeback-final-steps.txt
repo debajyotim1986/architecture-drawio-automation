@@ -1,0 +1,225 @@
+LOOKER WRITE-BACK TO BIGQUERY — FINAL DESIGN (v4)
+Entra auth token → ID&A JWT via Apigee → Write-back API verifies with JWKS → machine-to-machine on service accounts
+Complete steps in sequence, 1 to the end
+Reference diagram:  looker-writeback-oauth2-entra-v4.drawio   (step numbers in [brackets] match the diagram)
+Reference docs:     Looker-Writeback-MVD-v1.0.docx, Looker-Writeback-API-Endpoint-Implementation-Guide.docx
+
+Example values used below (replace with your own)
+  Projects           looker-prj (Spoke 2, Looker + Action Hub)   lbg-writeback-prj (Spoke 1)   lbg-data-prj (BigQuery)
+  GKE namespaces     looker-actions (Action Hub)   writeback (Write-back API, Writer API)
+  Google SAs         action-hub@   writeback-api@   writer@      (…@<project>.iam.gserviceaccount.com)
+  Kubernetes SAs     action-hub-ksa   writeback-ksa   writer-ksa
+  Entra apps         looker-writeback-action-hub (federated, no secret)   writeback-graph-reader (Graph)
+  Entra group        BQ-Writeback
+  Apigee proxy       lloyds-auth-int   → /v1/token-exchange   /v1/jwks
+  ID&A JWT           sub looker-action-hub · aud writeback-api · scope writeback.write · ≈15 min
+  Secrets            looker-action-secret (LOOKER_SECRET)   graph-client-secret (GRAPH_CLIENT_SECRET)
+  URLs               Action Hub https://writeback-actions.internal
+                     Write-back API https://writeback-api.internal/v1/writeback
+                     Writer https://writer.internal/v1/write
+  BigQuery           writeback.writeback_log (table)   writeback.current_state (view)
+
+
+====================================================================================================
+PART A — ONE-TIME SET-UP (do in this order)
+====================================================================================================
+
+A1. ENTRA ID — users, group, apps
+  1.  Create the security group BQ-Writeback and add the users who may write back. Note its object id.
+  2.  In the existing Looker SAML enterprise app, add the claim entra_oid = user.objectid
+      (and keep the groups claim).
+  3.  Register app looker-writeback-action-hub (used by the Action Hub). Do NOT create a client secret.
+  4.  On that app add a federated credential:
+        issuer    https://accounts.google.com
+        subject   <unique id (number) of action-hub@>
+        audience  api://AzureADTokenExchange
+  5.  Grant looker-writeback-action-hub permission to call the ID&A exchange API
+      (scope api://ida-token-exchange/.default) and get admin consent.
+  6.  Register app writeback-graph-reader with Graph application permissions User.Read.All and
+      GroupMember.Read.All; admin consent; create a client secret (stored in step 13).
+
+A2. ID&A AND APIGEE
+  7.  ID&A team registers the Action Hub app id as a client allowed to exchange an Entra token for a
+      JWT with audience writeback-api and scope writeback.write, lifetime ≈15 minutes.
+  8.  Apigee team configures proxy lloyds-auth-int:
+        POST /v1/token-exchange  → VerifyJWT on the Entra token (Entra JWKS, issuer, audience, expiry),
+                                   SpikeArrest + Quota, then call ID&A token exchange
+        GET  /v1/jwks            → ID&A public signing keys (response cache 10 min)
+  9.  Expose lloyds-auth-int privately to both spokes (PSC endpoint, private DNS api-int.lloyds.internal).
+
+A3. GOOGLE CLOUD — identities, secrets, data
+  10. Create Google service accounts action-hub@, writeback-api@, writer@ (no key files; org policy
+      blocks key creation).
+  11. Enable Workload Identity on both GKE clusters; create KSAs action-hub-ksa (ns looker-actions),
+      writeback-ksa and writer-ksa (ns writeback); bind each KSA to its GSA with
+      roles/iam.workloadIdentityUser and annotate the KSA with iam.gke.io/gcp-service-account.
+  12. Create Secret Manager secret looker-action-secret with a random 64-hex value
+      (openssl rand -hex 32). Grant secretAccessor to action-hub@ only.
+  13. Create Secret Manager secret graph-client-secret with the value from step 6.
+      Grant secretAccessor to writeback-api@ only.
+  14. In BigQuery create dataset writeback (europe-west2), table writeback_log
+      (request_id, record_key, field, new_value, actor_oid, actor_email, written_at;
+      partitioned by DATE(written_at), clustered by record_key) and view current_state
+      (latest row per record_key + field).
+  15. Grant writer@ roles/bigquery.dataEditor on writeback.writeback_log only (nothing else).
+
+A4. NETWORK
+  16. Expose the Write-back API through an internal load balancer writeback-api.internal (Spoke 1).
+  17. Firewall: allow 443 to the load balancer only from the Action Hub egress range (Spoke 2).
+  18. Writer: ClusterIP only; NetworkPolicy allows ingress only from Write-back API pods.
+  19. TLS on every hop with certificates from the internal CA; Spoke 2 ↔ Spoke 1 through the HUB
+      (HA VPN, Cloud Router); private DNS records for *.internal names.
+
+A5. DEPLOY THE THREE SERVICES (INT → PRE → PRD)
+  20. Deploy the Action Hub (2 replicas, ns looker-actions, KSA action-hub-ksa) with config:
+      ENTRA_TENANT_ID, ACTION_HUB_APP_ID, TOKEN_EXCHANGE_URL, WRITEBACK_API_URL, LOOKER_SECRET_NAME.
+  21. Deploy the Write-back API (2 replicas, ns writeback, KSA writeback-ksa) with config:
+      JWKS_URL, IDA_ISSUER, JWT_AUDIENCE=writeback-api, ALLOWED_CALLERS=looker-action-hub,
+      GRAPH_CLIENT_ID, GRAPH_SECRET_NAME, WRITEBACK_GROUP_ID, WRITER_URL, RULES_FILE
+      (editable tables / fields / value rules agreed with the data owner).
+  22. Deploy the Writer API (2 replicas, ns writeback, KSA writer-ksa) with config:
+      ALLOWED_CALLER=writeback-api@…, AUDIENCE=https://writer.internal, BQ_TABLE.
+  23. Add probes (/healthz, /readyz), PodDisruptionBudgets, HPA, non-root + read-only filesystem.
+
+A6. LOOKER
+  24. Admin › Users › User Attributes: create entra_oid (string, user access View/None) and map it
+      from the SAML claim added in step 2.
+  25. Admin › Platform › Actions › Add Action Hub:
+        URL                  https://writeback-actions.internal
+        Authorization token  value of looker-action-secret (step 12)
+      Click Refresh, then enable the action "Write back".
+  26. In LookML tag each editable dimension with tags: ["writeback_key"] and point the dashboard at
+      the current_state (or authorised) view so new values appear after refresh.
+  27. Give the users of BQ-Writeback a Looker role with send_to_integration on that model
+      (hides the button from others; the API remains the real check).
+
+A7. MONITORING
+  28. Create log-based metrics and alerts: 401/403 rate, token-exchange failures, Writer 5xx,
+      latency p95 > 2 s, JWKS age. Route alerts to BIaaS on-call.
+  29. Run the tests in Part D in PRE before go-live.
+
+
+====================================================================================================
+PART B — RUNTIME: WHAT HAPPENS ON EVERY "WRITE BACK" CLICK
+====================================================================================================
+
+SIGN-IN (once per Looker session)
+  30. [0.1] User opens Looker; Looker redirects to Entra ID (SAML).
+  31. [0.2] Entra signs the user in with MFA and Conditional Access.
+  32. [0.3] Entra returns the SAML assertion (oid, upn, groups); Looker stores entra_oid on the user.
+
+CLICK
+  33. [1.1] User edits a value on a field tagged writeback_key and clicks "Write back".
+  34. [1.2] The Looker server (not the browser) calls the Action Hub:
+            POST https://writeback-actions.internal/actions/writeback/execute
+  35. [1.3] The request carries Authorization: Token token="<looker-action-secret>", entra_oid,
+            email, record key, field and new value.
+
+ACTION HUB — SERVICE AUTHENTICATION (Entra auth token → ID&A JWT)
+  36. [2.1] Action Hub compares the Looker secret in constant time. Wrong or missing → 401, audit, stop.
+  37. Action Hub checks its cache: if it already holds an ID&A JWT valid for more than 60 s,
+      it skips to step 45.
+  38. [2.2c] Action Hub asks the GKE metadata server for a Google ID token of action-hub@
+            (audience api://AzureADTokenExchange) — Workload Identity, no key.
+  39. [2.2a/b] Action Hub calls the Entra token endpoint with client credentials, using that Google
+            token as client_assertion → receives the Entra auth token (no client secret used).
+  40. [2.3] Action Hub sends the Entra auth token to Apigee:
+            POST lloyds-auth-int /v1/token-exchange (subject_token = Entra token,
+            audience = writeback-api, scope = writeback.write).
+  41. [2.4] Apigee verifies the Entra token: signature (Entra keys), issuer, audience, expiry;
+            applies quota. Invalid → 401, stop.
+  42. [2.5a] Apigee calls ID&A; ID&A validates the Entra token and that the app is allowed.
+  43. [2.5b/c] ID&A issues the JWT: sub looker-action-hub, aud writeback-api,
+            scope writeback.write, expiry ≈15 min, signed RS256 with kid.
+  44. [2.6] Apigee returns the Apigee-approved ID&A JWT to the Action Hub.
+  45. [2.7] Action Hub caches the JWT until 60 s before expiry and creates request_id (wb-<uuid>)
+            if Looker did not send one.
+
+WRITE-BACK API — VERIFY THE JWT (JWKS)
+  46. [3.1] Action Hub calls POST https://writeback-api.internal/v1/writeback with
+            Authorization: Bearer <ID&A JWT>, X-Request-Id, actor (entra_oid, email) and the change.
+            Path: Spoke 2 → HUB → Spoke 1 internal load balancer; firewall admits only the Action Hub.
+  47. [3.2] JWKS call: Write-back API gets ID&A public keys from lloyds-auth-int /v1/jwks
+            (cached 10 min; refreshed at once if the JWT has an unknown kid).
+  48. [3.3] Write-back API verifies the JWT: RS256 signature with the key for kid, issuer,
+            audience = writeback-api, expiry / not-before (≤ 60 s skew), scope writeback.write,
+            sub in the allowed callers.
+  49. [3.4] Any check fails or token expired → 401, audit event, stop.
+
+WRITE-BACK API — AUTHORISE THE USER AND VALIDATE
+  50. [4a] Write-back API asks Microsoft Graph whether the account for entra_oid is enabled
+          (Graph app token from writeback-graph-reader; secret read from Secret Manager).
+  51. [4b] Write-back API asks Graph whether the user is a member of BQ-Writeback.
+  52. [4c] Answer cached 5 min. Not enabled, not a member, or Graph unavailable → 403, audit, stop
+          (fail-closed).
+  53. [5] Write-back API validates the change: allowed table and field, type, range, length,
+          row limit. Invalid → 400 with a field message, stop.
+  54. [5] request_id confirmed as the idempotency key (same id + different data → 409).
+
+MACHINE-TO-MACHINE WRITE (no user or ID&A token beyond this point)
+  55. [6] Write-back API gets a Google ID token as writeback-api@ for audience https://writer.internal
+          (Workload Identity) and calls POST https://writer.internal/v1/write.
+  56. [6.1] Writer verifies the Google ID token: signature, audience, caller email = writeback-api@.
+            Otherwise → 403, stop. NetworkPolicy already blocks every other pod.
+  57. [7] Writer gets its own Google token as writer@ from the GKE metadata server (no key file).
+  58. [8 / 8.1] Writer appends the row to writeback.writeback_log with insertId = request_id
+            (a retry of the same request is dropped as a duplicate). Row holds record_key, field,
+            new_value, actor_oid, actor_email, written_at.
+  59. [8.2] The current_state view now returns this value as the latest for the key and field.
+
+RESULT
+  60. [9] Writer returns 200 to the Write-back API.
+  61. [9] Write-back API writes the audit event to Cloud Logging (request_id, entra_oid, JWT sub,
+          table, rows, outcome, latency) and returns 200 {"status":"written"} to the Action Hub.
+  62. [9] Action Hub returns {"looker":{"success":true,"refresh_query":true}} to Looker.
+  63. [10] Looker shows "success" and re-runs the dashboard query.
+  64. [10] The dashboard reads the current_state / authorised view and shows the new value.
+
+ERROR RETURNS SEEN BY THE USER (any step above)
+  65. 400 invalid change → field message.  401 → "Action failed, try again".
+      403 → "You are not authorised to write back".  503 → "Try again later".
+      Every rejection is audited with request_id; nothing is written to BigQuery.
+
+
+====================================================================================================
+PART C — OPERATIONS
+====================================================================================================
+  66. Add or remove a writer: change membership of Entra group BQ-Writeback (effective within 5 min).
+  67. Rotate the Looker action secret: add a new version in Secret Manager → Action Hub accepts old and
+      new for 5 min → update the token in Looker › Admin › Actions → disable the old version.
+  68. Rotate the Graph client secret: new secret in Entra → new version in Secret Manager → remove old.
+  69. ID&A key rotation: nothing to do; the Write-back API refreshes JWKS on an unknown kid.
+  70. Investigate a write: search Cloud Logging for the request_id across Action Hub, Write-back API
+      and Writer; the same id is in the BigQuery row.
+  71. Correct a bad value: write a new value (append-only); history stays in writeback_log.
+  72. Switch the feature off: disable the "Write back" action in Looker › Admin › Actions.
+
+
+====================================================================================================
+PART D — TESTS BEFORE GO-LIVE
+====================================================================================================
+  73. Authorised user writes a value → "success", one row in writeback_log, dashboard shows it.
+  74. Action Hub called without / with a wrong Looker secret → 401.
+  75. Apigee given an invalid Entra token → 401, no JWT issued.
+  76. Write-back API called with no JWT, expired JWT, wrong audience, wrong issuer, unknown kid,
+      tampered signature, alg none / HS256, missing scope → 401 in every case.
+  77. User not in BQ-Writeback, or account disabled → 403.
+  78. Graph unavailable → 403/503 (never success).
+  79. Invalid field or value → 400.
+  80. Same request sent twice → one row only.
+  81. Writer called from another pod or with another service account's token → blocked / 403.
+  82. ID&A signing key rotated → writes continue after JWKS refresh.
+  83. Load: 20 writes/s for 30 min → p95 < 2 s, error rate < 0.1%.
+  84. Search logs after the tests → no tokens or secrets present.
+
+
+KEY POINTS
+- Looker cannot forward the user's own token, so: the caller is proven by an ID&A JWT (obtained by the
+  Action Hub through Apigee), and the user is proven by entra_oid + the BQ-Writeback check.
+- ID&A is reached only through Apigee (token exchange and JWKS).
+- No ID&A client secret and no Google key files: federated credential + Workload Identity.
+- After the JWT is verified, everything runs machine-to-machine on service accounts; the Writer can
+  only append to one table.
+- request_id links Looker click, logs and the BigQuery row, and makes retries safe.
+- Open decision OD-1: the user check could use a manual Looker group (writeback_allowed) instead of
+  Microsoft Graph; steps 6, 13, 50–52 and 68 would then change.
