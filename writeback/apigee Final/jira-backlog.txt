@@ -1,0 +1,482 @@
+LOOKER WRITE-BACK TO BIGQUERY — JIRA BACKLOG (one item per line number)
+Architecture: looker-writeback-oauth2-entra-v5.drawio
+  Entra auth token → ID&A JWT via Apigee → Write-back API verifies with JWKS → machine-to-machine on service accounts
+  Write permission = Looker group "Writeback Users" → user attribute writeback_allowed = yes (no Microsoft Graph)
+
+How to read each item
+  N.  Title                                   → Jira summary
+      Team | Depends on                       → assignee team and "is blocked by" links
+      What                                    → description
+      Done when                               → acceptance criteria
+Items are in the order they should be started. Items under one EPIC can be one Jira epic.
+
+
+====================================================================================================
+EPIC 1 — DESIGN APPROVAL AND DECISIONS
+====================================================================================================
+1.  Architecture approval of the write-back MVD
+    Team: Solution Architecture | Depends on: —
+    What: Present Looker-Writeback-MVD and the v5 diagram at the architecture review (SIGNIFICANT).
+    Done when: Endorsement recorded with name and date; actions logged.
+
+2.  Security review and threat assessment sign-off
+    Team: Security Architecture | Depends on: 1
+    What: Review trust boundaries, tokens, STRIDE table and residual risks.
+    Done when: Sign-off recorded; any extra controls added as new Jira items.
+
+3.  Data owner approval of editable fields
+    Team: Business data owner + BIaaS | Depends on: —
+    What: Agree which tables/fields can be written back, value rules (type, range, length), retention.
+    Done when: Signed-off list exists; it becomes the rules file for item 53.
+
+4.  Confirm the ID&A token-exchange contract
+    Team: ID&A + Solution Architecture | Depends on: —
+    What: Confirm endpoint, request format (RFC 8693), claims (sub, aud, scope), lifetime, JWKS path.
+    Done when: Contract documented and agreed by ID&A.
+
+5.  Confirm Action Hub hosting and JWT lifetime
+    Team: Platform + Security | Depends on: —
+    What: Decide Action Hub runs in Spoke 2 (ns looker-actions) and ID&A JWT lifetime (15 min proposed).
+    Done when: Both decisions recorded in the MVD.
+
+6.  Agree host names, IP ranges and environments
+    Team: Network | Depends on: 5
+    What: Names for writeback-actions / writeback-api / writer (INT, PRE, PRD); Action Hub egress range; static IPs.
+    Done when: Values published to the team.
+
+
+====================================================================================================
+EPIC 2 — GOOGLE CLOUD FOUNDATION
+====================================================================================================
+7.  Terraform repository and pipeline for write-back resources
+    Team: Platform | Depends on: —
+    What: Folder/module in the IDP Terraform repo for INT, PRE, PRD.
+    Done when: Plan/apply runs from the pipeline for INT.
+
+8.  Create service account action-hub@
+    Team: Platform | Depends on: 7
+    What: Google service account for the Action Hub. No key files.
+    Done when: SA exists in each environment; unique id noted (needed for item 18).
+
+9.  Create service account writeback-api@
+    Team: Platform | Depends on: 7
+    Done when: SA exists in each environment; no keys.
+
+10. Create service account writer@
+    Team: Platform | Depends on: 7
+    Done when: SA exists in each environment; no keys.
+
+11. Confirm Workload Identity on both GKE clusters
+    Team: Platform | Depends on: —
+    What: Workload Identity enabled on Spoke 2 (Looker) and Spoke 1 (tooling) clusters and node pools.
+    Done when: Verified in INT, PRE, PRD.
+
+12. Create namespaces looker-actions and writeback
+    Team: Platform | Depends on: 11
+    Done when: Namespaces exist with labels, resource quotas and default-deny NetworkPolicy.
+
+13. Create Kubernetes service accounts and bind Workload Identity
+    Team: Platform | Depends on: 8, 9, 10, 12
+    What: action-hub-ksa → action-hub@, writeback-ksa → writeback-api@, writer-ksa → writer@
+          (roles/iam.workloadIdentityUser + KSA annotation).
+    Done when: A test pod in each namespace gets a token as the right SA.
+
+14. Confirm org policy blocks service-account key creation
+    Team: Cloud Security | Depends on: 7
+    Done when: iam.disableServiceAccountKeyCreation enforced on the projects.
+
+15. Container registry and CI build pipeline
+    Team: Platform / DevOps | Depends on: 7
+    What: Artifact Registry repo; CI pipeline building and scanning the 3 images.
+    Done when: A sample image builds, is scanned and pushed.
+
+
+====================================================================================================
+EPIC 3 — SECRETS
+====================================================================================================
+16. Create the Looker action secret in Secret Manager
+    Team: Platform | Depends on: 8
+    What: Secret looker-action-secret (random 64 hex). Accessor: action-hub@ only.
+    Done when: Secret exists per environment; only action-hub@ can read it.
+
+17. Secret rotation runbook for the Looker action secret
+    Team: Platform + BIaaS | Depends on: 16, 66
+    What: New version → Action Hub accepts old and new → update Looker Admin › Actions → disable old.
+    Done when: Runbook published and tested once in INT.
+
+
+====================================================================================================
+EPIC 4 — MICROSOFT ENTRA ONBOARDING (service identity only)
+====================================================================================================
+18. Register Entra app looker-writeback-action-hub
+    Team: IAM (Entra) | Depends on: 8
+    What: App registration for the Action Hub. No client secret, no certificate.
+    Done when: App id shared with ID&A and engineering.
+
+19. Add federated credential to the Entra app
+    Team: IAM (Entra) | Depends on: 18
+    What: Issuer https://accounts.google.com, subject = unique id of action-hub@, audience api://AzureADTokenExchange.
+    Done when: A pod running as action-hub@ gets an Entra token with client credentials.
+
+20. Grant the Entra app permission to the ID&A exchange API
+    Team: IAM (Entra) | Depends on: 18
+    What: API permission api://ida-token-exchange/.default + admin consent.
+    Done when: Entra token for the app contains the expected audience.
+
+21. Confirm Looker SAML sign-in unchanged
+    Team: IAM (Entra) + BIaaS | Depends on: —
+    What: Users keep signing in to Looker through the existing SAML app (authentication only).
+    Done when: Confirmed; no change needed.
+
+
+====================================================================================================
+EPIC 5 — ID&A ONBOARDING
+====================================================================================================
+22. ID&A client onboarding for the Action Hub
+    Team: ID&A | Depends on: 4, 18
+    What: Register the Action Hub app id as a client allowed to exchange an Entra token.
+    Done when: Client registered in INT.
+
+23. ID&A token profile for write-back
+    Team: ID&A | Depends on: 22
+    What: JWT with sub looker-action-hub, aud writeback-api, scope writeback.write, lifetime ≈15 min, RS256.
+    Done when: Sample token decoded and claims match.
+
+24. Confirm ID&A JWKS and key rotation process
+    Team: ID&A | Depends on: 23
+    What: Public keys published with kid; rotation notice process.
+    Done when: JWKS URL reachable via Apigee (item 28); rotation process documented.
+
+25. Repeat ID&A onboarding for PRE and PRD
+    Team: ID&A | Depends on: 22, 23
+    Done when: Client and profile exist in PRE and PRD.
+
+
+====================================================================================================
+EPIC 6 — APIGEE ONBOARDING
+====================================================================================================
+26. Apigee onboarding request for the write-back consumer
+    Team: Apigee | Depends on: 4
+    What: Register the consumer / API product for lloyds-auth-int use.
+    Done when: Consumer registered in INT.
+
+27. Build Apigee flow /v1/token-exchange
+    Team: Apigee | Depends on: 23, 26
+    What: VerifyJWT on the Entra token (Entra keys, issuer, audience, expiry), SpikeArrest, Quota, route to ID&A.
+    Done when: Valid Entra token → ID&A JWT; invalid → 401.
+
+28. Build Apigee flow /v1/jwks
+    Team: Apigee | Depends on: 24, 26
+    What: Proxy ID&A public keys with a 10-minute response cache.
+    Done when: GET /v1/jwks returns the ID&A keys.
+
+29. Private connectivity to Apigee from both spokes
+    Team: Network + Apigee | Depends on: 6
+    What: PSC endpoint and private DNS api-int.lloyds.internal reachable from Spoke 1 and Spoke 2.
+    Done when: curl from a test pod in each namespace succeeds.
+
+30. Apigee analytics and alerts for the two flows
+    Team: Apigee | Depends on: 27, 28
+    Done when: Error-rate and latency alerts configured.
+
+31. Promote Apigee flows to PRE and PRD
+    Team: Apigee | Depends on: 27, 28, 25
+    Done when: Both flows live in PRE and PRD.
+
+
+====================================================================================================
+EPIC 7 — NETWORK AND TLS
+====================================================================================================
+32. Internal load balancer for writeback-api.internal
+    Team: Platform / Network | Depends on: 6, 12
+    Done when: ILB with private IP in Spoke 1.
+
+33. Firewall rule: only the Action Hub can reach the Write-back API
+    Team: Network | Depends on: 6, 32
+    What: Allow 443 from the Action Hub egress range only; deny everything else.
+    Done when: Call from Action Hub works; call from another range is blocked.
+
+34. NetworkPolicy: only Write-back API pods can reach the Writer
+    Team: Platform | Depends on: 12
+    Done when: Writer reachable from writeback-api pods only.
+
+35. Internal TLS certificates
+    Team: PKI / Platform | Depends on: 6
+    What: Certificates from the internal CA for writeback-actions, writeback-api and writer; Looker trusts the CA.
+    Done when: TLS handshake succeeds on every hop.
+
+36. Private DNS records
+    Team: Network | Depends on: 6, 32
+    Done when: All *.internal names resolve from both spokes.
+
+37. Validate Spoke 2 → HUB → Spoke 1 routing
+    Team: Network | Depends on: 32, 36
+    Done when: Looker/Action Hub pods reach writeback-api.internal over the HUB.
+
+
+====================================================================================================
+EPIC 8 — BIGQUERY
+====================================================================================================
+38. Create dataset writeback
+    Team: Data Platform | Depends on: 7
+    Done when: Dataset in europe-west2 for each environment.
+
+39. Create table writeback_log
+    Team: Data Platform | Depends on: 38
+    What: request_id, record_key, field, new_value, actor_email, actor_id, written_at;
+          partitioned by date(written_at), clustered by record_key.
+    Done when: Table exists with schema and description.
+
+40. Create view current_state (and authorised view for dashboards)
+    Team: Data Platform | Depends on: 39
+    Done when: View returns the latest value per record_key and field.
+
+41. IAM on BigQuery
+    Team: Data Platform | Depends on: 10, 39, 40
+    What: writer@ = dataEditor on writeback_log only; Looker connection SA = read on the views.
+    Done when: writer@ can insert but cannot read other tables.
+
+42. Retention policy for writeback_log
+    Team: Data Platform | Depends on: 3, 39
+    Done when: Retention set as agreed with the data owner.
+
+
+====================================================================================================
+EPIC 9 — ACTION HUB (custom Looker action server)
+====================================================================================================
+43. Action Hub: service scaffold
+    Team: Engineering | Depends on: 15
+    What: FastAPI service, /healthz, config, structured logging.
+    Done when: Image builds and runs locally.
+
+44. Action Hub: action list endpoint (POST /)
+    Team: Engineering | Depends on: 43
+    What: Declare "Write back" action, field tag writeback_key, params email, user id, writeback_allowed.
+    Done when: Looker shows the action after refresh (item 66).
+
+45. Action Hub: form endpoint (POST /actions/writeback/form)
+    Team: Engineering | Depends on: 43
+    Done when: Looker shows "New value" and "Comment" fields.
+
+46. Action Hub: Looker secret check
+    Team: Engineering | Depends on: 16, 43
+    What: Constant-time compare; accept old + new during rotation; never log the header.
+    Done when: Wrong / missing secret → 401.
+
+47. Action Hub: Entra auth token via federated credential
+    Team: Engineering | Depends on: 13, 19, 20, 43
+    What: Google ID token (aud api://AzureADTokenExchange) as client_assertion → Entra token.
+    Done when: Token obtained in INT without any secret.
+
+48. Action Hub: token exchange and JWT cache
+    Team: Engineering | Depends on: 27, 47
+    What: POST lloyds-auth-int /v1/token-exchange; cache JWT until exp − 60 s; single refresh lock.
+    Done when: One exchange per ~15 min per pod; errors → 503.
+
+49. Action Hub: execute endpoint
+    Team: Engineering | Depends on: 46, 48
+    What: Build payload, create request_id, call Write-back API with Bearer JWT, map result to Looker response.
+    Done when: Success → {"looker":{"success":true,"refresh_query":true}}; 400/403 shown as messages.
+
+50. Action Hub: tests
+    Team: Engineering | Depends on: 49
+    Done when: Unit + contract tests (Looker action schema) pass in CI.
+
+51. Action Hub: Kubernetes manifests and INT deployment
+    Team: Engineering + Platform | Depends on: 13, 35, 50
+    What: Deployment (2 replicas), service, probes, PDB, HPA, non-root, read-only filesystem.
+    Done when: Running in INT at https://writeback-actions-int.internal.
+
+
+====================================================================================================
+EPIC 10 — WRITE-BACK API
+====================================================================================================
+52. Write-back API: service scaffold and OpenAPI spec
+    Team: Engineering | Depends on: 15
+    Done when: POST /v1/writeback, /healthz, /readyz stubs and OpenAPI published.
+
+53. Write-back API: JWT verification middleware (JWKS)
+    Team: Engineering | Depends on: 28, 52
+    What: RS256 only; iss, aud writeback-api, exp/nbf (60 s skew), scope writeback.write, allowed sub;
+          JWKS cached 10 min, refresh on unknown kid.
+    Done when: All negative token cases return 401.
+
+54. Write-back API: user permission check (Looker attribute)
+    Team: Engineering | Depends on: 52
+    What: writeback_allowed in the request must be "yes"; otherwise 403 + audit.
+    Done when: Non-member of "Writeback Users" gets 403.
+
+55. Write-back API: validation rules
+    Team: Engineering | Depends on: 3, 52
+    What: Rules file (ConfigMap): allowed tables, fields, types, ranges; row and size limits.
+    Done when: Invalid change → 400 with a field message.
+
+56. Write-back API: idempotency
+    Team: Engineering | Depends on: 52
+    What: request_id required; same id + different payload → 409.
+    Done when: Duplicate request returns the same result, one row written.
+
+57. Write-back API: call the Writer (machine-to-machine)
+    Team: Engineering | Depends on: 13, 52
+    What: Google ID token as writeback-api@ for audience https://writer.internal; time-out 3 s; one retry.
+    Done when: Writer accepts the call.
+
+58. Write-back API: audit logging and error model
+    Team: Engineering | Depends on: 52
+    What: Structured event (request_id, user email/id, JWT sub, target, outcome, latency); standard error JSON.
+    Done when: Every request produces one audit event; no tokens in logs.
+
+59. Write-back API: tests
+    Team: Engineering | Depends on: 53–58
+    Done when: Unit, contract and negative security tests pass in CI.
+
+60. Write-back API: manifests and INT deployment
+    Team: Engineering + Platform | Depends on: 13, 32, 35, 59
+    Done when: Running in INT behind the ILB.
+
+
+====================================================================================================
+EPIC 11 — WRITER API
+====================================================================================================
+61. Writer API: service scaffold
+    Team: Engineering | Depends on: 15
+    Done when: Node.js service with POST /v1/write and /healthz.
+
+62. Writer API: verify caller (Google ID token)
+    Team: Engineering | Depends on: 61
+    What: Audience https://writer.internal; email must be writeback-api@.
+    Done when: Any other caller → 403.
+
+63. Writer API: BigQuery insert
+    Team: Engineering | Depends on: 41, 61
+    What: Append to writeback_log with insertId = request_id; time-out and retry with the same insertId.
+    Done when: Row written; retry does not duplicate.
+
+64. Writer API: tests, manifests and INT deployment
+    Team: Engineering + Platform | Depends on: 13, 34, 62, 63
+    Done when: Running in INT as ClusterIP; NetworkPolicy applied.
+
+
+====================================================================================================
+EPIC 12 — LOOKER CONFIGURATION
+====================================================================================================
+65. Create Looker group "Writeback Users" and user attribute writeback_allowed
+    Team: BIaaS (Looker admin) | Depends on: —
+    What: Manual group; attribute type string, default "no", user access None, hidden;
+          group value for "Writeback Users" = "yes".
+    Done when: Member sees "yes", non-member sees "no" (checked via Admin › Users).
+
+66. Register the Action Hub in Looker
+    Team: BIaaS (Looker admin) | Depends on: 16, 51
+    What: Admin › Platform › Actions › Add Action Hub: URL + Authorization token (looker-action-secret); enable "Write back".
+    Done when: Action listed and enabled.
+
+67. Role for write-back users
+    Team: BIaaS | Depends on: 65
+    What: Role with send_to_integration on the write-back model, assigned to "Writeback Users".
+    Done when: Only group members see the Write back action.
+
+68. LookML changes for write-back
+    Team: BIaaS / Looker developers | Depends on: 3, 40
+    What: Tag editable dimensions writeback_key; explores read current_state / authorised view.
+    Done when: Write back appears on tagged fields; refresh shows new values.
+
+69. Add pilot users to "Writeback Users"
+    Team: BIaaS | Depends on: 65, 83
+    Done when: Pilot users added through the access-request process.
+
+
+====================================================================================================
+EPIC 13 — OBSERVABILITY
+====================================================================================================
+70. Common logging schema for the three services
+    Team: Engineering | Depends on: 43, 52, 61
+    Done when: Same fields (request_id, outcome, latency) in all services.
+
+71. Log-based metrics and alerts
+    Team: Platform / SRE | Depends on: 70
+    What: 401/403 rate, token-exchange failures, Writer 5xx, latency p95 > 2 s, JWKS age.
+    Done when: Alerts route to BIaaS on-call.
+
+72. Monitoring dashboard for write-back
+    Team: Platform / SRE | Depends on: 71
+    Done when: Dashboard shows traffic, errors, latency per service.
+
+73. Log retention bucket
+    Team: Platform | Depends on: 70
+    Done when: Retention set per LBG policy.
+
+
+====================================================================================================
+EPIC 14 — TESTING AND RELEASE
+====================================================================================================
+74. End-to-end functional test in INT
+    Team: QA | Depends on: 51, 60, 64, 66, 68
+    Done when: Member writes a value → success → one row → dashboard shows it.
+
+75. Security tests
+    Team: QA + Security | Depends on: 74
+    What: Wrong secret, bad/expired/tampered JWT, non-member, Writer from another pod, replay.
+    Done when: All rejected as designed; no tokens in logs.
+
+76. Deploy to PRE
+    Team: Platform + Engineering | Depends on: 31, 74
+    Done when: All components live in PRE.
+
+77. Performance test in PRE
+    Team: QA / Performance | Depends on: 76
+    What: 20 writes/s for 30 min, 200 concurrent users.
+    Done when: p95 < 2 s; error rate < 0.1%.
+
+78. Resilience and DR test in PRE
+    Team: SRE | Depends on: 76
+    What: Apigee/ID&A outage with warm cache, JWKS rotation, pod loss, redeploy from pipeline.
+    Done when: Behaviour matches the MVD; RTO met.
+
+79. User acceptance test with the business
+    Team: Business + BIaaS | Depends on: 76
+    Done when: UAT sign-off.
+
+80. Change approval (CAB) for PRD
+    Team: Release Management | Depends on: 2, 75, 77, 78, 79
+    Done when: CAB approved.
+
+81. Deploy to PRD
+    Team: Platform + Engineering + BIaaS | Depends on: 80
+    Done when: All components live in PRD; smoke test passed.
+
+82. Pilot go-live and hypercare
+    Team: BIaaS | Depends on: 69, 81
+    Done when: Pilot users using write-back; two weeks hypercare closed.
+
+
+====================================================================================================
+EPIC 15 — OPERATIONS AND HANDOVER
+====================================================================================================
+83. Access-request process for "Writeback Users"
+    Team: BIaaS + Business | Depends on: 65
+    What: Who requests, who approves, quarterly recertification.
+    Done when: Process published.
+
+84. Runbooks
+    Team: BIaaS + SRE | Depends on: 17, 71
+    What: Secret rotation, token-exchange failure, BigQuery error, correcting a bad value, disabling the action.
+    Done when: Runbooks published.
+
+85. ServiceNow CI registration
+    Team: BIaaS | Depends on: 81
+    What: Register Action Hub, Write-back API, Writer API, BigQuery dataset under the BIaaS service.
+    Done when: CIs exist and are linked.
+
+86. Handover to support
+    Team: BIaaS | Depends on: 84, 85
+    Done when: Support team trained; ownership accepted.
+
+
+SUMMARY BY TEAM
+  Solution Architecture: 1, 4, 5        Security: 2, 14, 75
+  Business / data owner: 3, 79, 83      Platform: 7–13, 15–17, 32, 34, 51, 60, 64, 71–73, 76, 78, 81
+  IAM (Entra): 18–21                    ID&A: 22–25
+  Apigee: 26–31                         Network / PKI: 6, 29, 33, 35–37
+  Data Platform: 38–42                  Engineering: 43–64, 70
+  BIaaS (Looker): 65–69, 82–86          QA / Release: 74–81

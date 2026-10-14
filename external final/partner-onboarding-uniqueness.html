@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Partner Onboarding &amp; Uniqueness</title>
+<style>
+:root{--ink:#1d2733;--muted:#5b6b7b;--line:#d9e1ea;--bg:#ffffff;--soft:#f5f8fb;--accent:#1f4e79;--accent2:#2e75b6;
+--pk:#c55a11;--uk:#7030a0;--fk:#007070;--gen:#38761d;--ok:#e2efda;--bad:#fde9e7;--warn:#fff4ce}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 "Segoe UI",Helvetica,Arial,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+header{border-bottom:3px solid var(--accent);padding-bottom:14px;margin-bottom:22px}
+.eyebrow{font-size:13px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+h1{font-size:30px;margin:6px 0 8px;color:var(--accent)}
+h2{font-size:22px;color:var(--accent);margin:42px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font-size:17px;color:var(--accent2);margin:22px 0 8px}
+p.lede{color:var(--muted);margin:0 0 12px}
+nav.toc{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:12px 18px;margin:18px 0}
+nav.toc ol{margin:6px 0 0;padding-left:20px;columns:2;column-gap:30px}
+nav.toc a{color:var(--accent2);text-decoration:none}
+.key{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:14px 0}
+.key div{border:1px solid var(--line);border-left:5px solid var(--accent2);border-radius:8px;padding:10px 14px;background:#fff}
+.key b{display:block;color:var(--accent)}
+table{border-collapse:collapse;width:100%;margin:10px 0 16px;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:var(--accent);color:#fff;font-weight:600}
+tr:nth-child(even) td{background:#fafcfe}
+.tw{overflow-x:auto}
+code,pre{font-family:Consolas,"Courier New",monospace}
+code{background:#eef3f8;border-radius:4px;padding:1px 5px;font-size:12.5px}
+pre{background:#0f1b2a;color:#e8eef5;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:12.5px;line-height:1.5}
+pre .c{color:#8fb3d9}
+pre.mermaid{background:transparent;color:inherit;padding:0;margin:0;overflow:visible}
+.badge{display:inline-block;font-size:10.5px;font-weight:700;color:#fff;border-radius:10px;padding:1px 7px;margin-left:5px;vertical-align:1px}
+.pk{background:var(--pk)}.uk{background:var(--uk)}.fk{background:var(--fk)}.gen{background:var(--gen)}.ck{background:#595959}
+.snap{border:1px solid var(--line);border-radius:10px;margin:14px 0 22px;overflow:hidden}
+.snap .t{background:var(--soft);border-bottom:1px solid var(--line);padding:8px 14px;font-weight:700;color:var(--accent)}
+.snap .t span{font-weight:400;color:var(--muted);font-size:13px;margin-left:8px}
+.snap table{margin:0}
+.snap th{background:#2e4a66}
+.snap td.hl{background:#fff4ce!important;font-weight:600}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}nav.toc ol{columns:1}}
+.note{background:var(--warn);border-left:5px solid #c9a227;border-radius:6px;padding:10px 14px;margin:12px 0}
+.ok{background:var(--ok)}.bad{background:var(--bad)}
+.dia{border:1px solid var(--line);border-radius:10px;padding:14px;background:#fff;margin:12px 0 18px;overflow-x:auto;text-align:center}
+.cap{font-size:13px;color:var(--muted);text-align:center;margin-top:-8px;margin-bottom:16px}
+.legend span{margin-right:14px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">External Looker · Partner dashboard access · Tenant Registry (Cloud SQL for PostgreSQL)</div>
+  <h1>How a new partner user is validated, stored and kept unique</h1>
+  <p class="lede">When a partner company and its staff are onboarded, every user is validated by the onboarding job, stored once in the Tenant Registry, and kept unique by database rules – not by people being careful. The Looker key <code>partner_id::tenant_id</code> is built by the database, never typed in.</p>
+</header>
+
+<nav class="toc"><b>Contents</b>
+<ol>
+<li><a href="#ids">Identifiers and who owns them</a></li>
+<li><a href="#flow">Onboarding flow and validation gates</a></li>
+<li><a href="#seq">Onboarding sequence (who calls whom)</a></li>
+<li><a href="#er">Data model (ER diagram)</a></li>
+<li><a href="#snap">Database table snapshots</a></li>
+<li><a href="#unique">Uniqueness rules and SQL</a></li>
+<li><a href="#job">Onboarding statement and outcomes</a></li>
+<li><a href="#reject">What a rejected insert looks like</a></li>
+<li><a href="#login">Checks at every login</a></li>
+<li><a href="#life">Lifecycle: move, disable, never reuse</a></li>
+<li><a href="#faq">Questions and answers</a></li>
+</ol></nav>
+
+<div class="key">
+<div><b>One person = one partner_id</b>Primary key; the same id cannot exist twice or in two tenants.</div>
+<div><b>Key built by the database</b><code>looker_external_user_id</code> is a generated column with a unique index.</div>
+<div><b>Validated before insert</b>Ticket, tenant active, id format, identity exists in ID&amp;A, same-tenant groups.</div>
+<div><b>Never deleted, never reused</b>Leavers are disabled; ids are not handed to someone else.</div>
+</div>
+
+<!-- ===================================================================== 1 -->
+<h2 id="ids">1. Identifiers and who owns them</h2>
+<div class="tw"><table>
+<tr><th>Identifier</th><th>Example</th><th>Created by</th><th>Rule</th><th>Stored in</th></tr>
+<tr><td><b>tenant_id</b></td><td><code>acme</code></td><td>Onboarding team (us)</td><td>Lower case, <code>^[a-z0-9-]{2,30}$</code>, never changed</td><td><code>tenants.tenant_id</code> (PK)</td></tr>
+<tr><td><b>partner_id</b></td><td><code>PRT-ACME-0071</code></td><td>ID&amp;A (OSIS) – equals the JWT <code>sub</code></td><td>Upper case, <code>^PRT-[A-Z0-9]{2,10}-[0-9]{4}$</code>, never reused</td><td><code>partner_users.partner_id</code> (PK)</td></tr>
+<tr><td><b>looker_external_user_id</b></td><td><code>PRT-ACME-0071::acme</code></td><td>PostgreSQL (generated column)</td><td><code>partner_id || '::' || tenant_id</code>; unique</td><td><code>partner_users</code> (generated, UK)</td></tr>
+<tr><td><b>looker_group_id</b></td><td><code>17</code>, <code>31</code></td><td>Looker (when the group is created)</td><td>One group belongs to one tenant</td><td><code>tenant_groups</code> (UK)</td></tr>
+<tr><td><b>looker_folder_id</b></td><td><code>512</code>, <code>530</code></td><td>Looker (when the folder is created)</td><td>View permission per group</td><td><code>group_folders</code></td></tr>
+<tr><td><b>looker_user_id</b></td><td><code>2381</code></td><td>Looker (first login)</td><td>Linked to the external_user_id for good</td><td><code>partner_users.looker_user_id</code> (optional copy)</td></tr>
+</table></div>
+<div class="note">Neither <code>tenant_id</code> nor <code>partner_id</code> may contain a colon, so <code>::</code> can only ever be the separator. <code>PRT-ACME-0071::acme</code> can therefore be split back into exactly one partner and one tenant.</div>
+
+<!-- ===================================================================== 2 -->
+<h2 id="flow">2. Onboarding flow and validation gates</h2>
+<p>Each new partner user passes seven gates. Any failure stops the onboarding and nothing is written. Only the onboarding job (database role <code>onboarding</code>) can write; the runtime APIs can only read.</p>
+<div class="dia"><pre class="mermaid">
+flowchart TD
+  A([Onboarding request<br/>ticket CHG-1001]):::start --> G1{1 · Ticket / approval<br/>present?}
+  G1 -- No --> X1[Reject: approval missing]:::bad
+  G1 -- Yes --> N[Normalise input<br/>partner_id → UPPER · tenant_id → lower · trim]
+  N --> G2{2 · Tenant exists<br/>and active?}
+  G2 -- No --> X2[Reject: create / reactivate tenant first]:::bad
+  G2 -- Yes --> G3{3 · partner_id format valid?<br/>no ':' allowed}
+  G3 -- No --> X3[Reject: invalid id format]:::bad
+  G3 -- Yes --> G4{4 · Identity exists in ID&A<br/>active · same organisation?}
+  G4 -- No --> X4[Reject: ID&A must create identity first]:::bad
+  G4 -- Yes --> G5{5 · partner_id already<br/>in registry?}
+  G5 -- "Yes, same tenant" --> U[No change / update allowed fields]:::warn
+  G5 -- "Yes, other tenant" --> X5[Stop and escalate:<br/>id belongs to another tenant]:::bad
+  G5 -- No --> I[INSERT partner_users<br/>DB generates PRT-ACME-0071::acme]:::ok
+  I --> G6{6 · Groups belong to<br/>the same tenant?}
+  G6 -- No --> X6[Reject: trigger blocks cross-tenant group]:::bad
+  G6 -- Yes --> G7{7 · max_role exists<br/>in role_capabilities?}
+  G7 -- No --> X7[Reject: unknown role]:::bad
+  G7 -- Yes --> P[INSERT partner_groups<br/>with granted_reason]:::ok
+  P --> AU[(registry_audit<br/>row written by trigger)]
+  AU --> D([User ready – nothing to do in Looker<br/>embed user created at first login]):::start
+  classDef start fill:#1f4e79,color:#fff,stroke:#1f4e79
+  classDef ok fill:#e2efda,stroke:#38761d,color:#1d2733
+  classDef bad fill:#fde9e7,stroke:#c00000,color:#7a0000
+  classDef warn fill:#fff4ce,stroke:#c9a227,color:#1d2733
+</pre></div>
+<div class="cap">Figure 1 – Validation gates during onboarding of one partner user</div>
+
+<div class="tw"><table>
+<tr><th>#</th><th>Gate</th><th>How it is enforced</th><th>Where</th><th>If it fails</th></tr>
+<tr><td>1</td><td>Request is approved</td><td><code>granted_reason</code> (ticket / change id) is mandatory in the job</td><td>Onboarding job</td><td>Rejected</td></tr>
+<tr><td>2</td><td>Tenant exists and is active</td><td><code>SELECT status FROM tenants WHERE tenant_id = :t</code> = <code>active</code>; FK <code>partner_users.tenant_id → tenants</code></td><td>Job + database</td><td>Rejected</td></tr>
+<tr><td>3</td><td>partner_id format</td><td>Job normalises (trim, upper case); <code>CHECK</code> constraint enforces the pattern</td><td>Job + database</td><td>Rejected</td></tr>
+<tr><td>4</td><td>Identity exists in ID&amp;A</td><td>Job looks up the id in ID&amp;A (OSIS) through Apigee: exists, active, organisation matches the tenant</td><td>Onboarding job</td><td>Rejected</td></tr>
+<tr><td>5</td><td>Not already registered</td><td><code>PRIMARY KEY (partner_id)</code>; job pre-checks to give a clear message</td><td>Database</td><td>Same tenant → no change · other tenant → escalate</td></tr>
+<tr><td>6</td><td>Groups belong to the same tenant</td><td>Composite FK <code>(tenant_id, looker_group_id)</code> + trigger <code>check_partner_tenant()</code></td><td>Database</td><td>Rejected</td></tr>
+<tr><td>7</td><td>Role allowed</td><td>FK <code>max_role → role_capabilities</code></td><td>Database</td><td>Rejected</td></tr>
+</table></div>
+
+<!-- ===================================================================== 3 -->
+<h2 id="seq">3. Onboarding sequence (who calls whom)</h2>
+<div class="dia"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor Ops as Onboarding operator
+  participant Job as Onboarding job<br/>(onboarding@ · write role)
+  participant Apigee as Apigee internal proxy
+  participant IDA as ID&A (OSIS)
+  participant DB as Cloud SQL<br/>Tenant Registry
+  participant Aud as registry_audit
+  Ops->>Job: Request: partner_id, tenant_id, groups, max_role, ticket
+  Job->>Job: Normalise + check ticket and formats
+  Job->>DB: SELECT tenant status (acme)
+  DB-->>Job: active
+  Job->>Apigee: Look up identity PRT-ACME-0071
+  Apigee->>IDA: Identity lookup
+  IDA-->>Job: exists · active · organisation = Acme
+  Job->>DB: BEGIN
+  Job->>DB: INSERT partner_users … ON CONFLICT (partner_id) DO NOTHING RETURNING ext id
+  DB->>Aud: trigger: INSERT row recorded
+  DB-->>Job: PRT-ACME-0071::acme (generated)
+  Job->>DB: INSERT partner_groups (17, 31) with ticket CHG-1001
+  DB->>DB: trigger check_partner_tenant() + composite FK
+  DB->>Aud: trigger: membership rows recorded
+  Job->>DB: COMMIT
+  Job-->>Ops: Onboarded · external_user_id = PRT-ACME-0071::acme
+  Note over Job,DB: Any failure → ROLLBACK – nothing half-written
+</pre></div>
+<div class="cap">Figure 2 – One transaction: user row and memberships are written together or not at all</div>
+
+<!-- ===================================================================== 4 -->
+<h2 id="er">4. Data model (ER diagram)</h2>
+<div class="dia"><pre class="mermaid">
+erDiagram
+  TENANTS ||--o{ PARTNER_USERS : "has staff"
+  TENANTS ||--o{ TENANT_GROUPS : "owns groups"
+  TENANT_GROUPS ||--o{ GROUP_FOLDERS : "may view"
+  PARTNER_USERS ||--o{ PARTNER_GROUPS : "member of"
+  TENANT_GROUPS ||--o{ PARTNER_GROUPS : "has members"
+  ROLE_CAPABILITIES ||--o{ PARTNER_USERS : "caps role"
+  TENANTS {
+    text tenant_id PK "acme"
+    text display_name
+    text status "active | suspended | offboarded"
+    text home_dashboard_id
+  }
+  PARTNER_USERS {
+    text partner_id PK "PRT-ACME-0071 = JWT sub"
+    text tenant_id FK
+    text status "active | disabled"
+    text max_role FK
+    text business_groups
+    text looker_external_user_id UK "generated partner_id::tenant_id"
+    text looker_user_id "from Looker"
+  }
+  TENANT_GROUPS {
+    text tenant_id PK
+    text looker_group_id PK "UK - one tenant only"
+    text group_name
+    text group_type
+    text status
+  }
+  GROUP_FOLDERS {
+    text looker_group_id PK
+    text looker_folder_id PK
+    text tenant_id FK
+    text folder_path
+  }
+  PARTNER_GROUPS {
+    text partner_id PK
+    text looker_group_id PK
+    text tenant_id FK "must equal user's tenant"
+    timestamptz valid_from
+    timestamptz valid_to
+    text granted_reason
+  }
+  ROLE_CAPABILITIES {
+    text role_name PK
+    int role_rank UK
+    text_array looker_permissions
+    text_array looker_models
+  }
+</pre></div>
+<div class="cap">Figure 3 – Tenant Registry tables and the keys that keep data unique and in one tenant</div>
+<p class="legend"><span><span class="badge pk">PK</span> primary key</span><span><span class="badge uk">UK</span> unique</span><span><span class="badge fk">FK</span> foreign key</span><span><span class="badge gen">GEN</span> generated by DB</span><span><span class="badge ck">CHECK</span> format rule</span></p>
+
+<!-- ===================================================================== 5 -->
+<h2 id="snap">5. Database table snapshots</h2>
+<p>Sample contents after onboarding tenant <b>acme</b> and two of its staff. Highlighted cells are written or derived by the database, not typed by a person.</p>
+
+<div class="snap"><div class="t">tenants <span>one row per partner company</span></div><div class="tw"><table>
+<tr><th>tenant_id <span class="badge pk">PK</span><span class="badge ck">CHECK</span></th><th>display_name</th><th>status</th><th>home_dashboard_id</th><th>created_at</th><th>updated_by</th></tr>
+<tr><td>acme</td><td>Acme Ltd</td><td>active</td><td>42</td><td class="hl">2026-10-01 09:12</td><td>onboarding</td></tr>
+<tr><td>globex</td><td>Globex plc</td><td>suspended</td><td>77</td><td class="hl">2026-09-15 11:40</td><td>onboarding</td></tr>
+</table></div></div>
+
+<div class="snap"><div class="t">partner_users <span>one row per partner user – the uniqueness anchor</span></div><div class="tw"><table>
+<tr><th>partner_id <span class="badge pk">PK</span><span class="badge ck">CHECK</span></th><th>tenant_id <span class="badge fk">FK</span></th><th>kind</th><th>status</th><th>max_role <span class="badge fk">FK</span></th><th>business_groups</th><th>looker_external_user_id <span class="badge gen">GEN</span><span class="badge uk">UK</span></th><th>looker_user_id</th></tr>
+<tr><td>PRT-ACME-0071</td><td>acme</td><td>human</td><td>active</td><td>analyst</td><td>retail</td><td class="hl">PRT-ACME-0071::acme</td><td class="hl">2381</td></tr>
+<tr><td>PRT-ACME-0099</td><td>acme</td><td>human</td><td>active</td><td>viewer</td><td></td><td class="hl">PRT-ACME-0099::acme</td><td class="hl">—</td></tr>
+<tr><td>PRT-GLBX-0004</td><td>globex</td><td>human</td><td>disabled</td><td>viewer</td><td>wealth</td><td class="hl">PRT-GLBX-0004::globex</td><td class="hl">1977</td></tr>
+</table></div></div>
+
+<div class="grid2">
+<div class="snap"><div class="t">tenant_groups <span>Looker groups per tenant</span></div><div class="tw"><table>
+<tr><th>tenant_id <span class="badge pk">PK</span></th><th>looker_group_id <span class="badge pk">PK</span><span class="badge uk">UK</span></th><th>group_name</th><th>type</th></tr>
+<tr><td>acme</td><td>17</td><td>Partner acme</td><td>tenant</td></tr>
+<tr><td>acme</td><td>31</td><td>Partner acme – Retail</td><td>business_group</td></tr>
+<tr><td>globex</td><td>22</td><td>Partner globex</td><td>tenant</td></tr>
+</table></div></div>
+<div class="snap"><div class="t">group_folders <span>which folder each group may view</span></div><div class="tw"><table>
+<tr><th>tenant_id <span class="badge fk">FK</span></th><th>looker_group_id <span class="badge pk">PK</span></th><th>looker_folder_id <span class="badge pk">PK</span></th><th>folder_path</th></tr>
+<tr><td>acme</td><td>17</td><td>512</td><td>Partners/acme</td></tr>
+<tr><td>acme</td><td>31</td><td>530</td><td>Partners/acme/Retail</td></tr>
+<tr><td>globex</td><td>22</td><td>601</td><td>Partners/globex</td></tr>
+</table></div></div>
+</div>
+
+<div class="snap"><div class="t">partner_groups <span>memberships – composite FK keeps them inside the user's own tenant</span></div><div class="tw"><table>
+<tr><th>partner_id <span class="badge pk">PK</span><span class="badge fk">FK</span></th><th>looker_group_id <span class="badge pk">PK</span></th><th>tenant_id <span class="badge fk">FK</span></th><th>valid_from</th><th>valid_to</th><th>granted_reason</th></tr>
+<tr><td>PRT-ACME-0071</td><td>17</td><td>acme</td><td class="hl">2026-10-01</td><td>—</td><td>CHG-1001</td></tr>
+<tr><td>PRT-ACME-0071</td><td>31</td><td>acme</td><td class="hl">2026-10-01</td><td>—</td><td>CHG-1001</td></tr>
+<tr><td>PRT-ACME-0099</td><td>17</td><td>acme</td><td class="hl">2026-10-02</td><td>2026-12-31</td><td>CHG-1002</td></tr>
+</table></div></div>
+
+<div class="snap"><div class="t">role_capabilities <span>what each role may do in Looker</span></div><div class="tw"><table>
+<tr><th>role_name <span class="badge pk">PK</span></th><th>role_rank <span class="badge uk">UK</span></th><th>looker_permissions</th><th>looker_models</th></tr>
+<tr><td>viewer</td><td>1</td><td>{access_data, see_user_dashboards, see_looks}</td><td>{partner_analytics}</td></tr>
+<tr><td>analyst</td><td>2</td><td>{access_data, see_user_dashboards, see_looks, explore, download_without_limit}</td><td>{partner_analytics}</td></tr>
+</table></div></div>
+
+<div class="snap"><div class="t">registry_audit <span>append-only history written by triggers – nobody can update or delete it</span></div><div class="tw"><table>
+<tr><th>audit_id <span class="badge pk">PK</span></th><th>table_name</th><th>operation</th><th>row_key</th><th>new_row (excerpt)</th><th>changed_at</th><th>changed_by</th></tr>
+<tr><td class="hl">1041</td><td>partner_users</td><td>INSERT</td><td>{"partner_id":"PRT-ACME-0071"}</td><td>{"tenant_id":"acme","status":"active","max_role":"analyst"}</td><td class="hl">2026-10-01 09:20</td><td class="hl">onboarding</td></tr>
+<tr><td class="hl">1042</td><td>partner_groups</td><td>INSERT</td><td>{"partner_id":"PRT-ACME-0071","looker_group_id":"17"}</td><td>{"granted_reason":"CHG-1001"}</td><td class="hl">2026-10-01 09:20</td><td class="hl">onboarding</td></tr>
+<tr><td class="hl">1107</td><td>partner_users</td><td>UPDATE</td><td>{"partner_id":"PRT-GLBX-0004"}</td><td>{"status":"disabled"}</td><td class="hl">2026-10-09 17:05</td><td class="hl">onboarding</td></tr>
+</table></div></div>
+
+<!-- ===================================================================== 6 -->
+<h2 id="unique">6. Uniqueness rules and SQL</h2>
+<div class="tw"><table>
+<tr><th>Rule</th><th>What it prevents</th><th>Status</th></tr>
+<tr><td><code>PRIMARY KEY (partner_id)</code></td><td>The same person registered twice, or in two companies</td><td>In schema</td></tr>
+<tr><td>Generated <code>looker_external_user_id</code> + <code>UNIQUE</code> index</td><td>A mistyped or duplicated Looker key</td><td>In schema</td></tr>
+<tr><td><code>CHECK</code> on <code>tenant_id</code> and <code>partner_id</code> formats</td><td>"Acme" vs "acme" duplicates; a colon breaking the <code>::</code> key</td><td><b>Add</b></td></tr>
+<tr><td><code>PRIMARY KEY (partner_id, looker_group_id)</code></td><td>The same membership twice</td><td>In schema</td></tr>
+<tr><td>Composite FK + trigger <code>check_partner_tenant()</code></td><td>A user mapped to another tenant's group</td><td>In schema</td></tr>
+<tr><td><code>UNIQUE (looker_group_id)</code> on <code>tenant_groups</code></td><td>One Looker group shared by two tenants</td><td>In schema</td></tr>
+<tr><td>No <code>DELETE</code> for the onboarding role</td><td>A leaver's id being reused for someone else</td><td><b>Add</b></td></tr>
+<tr><td>Audit trigger on every table; audit table read-only</td><td>Untraceable changes</td><td>In schema</td></tr>
+</table></div>
+<pre><span class="c">-- 1. One row per partner user (already in schema)</span>
+partner_id TEXT PRIMARY KEY
+
+<span class="c">-- 2. Looker key generated by the database and unique (already in schema)</span>
+looker_external_user_id TEXT GENERATED ALWAYS AS (partner_id || '::' || tenant_id) STORED;
+CREATE UNIQUE INDEX ux_partner_users_ext_id ON partner_users (looker_external_user_id);
+
+<span class="c">-- 3. ADD: fixed formats – no ':' allowed, fixed case</span>
+ALTER TABLE tenants       ADD CONSTRAINT ck_tenant_id_fmt  CHECK (tenant_id  ~ '^[a-z0-9-]{2,30}$');
+ALTER TABLE partner_users ADD CONSTRAINT ck_partner_id_fmt CHECK (partner_id ~ '^PRT-[A-Z0-9]{2,10}-[0-9]{4}$');
+
+<span class="c">-- 4. Membership only once and only inside the user's own tenant (already in schema)</span>
+PRIMARY KEY (partner_id, looker_group_id)
+FOREIGN KEY (tenant_id, looker_group_id) REFERENCES tenant_groups (tenant_id, looker_group_id)
+CREATE TRIGGER partner_groups_tenant_guard BEFORE INSERT OR UPDATE ON partner_groups
+  FOR EACH ROW EXECUTE FUNCTION check_partner_tenant();
+
+<span class="c">-- 5. ADD: ids are never deleted or reused – offboarding sets status instead</span>
+REVOKE DELETE ON partner_users, tenants, partner_groups FROM onboarding;</pre>
+
+<!-- ===================================================================== 7 -->
+<h2 id="job">7. Onboarding statement and outcomes</h2>
+<p>The onboarding job runs the whole onboarding in one transaction. The insert is safe even if two operators submit the same user at the same moment: the database lets one through and the other gets a conflict.</p>
+<pre><span class="c"># Python (psycopg) – simplified onboarding job</span>
+def onboard_user(conn, req):
+    pid, tid = req.partner_id.strip().upper(), req.tenant_id.strip().lower()
+    require(req.ticket, "approval ticket missing")                         <span class="c"># gate 1</span>
+    if not re.fullmatch(r"PRT-[A-Z0-9]{2,10}-[0-9]{4}", pid):
+        raise Reject("invalid partner_id format")                           <span class="c"># gate 3</span>
+    ida = ida_lookup(pid)                                                   <span class="c"># gate 4 – via Apigee</span>
+    if not ida or not ida.active or ida.org_code != tid:
+        raise Reject("identity not found / inactive / wrong organisation in ID&amp;A")
+    with conn.transaction():
+        t = conn.execute("SELECT status FROM tenants WHERE tenant_id=%s FOR SHARE", (tid,)).fetchone()
+        if not t or t[0] != "active":
+            raise Reject("tenant missing or not active")                    <span class="c"># gate 2</span>
+        row = conn.execute("""
+            INSERT INTO partner_users (partner_id, tenant_id, kind, status, max_role, business_groups, updated_by)
+            VALUES (%s, %s, 'human', 'active', %s, %s, 'onboarding')
+            ON CONFLICT (partner_id) DO NOTHING
+            RETURNING looker_external_user_id""", (pid, tid, req.max_role, req.business_groups)).fetchone()
+        if row is None:                                                     <span class="c"># gate 5</span>
+            owner = conn.execute("SELECT tenant_id FROM partner_users WHERE partner_id=%s", (pid,)).fetchone()[0]
+            if owner != tid:
+                raise Escalate(f"{pid} already registered under tenant {owner}")
+            ext_id = f"{pid}::{tid}"; status = "already exists – no change"
+        else:
+            ext_id, status = row[0], "created"
+        for g in req.group_ids:                                             <span class="c"># gates 6 and 7 enforced by FK / trigger</span>
+            conn.execute("""INSERT INTO partner_groups (partner_id, tenant_id, looker_group_id, granted_reason, updated_by)
+                            VALUES (%s,%s,%s,%s,'onboarding') ON CONFLICT DO NOTHING""", (pid, tid, g, req.ticket))
+    return {"status": status, "external_user_id": ext_id}</pre>
+
+<div class="tw"><table>
+<tr><th>Situation</th><th>What the job returns</th><th>Rows written</th></tr>
+<tr class="ok"><td>New user, everything valid</td><td>created · <code>PRT-ACME-0071::acme</code></td><td>1 user row, N memberships, audit rows</td></tr>
+<tr class="ok"><td>Same user, same tenant again</td><td>already exists – no change (new groups are added if approved)</td><td>Only new memberships</td></tr>
+<tr class="bad"><td>Same partner_id under another tenant</td><td>Escalate: id belongs to tenant <i>globex</i></td><td>None (rollback)</td></tr>
+<tr class="bad"><td>Identity not in ID&amp;A / inactive</td><td>Reject</td><td>None</td></tr>
+<tr class="bad"><td>Tenant suspended or unknown</td><td>Reject</td><td>None</td></tr>
+<tr class="bad"><td>Group of another tenant requested</td><td>Reject (trigger)</td><td>None (rollback)</td></tr>
+<tr class="bad"><td>Bad format, e.g. <code>prt:acme:71</code></td><td>Reject (job and CHECK)</td><td>None</td></tr>
+</table></div>
+
+<!-- ===================================================================== 8 -->
+<h2 id="reject">8. What a rejected insert looks like</h2>
+<p>Even if someone bypasses the job and writes SQL directly, the database refuses bad data:</p>
+<pre><span class="c">-- duplicate person</span>
+INSERT INTO partner_users (partner_id, tenant_id, kind, max_role, updated_by) VALUES ('PRT-ACME-0071','globex','human','viewer','x');
+ERROR:  duplicate key value violates unique constraint "partner_users_pkey"
+DETAIL: Key (partner_id)=(PRT-ACME-0071) already exists.
+
+<span class="c">-- bad format (colon inside the id)</span>
+INSERT INTO partner_users (partner_id, tenant_id, kind, max_role, updated_by) VALUES ('PRT:ACME:71','acme','human','viewer','x');
+ERROR:  new row for relation "partner_users" violates check constraint "ck_partner_id_fmt"
+
+<span class="c">-- trying to set the Looker key by hand</span>
+UPDATE partner_users SET looker_external_user_id = 'someone-else' WHERE partner_id = 'PRT-ACME-0071';
+ERROR:  column "looker_external_user_id" can only be updated to DEFAULT
+
+<span class="c">-- membership in another tenant's group</span>
+INSERT INTO partner_groups (partner_id, tenant_id, looker_group_id, updated_by) VALUES ('PRT-ACME-0071','globex','22','x');
+ERROR:  partner PRT-ACME-0071 does not belong to tenant globex
+
+<span class="c">-- deleting a user to reuse the id</span>
+DELETE FROM partner_users WHERE partner_id = 'PRT-GLBX-0004';
+ERROR:  permission denied for table partner_users</pre>
+
+<!-- ===================================================================== 9 -->
+<h2 id="login">9. Checks at every login</h2>
+<p>Onboarding makes the data right; the runtime checks make sure only that data is used.</p>
+<div class="dia"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant W as Partner WebApp
+  participant LA as Looker API (GKE)
+  participant DB as Cloud SQL registry
+  participant EU as Embed URL API
+  participant LK as Looker
+  W->>LA: Bearer JWT (sub = PRT-ACME-0071) + X-Partner-Id
+  LA->>LA: Verify JWT (JWKS) · X-Partner-Id must equal sub
+  LA->>DB: Q1 by partner_id
+  DB-->>LA: tenant acme · status active · tenant active · ext id PRT-ACME-0071::acme · groups {17,31}
+  alt unknown / disabled user or suspended tenant
+    LA-->>W: 403 – stop
+  else all active
+    LA->>EU: details (tenant from registry, never from the request)
+    EU->>LK: sso_url · external_user_id = generated column value
+    LK-->>EU: signed URL
+    EU-->>W: embed_url
+    W->>LK: open URL
+    LK->>LK: same key → same embed user (2381) · groups set to exactly {17,31}
+  end
+</pre></div>
+<div class="cap">Figure 4 – The key is read from the generated column, so the API and the database can never disagree</div>
+<ol>
+<li>The JWT <code>sub</code> must equal the <code>X-Partner-Id</code> header.</li>
+<li>That partner_id must exist with status <code>active</code>, and its tenant must be <code>active</code>.</li>
+<li>The tenant always comes from the registry row, never from the request.</li>
+<li><code>external_user_id</code> is read from the generated column, never built in code.</li>
+<li>Looker keeps one embed user per <code>external_user_id</code>; the same key always returns to the same Looker user and a different key can never take it over.</li>
+</ol>
+
+<!-- ===================================================================== 10 -->
+<h2 id="life">10. Lifecycle: move, disable, never reuse</h2>
+<div class="dia"><pre class="mermaid">
+stateDiagram-v2
+  [*] --> Requested: onboarding ticket
+  Requested --> Rejected: any gate fails
+  Requested --> Active: all gates pass · row + memberships written
+  Active --> Active: groups added / valid_to set (access change)
+  Active --> Disabled: leaver · status = disabled
+  Disabled --> Active: rehire (same person, same tenant)
+  Active --> Moved: change of company
+  Moved --> Active: new key (partner_id + new tenant) → new Looker user
+  Disabled --> [*]: kept for audit – never deleted, id never reused
+  Rejected --> [*]
+</pre></div>
+<div class="cap">Figure 5 – A partner user's life in the registry</div>
+<div class="tw"><table>
+<tr><th>Event</th><th>Registry change</th><th>Effect in Looker</th></tr>
+<tr><td>Add a folder</td><td>INSERT <code>partner_groups</code> row</td><td>Next login: user joins the group</td></tr>
+<tr><td>Remove a folder</td><td>Set <code>valid_to</code></td><td>Next login: group removed</td></tr>
+<tr><td>Leaver</td><td><code>status = 'disabled'</code></td><td>No new signed URL (403); end an open session by disabling Looker user 2381</td></tr>
+<tr><td>Whole company leaves</td><td><code>tenants.status = 'suspended'</code></td><td>All users of the tenant get 403</td></tr>
+<tr><td>Moves to another company</td><td>Change <code>tenant_id</code> (approved)</td><td>New key → new Looker user; nothing carries over from the old tenant</td></tr>
+</table></div>
+
+<!-- ===================================================================== 11 -->
+<h2 id="faq">11. Questions and answers</h2>
+<h3>Can one person work for two partner companies?</h3>
+<p>Not with one partner_id: the primary key allows one tenant per id. ID&amp;A should issue a separate id per company, which keeps their data fully separate in Looker as well.</p>
+<h3>Why not let the API build <code>partner_id::tenant_id</code> itself?</h3>
+<p>Two places building the same string can drift (case, spaces, separator). Reading the generated column means there is exactly one definition, enforced by the database.</p>
+<h3>What if two operators onboard the same user at the same time?</h3>
+<p><code>INSERT … ON CONFLICT DO NOTHING</code> on the primary key: one insert wins, the other sees "already exists". There is no window for a duplicate.</p>
+<h3>Why never delete?</h3>
+<p>If a deleted id were given to a new person, Looker would recognise the old key and reuse the old embed user, including saved content and history. Disabling keeps audit history and prevents that.</p>
+<h3>Where is the format of the key fixed?</h3>
+<p>In the generated column definition. Fix it before go-live – changing it later creates new Looker users for everyone.</p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:'default',securityLevel:'loose',flowchart:{htmlLabels:true,curve:'basis'},er:{useMaxWidth:true}});</script>
+</body>
+</html>
