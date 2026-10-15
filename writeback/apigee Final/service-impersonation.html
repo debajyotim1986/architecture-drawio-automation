@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Service Account Impersonation</title>
+<style>
+:root{--ink:#1d2733;--muted:#5b6b7b;--line:#d9e1ea;--soft:#f5f8fb;--accent:#1f4e79;--accent2:#2e75b6}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:var(--ink);font:15px/1.6 "Segoe UI",Helvetica,Arial,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+header{border-bottom:3px solid var(--accent);padding-bottom:14px;margin-bottom:20px}
+.eyebrow{font-size:13px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+h1{font-size:30px;margin:6px 0 8px;color:var(--accent)}
+h2{font-size:22px;color:var(--accent);margin:40px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font-size:17px;color:var(--accent2);margin:20px 0 8px}
+p.lede{color:var(--muted);margin:0 0 10px}
+.answer{background:#e8f1fb;border-left:6px solid var(--accent2);border-radius:8px;padding:12px 16px;margin:14px 0;font-size:16px}
+.note{background:#fff4ce;border-left:5px solid #c9a227;border-radius:6px;padding:10px 14px;margin:12px 0}
+table{border-collapse:collapse;width:100%;margin:10px 0 16px;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:var(--accent);color:#fff;font-weight:600}
+tr:nth-child(even) td{background:#fafcfe}
+tr.rec td{background:#e2efda!important}
+.tw{overflow-x:auto}
+code{font-family:Consolas,"Courier New",monospace;background:#eef3f8;border-radius:4px;padding:1px 5px;font-size:12.5px}
+pre{background:#0f1b2a;color:#e8eef5;border-radius:8px;padding:12px 14px;overflow-x:auto;font:12.5px/1.5 Consolas,"Courier New",monospace}
+pre .c{color:#8fb3d9}
+pre.mermaid{background:transparent;color:inherit;padding:0;margin:0;overflow:visible}
+.dia{border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0;overflow-x:auto;text-align:center}
+.cap{font-size:13px;color:var(--muted);text-align:center;margin:-6px 0 14px}
+.tag{display:inline-block;font-size:11px;font-weight:700;color:#fff;border-radius:10px;padding:1px 8px}
+.plat{background:#1f4e79}.ten{background:#a0430a}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Looker write-back to BigQuery · Architecture v5 · Identity ownership</div>
+  <h1>Service account impersonation – who runs each API and who owns each identity</h1>
+  <p class="lede">When a tenant's dataset can be written only by the tenant's own service account, which identity runs the Action Hub, the Write-back API and the Writer API, and how does the write reach the tenant's table?</p>
+</header>
+
+<div class="answer"><b>Short answer:</b> both APIs run under <span class="tag plat">platform</span> service accounts owned by the Looker / BIaaS platform team, one set shared by all tenants. The <span class="tag ten">tenant</span>-owned service account is used only for the final BigQuery write: the Writer borrows it for that one call through <b>service account impersonation</b>, which the tenant grants.</div>
+
+<div class="note"><b>The user's Looker login does not produce a JWT that is passed on.</b> Looker only sends the user's identity (email, user ID, <code>writeback_allowed</code>) inside the action request. The JWT is obtained by the Action Hub for itself, through Apigee and ID&amp;A, to prove that the call comes from Looker's write-back service.</div>
+
+<h2>Deployment layout</h2>
+<p>Looker, the Action Hub, the Write-back API and the Writer API all run in <b>Spoke 2</b>. Looker and the Action Hub run on the <b>Looker GKE cluster</b>. The Write-back API and the Writer API run on a <b>separate write-back GKE cluster</b> in the same spoke.</p>
+<div class="dia"><pre class="mermaid">
+flowchart TB
+  U([Internal user<br/>Entra SAML sign-in]) --> LK
+  subgraph S2["Spoke 2"]
+    subgraph C1["Looker GKE cluster"]
+      LK[Looker]
+      AH["Action Hub<br/>runs as action-hub@"]
+    end
+    subgraph C2["Write-back GKE cluster"]
+      WB["Write-back API<br/>runs as writeback-api@<br/>no BigQuery access"]
+      WR["Writer API<br/>runs as writer@<br/>no BigQuery access of its own"]
+    end
+  end
+  subgraph AUTH["Service authentication"]
+    AP[Apigee lloyds-auth-int] --> IDA[ID&A]
+  end
+  subgraph TP["Tenant A data project · owned by tenant"]
+    TSA["writer-tenant-a@<br/>owned by tenant"]
+    BQ[("tenant_a.writeback_log")]
+  end
+  LK -- "1 action + Looker secret" --> AH
+  AH -- "2 Entra token to ID&A JWT" --> AP
+  AH -- "3 Bearer ID&A JWT<br/>internal LB, same spoke" --> WB
+  WB -- "4 Google ID token (M2M)" --> WR
+  WR -. "5 impersonate<br/>(tokenCreator granted by tenant)" .-> TSA
+  TSA -- "6 append row as writer-tenant-a@" --> BQ
+  classDef plat fill:#dde5f4,stroke:#1f4e79,color:#1d2733
+  classDef ten fill:#fce4d6,stroke:#a0430a,color:#1d2733
+  class AH,WB,WR,LK plat
+  class TSA,BQ ten
+</pre></div>
+<div class="cap">Figure 1 – Blue = owned by the BIaaS / Looker platform · orange = owned by the tenant</div>
+
+<h2>Who runs what, and who owns it</h2>
+<div class="tw"><table>
+<tr><th>#</th><th>Component / step</th><th>Runs as (service account)</th><th>Owned by</th><th>Lives in</th><th>What it's allowed to do</th><th>Shared by all tenants?</th></tr>
+<tr><td>1</td><td>User signs in to Looker</td><td>The user's own Entra identity</td><td>Entra / IAM team</td><td>—</td><td>Use Looker; <code>writeback_allowed</code> decides if they can write</td><td>Per user</td></tr>
+<tr><td>2</td><td>Action Hub (receives the click, gets the ID&amp;A JWT)</td><td><code>action-hub@</code></td><td>BIaaS / Looker platform</td><td>Spoke 2 · Looker GKE cluster · namespace <code>looker-actions</code></td><td>Read the Looker secret; get an Entra token; call Apigee and the Write-back API</td><td>Yes, one for all tenants</td></tr>
+<tr><td>3</td><td><b>Write-back API</b> (checks the JWT, the user permission and the rules)</td><td><code>writeback-api@</code></td><td>BIaaS / Looker platform</td><td>Spoke 2 · write-back GKE cluster · namespace <code>writeback</code></td><td>Call the Writer only; <b>no BigQuery access</b></td><td>Yes, one for all tenants</td></tr>
+<tr><td>4</td><td><b>Writer API</b>, the service itself</td><td><code>writer@</code></td><td>BIaaS / Looker platform</td><td>Spoke 2 · write-back GKE cluster · namespace <code>writeback</code></td><td><b>No BigQuery access of its own.</b> Can only <i>impersonate</i> the tenant writer accounts</td><td>Yes, one deployment</td></tr>
+<tr><td>5</td><td><b>The actual BigQuery write</b></td><td><code>writer-&lt;tenant&gt;@</code>, e.g. <code>writer-tenant-a@</code> (impersonated by <code>writer@</code>)</td><td><b>The tenant / data owner</b></td><td>Tenant's data project</td><td><code>dataEditor</code> on the tenant's write-back table only</td><td>No, one per tenant</td></tr>
+<tr><td>6</td><td>Tenant dataset and table</td><td>—</td><td><b>The tenant / data owner</b></td><td>Tenant's data project</td><td>Only <code>writer-&lt;tenant&gt;@</code> can write; Looker's connection can read the view</td><td>Per tenant</td></tr>
+</table></div>
+
+<h2>How step 5 works</h2>
+<ol>
+<li>The Write-back API works out which tenant the request is for, from the caller registry or the target table, and calls the Writer with <code>tenant = tenant_a</code>.</li>
+<li>The Writer runs as <code>writer@</code>. Through Workload Identity it gets its own short-lived token, then asks Google for a token <i>as</i> <code>writer-tenant-a@</code> (impersonation).</li>
+<li>Google issues that token only if the tenant has granted <code>writer@</code> the role <code>roles/iam.serviceAccountTokenCreator</code> on <code>writer-tenant-a@</code>.</li>
+<li>The Writer appends the row to BigQuery with the tenant's token. BigQuery sees <code>writer-tenant-a@</code> as the writer, so the platform's account never needs access to the dataset.</li>
+</ol>
+<div class="dia"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant WB as Write-back API<br/>(writeback-api@)
+  participant WR as Writer API<br/>(writer@)
+  participant MD as GKE metadata server
+  participant IAM as IAM Credentials API
+  participant BQ as BigQuery<br/>tenant_a.writeback_log
+  WB->>WR: POST /v1/write · tenant = tenant_a · Google ID token
+  WR->>WR: Verify caller = writeback-api@
+  WR->>MD: Token for writer@ (Workload Identity)
+  MD-->>WR: Short-lived token (writer@)
+  WR->>IAM: generateAccessToken for writer-tenant-a@ (scope bigquery, 10 min)
+  IAM->>IAM: Does writer@ hold tokenCreator on writer-tenant-a@?
+  alt granted by tenant
+    IAM-->>WR: Token as writer-tenant-a@
+    WR->>BQ: insertAll (insertId = request_id) as writer-tenant-a@
+    BQ-->>WR: OK · audit log shows writer-tenant-a@
+  else not granted / revoked
+    IAM-->>WR: 403 PERMISSION_DENIED
+    WR-->>WB: 403 tenant_access_revoked
+  end
+</pre></div>
+<div class="cap">Figure 2 – Impersonation at write time</div>
+
+<h3>Reference code (Writer, Python)</h3>
+<pre>import google.auth
+from google.auth import impersonated_credentials
+from google.cloud import bigquery
+
+source, _ = google.auth.default()                      <span class="c"># writer@ via Workload Identity</span>
+
+def bq_client_for(tenant):
+    target = f"writer-{tenant}@{TENANT_PROJECT[tenant]}.iam.gserviceaccount.com"
+    creds = impersonated_credentials.Credentials(
+        source_credentials=source,
+        target_principal=target,
+        target_scopes=["https://www.googleapis.com/auth/bigquery"],
+        lifetime=600)                                     <span class="c"># 10 minutes, cached per tenant</span>
+    return bigquery.Client(project=TENANT_PROJECT[tenant], credentials=creds)
+
+def write(tenant, request_id, rows):
+    table = f"{TENANT_PROJECT[tenant]}.{tenant}.writeback_log"
+    errors = bq_client_for(tenant).insert_rows_json(table, rows,
+             row_ids=[f"{request_id}-{i}" for i in range(len(rows))])
+    if errors: raise RuntimeError(errors)</pre>
+
+<h2>Who grants what</h2>
+<div class="tw"><table>
+<tr><th>Grant</th><th>Granted by</th><th>On which resource</th><th>To whom</th></tr>
+<tr><td><code>bigquery.dataEditor</code></td><td>Tenant</td><td>Their <code>writeback_log</code> table</td><td><code>writer-tenant-a@</code> (their own SA)</td></tr>
+<tr><td><code>iam.serviceAccountTokenCreator</code></td><td>Tenant</td><td>Their <code>writer-tenant-a@</code> SA</td><td>Platform <code>writer@</code></td></tr>
+<tr><td><code>iam.workloadIdentityUser</code></td><td>Platform</td><td><code>writer@</code>, <code>writeback-api@</code>, <code>action-hub@</code></td><td>The matching Kubernetes service accounts</td></tr>
+<tr><td><code>bigquery.dataViewer</code></td><td>Tenant</td><td>Their <code>current_state</code> view</td><td>Looker's BigQuery connection SA</td></tr>
+</table></div>
+<pre><span class="c"># run by the tenant in their data project</span>
+gcloud iam service-accounts create writer-tenant-a --project=$TENANT_PRJ --display-name="Write-back writer for tenant A"
+
+bq add-iam-policy-binding --member="serviceAccount:writer-tenant-a@${TENANT_PRJ}.iam.gserviceaccount.com" \
+  --role=roles/bigquery.dataEditor ${TENANT_PRJ}:tenant_a.writeback_log
+
+gcloud iam service-accounts add-iam-policy-binding writer-tenant-a@${TENANT_PRJ}.iam.gserviceaccount.com \
+  --project=$TENANT_PRJ --role=roles/iam.serviceAccountTokenCreator \
+  --member="serviceAccount:writer@${WB_PRJ}.iam.gserviceaccount.com"
+
+<span class="c"># check from the platform side (writer@ can mint a token for the tenant SA)</span>
+gcloud auth print-access-token --impersonate-service-account=writer-tenant-a@${TENANT_PRJ}.iam.gserviceaccount.com</pre>
+
+<h2>Why this split</h2>
+<ul>
+<li><b>The tenant keeps control of its data.</b> Only its own service account can write to its dataset, and it can revoke the token-creator grant at any time to cut off write-back immediately.</li>
+<li><b>The platform runs one set of services</b>, not one deployment per tenant. Onboarding a tenant means two grants on their side and a registry entry on ours.</li>
+<li><b>A bug can't cross tenants.</b> If tenant A's request were wrongly sent with tenant B's name, the Writer would try to act as <code>writer-tenant-b@</code>. The Write-back API checks the registry first, and every write is logged under the tenant's service account in BigQuery's audit logs.</li>
+</ul>
+
+<h2>What changes because both APIs are in Spoke 2 on a separate cluster</h2>
+<div class="tw"><table>
+<tr><th>Topic</th><th>Effect</th></tr>
+<tr><td>Network path Action Hub → Write-back API</td><td>Stays inside Spoke 2 – no HUB transit. Keep the internal load balancer, firewall rule (Action Hub range only) and TLS; the hop is cluster-to-cluster, not spoke-to-spoke.</td></tr>
+<tr><td>Cluster separation</td><td>Looker and Action Hub on the Looker cluster; Write-back API and Writer on the write-back cluster. A problem or upgrade on one cluster does not affect the other, and RBAC can differ per cluster.</td></tr>
+<tr><td>Workload pool</td><td>If both clusters are in the <b>same project</b>, they share one workload pool (<code>PROJECT.svc.id.goog</code>). A KSA with the same namespace and name on both clusters would map to the same Google SA – so keep the namespaces distinct (<code>looker-actions</code> vs <code>writeback</code>) and never create a <code>writeback/writer-ksa</code> on the Looker cluster.</td></tr>
+<tr><td>Workload Identity bindings</td><td><code>PROJECT.svc.id.goog[looker-actions/action-hub-ksa]</code> → <code>action-hub@</code>; <code>PROJECT.svc.id.goog[writeback/writeback-ksa]</code> → <code>writeback-api@</code>; <code>PROJECT.svc.id.goog[writeback/writer-ksa]</code> → <code>writer@</code>.</td></tr>
+<tr><td>Writer → tenant projects</td><td>Impersonation calls the IAM Credentials API; outbound access to Google APIs (Private Google Access) is needed from the write-back cluster. Check that VPC Service Controls perimeters, if used, allow it.</td></tr>
+</table></div>
+
+<h2>Other options, if a tenant won't allow impersonation</h2>
+<div class="tw"><table>
+<tr><th>Option</th><th>Runs the write as</th><th>Trade-off</th></tr>
+<tr><td>A. Tenant grants <code>dataEditor</code> directly to platform <code>writer@</code></td><td><code>writer@</code> (platform)</td><td>Simplest, but the platform's account then holds write access to every tenant's table, so isolation rests on the registry alone</td></tr>
+<tr class="rec"><td>B. <b>Impersonation (recommended)</b></td><td><code>writer-&lt;tenant&gt;@</code> (tenant)</td><td>Tenant owns the account and the access; per-tenant isolation is enforced by IAM</td></tr>
+<tr><td>C. Tenant runs its own Writer in its own project</td><td>Tenant's own deployment</td><td>Strongest separation, but every tenant builds and runs a service, and the Write-back API needs a route to each one</td></tr>
+</table></div>
+
+<h2>Summary</h2>
+<div class="tw"><table>
+<tr><th>Question</th><th>Answer</th></tr>
+<tr><td>Who runs the Action Hub?</td><td><code>action-hub@</code> – platform-owned, shared by all tenants</td></tr>
+<tr><td>Who runs the Write-back API?</td><td><code>writeback-api@</code> – platform-owned, shared by all tenants, Spoke 2 write-back cluster</td></tr>
+<tr><td>Who runs the Writer API?</td><td><code>writer@</code> – platform-owned, shared by all tenants, Spoke 2 write-back cluster</td></tr>
+<tr><td>Who performs the BigQuery write?</td><td><code>writer-&lt;tenant&gt;@</code> – tenant-owned, borrowed by the Writer through impersonation</td></tr>
+<tr><td>Who controls access to tenant data?</td><td>The tenant – by granting (or revoking) <code>serviceAccountTokenCreator</code> to <code>writer@</code></td></tr>
+</table></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:'default',flowchart:{htmlLabels:true}});</script>
+</body>
+</html>

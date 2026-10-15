@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Write-back Set-up Runbook</title>
+<style>
+:root{--ink:#1d2733;--muted:#5b6b7b;--line:#d9e1ea;--soft:#f5f8fb;--accent:#1f4e79;--accent2:#2e75b6}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:var(--ink);font:15px/1.6 "Segoe UI",Helvetica,Arial,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+header{border-bottom:3px solid var(--accent);padding-bottom:14px;margin-bottom:20px}
+.eyebrow{font-size:13px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+h1{font-size:30px;margin:6px 0 8px;color:var(--accent)}
+h2{font-size:22px;margin:44px 0 6px;padding:10px 14px;border-radius:8px;color:#fff;background:var(--accent)}
+h2 small{font-weight:400;font-size:14px;opacity:.85;margin-left:8px}
+h3{font-size:16.5px;margin:0 0 6px;color:var(--accent)}
+p.lede{color:var(--muted);margin:0 0 10px}
+nav.toc{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:12px 18px;margin:16px 0}
+nav.toc ol{margin:6px 0 0;padding-left:22px;columns:3;column-gap:26px}
+nav.toc li{break-inside:avoid}
+nav.toc a{color:var(--accent2);text-decoration:none}
+.step{border:1px solid var(--line);border-left:6px solid var(--accent2);border-radius:10px;padding:12px 16px;margin:14px 0;background:#fff}
+.step .meta{font-size:12.5px;color:var(--muted);margin-bottom:6px}
+.who{display:inline-block;font-size:11px;font-weight:700;color:#fff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.platform{background:#12355b}.iam{background:#005a9e}.ida{background:#7030a0}.apigee{background:#8c6a00}.network{background:#3a3a3a}.data{background:#005353}.eng{background:#38761d}.looker{background:#255a12}.sre{background:#8e1d4f}.sec{background:#a0430a}
+.num{display:inline-block;min-width:44px;font-weight:700;color:var(--accent2)}
+pre{background:#0f1b2a;color:#e8eef5;border-radius:8px;padding:12px 14px;overflow-x:auto;font:12.5px/1.5 Consolas,"Courier New",monospace;margin:8px 0}
+pre .c{color:#8fb3d9}
+pre.mermaid{background:transparent;color:inherit;padding:0;margin:0;overflow:visible}
+code{font-family:Consolas,"Courier New",monospace;background:#eef3f8;border-radius:4px;padding:1px 5px;font-size:12.5px}
+.verify{background:#e2efda;border-radius:6px;padding:6px 10px;margin-top:6px;font-size:13.5px}
+.verify b{color:#38761d}
+.note{background:#fff4ce;border-left:5px solid #c9a227;border-radius:6px;padding:10px 14px;margin:12px 0}
+.info{background:#e8f1fb;border-left:5px solid var(--accent2);border-radius:6px;padding:10px 14px;margin:12px 0}
+table{border-collapse:collapse;width:100%;margin:10px 0 16px;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:var(--accent);color:#fff}
+tr:nth-child(even) td{background:#fafcfe}
+.tw{overflow-x:auto}
+.dia{border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0;overflow-x:auto;text-align:center}
+.cap{font-size:13px;color:var(--muted);text-align:center;margin:-6px 0 14px}
+ul.check{list-style:none;padding-left:0}ul.check li:before{content:"☐ ";color:var(--accent2)}
+@media(max-width:860px){nav.toc ol{columns:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Looker write-back to BigQuery · Architecture v5 · One-time set-up</div>
+  <h1>Write-back set-up runbook – every resource, step by step</h1>
+  <p class="lede">Everything that must be created before the first write-back click works, in the order to create it: APIs, Workload Identity, service accounts, secrets, BigQuery, network, Entra, ID&amp;A, Apigee, deployments, Looker and monitoring. Each step says who does it, the command or console path, and how to check it worked.</p>
+  <p class="lede"><b>Architecture:</b> Action Hub exchanges an Entra auth token for an ID&amp;A JWT through Apigee → Write-back API verifies the JWT with JWKS → Writer API writes to BigQuery machine-to-machine on service accounts. Write permission = Looker group “Writeback Users” → user attribute <code>writeback_allowed = yes</code>.</p>
+</header>
+
+<div class="note"><b>Revision 2 – aligned with architecture v6.</b> The Write-back API and Writer API now run on a <b>new, separate GKE cluster in Spoke 2</b> (not the Looker cluster, not Spoke 1). Added: phase <a href="#BC">B+ (create the write-back cluster)</a>, steps I4, J7 (per-tenant impersonation), K9 (expose the Action Hub to Looker), K10 (egress to Entra), K11 (control-plane access); updated A1, B2, C3, D, E2/E3, K1–K8, O and the summary.</div>
+<nav class="toc"><b>Phases</b>
+<ol>
+<li><a href="#A">Names and variables</a></li>
+<li><a href="#B">Enable Google APIs</a></li>
+<li><a href="#BC">Create the write-back GKE cluster (new)</a></li>
+<li><a href="#C">Workload Identity and the workload pool</a></li>
+<li><a href="#D">Namespaces</a></li>
+<li><a href="#E">Google service accounts</a></li>
+<li><a href="#F">Kubernetes SAs and bindings</a></li>
+<li><a href="#G">Organisation policy</a></li>
+<li><a href="#H">Secret Manager</a></li>
+<li><a href="#I">Artifact Registry and CI</a></li>
+<li><a href="#J">BigQuery</a></li>
+<li><a href="#K">Network, DNS and TLS</a></li>
+<li><a href="#L">Microsoft Entra</a></li>
+<li><a href="#M">ID&amp;A onboarding</a></li>
+<li><a href="#N">Apigee</a></li>
+<li><a href="#O">Deploy the three services</a></li>
+<li><a href="#P">Looker configuration</a></li>
+<li><a href="#Q">Logging and monitoring</a></li>
+<li><a href="#R">End-to-end verification</a></li>
+<li><a href="#S">Promote to PRE and PRD</a></li>
+</ol></nav>
+
+<div class="dia"><pre class="mermaid">
+flowchart LR
+  A[A Names] --> B[B APIs] --> BC[B+ New write-back<br/>GKE cluster] --> C[C Workload Identity<br/>workload pool] --> D[D Namespaces] --> E[E Google SAs] --> F[F KSA bindings]
+  E --> G[G No-key policy]
+  E --> H[H Secret Manager]
+  E --> J[J BigQuery + IAM]
+  E --> L[L Entra app +<br/>federated credential]
+  L --> M[M ID&A onboarding] --> N[N Apigee flows]
+  A --> K[K Network · DNS · TLS · PSC]
+  K --> N
+  B --> I[I Registry + CI]
+  F --> O[O Deploy services]
+  H --> O
+  I --> O
+  J --> O
+  N --> O
+  K --> O
+  O --> P[P Looker config]
+  O --> Q[Q Monitoring]
+  P --> R[R Verify end to end]
+  Q --> R
+  R --> S[S PRE → PRD]
+  classDef default fill:#e8f1fb,stroke:#2e75b6,color:#1d2733
+</pre></div>
+<div class="cap">Figure 1 – Order of set-up; arrows show what must exist first</div>
+
+<div class="tw"><table>
+<tr><th>Resource</th><th>Count</th><th>Names</th></tr>
+<tr><td>GKE clusters</td><td>1 new</td><td>writeback-gke (Spoke 2) – Looker cluster already exists</td></tr>
+<tr><td>Google service accounts</td><td>3</td><td>action-hub@ · writeback-api@ · writer@</td></tr>
+<tr><td>Kubernetes service accounts</td><td>3</td><td>action-hub-ksa · writeback-ksa · writer-ksa</td></tr>
+<tr><td>Workload Identity bindings</td><td>3</td><td>one per KSA → GSA</td></tr>
+<tr><td>GKE workload pools</td><td>1 or 2 (one per project)</td><td>looker-prj.svc.id.goog · lbg-writeback-prj.svc.id.goog (shared if both clusters are in one project)</td></tr>
+<tr><td>Namespaces</td><td>2</td><td>looker-actions (Looker cluster) · writeback (write-back cluster) – both Spoke 2</td></tr>
+<tr><td>Secrets</td><td>1</td><td>looker-action-secret</td></tr>
+<tr><td>Entra app registrations</td><td>1</td><td>looker-writeback-action-hub (federated credential, no secret)</td></tr>
+<tr><td>ID&amp;A client registrations</td><td>1 per environment</td><td>Action Hub app → aud writeback-api, scope writeback.write</td></tr>
+<tr><td>Apigee flows</td><td>2</td><td>lloyds-auth-int /v1/token-exchange · /v1/jwks</td></tr>
+<tr><td>BigQuery objects</td><td>3</td><td>dataset writeback · table writeback_log · view current_state</td></tr>
+<tr><td>Network objects</td><td>~8</td><td>subnet + secondary ranges, ILB + static IP, firewall rules, NetworkPolicies, DNS records, TLS certificates (existing Spoke 2 PSC to Apigee reused)</td></tr>
+<tr><td>Deployments</td><td>3</td><td>action-hub · writeback-api · writer</td></tr>
+<tr><td>Looker objects</td><td>5</td><td>group, user attribute, group value, role, Action Hub registration (+ LookML tags)</td></tr>
+</table></div>
+
+<!-- ============================================================ A -->
+<h2 id="A">A · Names and variables <small>decide once, use everywhere</small></h2>
+<div class="step"><h3><span class="num">A1</span>Agree names for each environment</h3>
+<div class="meta"><span class="who platform">Platform</span><span class="who network">Network</span></div>
+<p>Set these once per environment (INT shown). Every command below uses them.</p>
+<pre>export REGION=europe-west2
+export LOOKER_PRJ=looker-prj-int            <span class="c"># Spoke 2: Looker + Action Hub</span>
+export WB_PRJ=lbg-writeback-prj-int         <span class="c"># Spoke 2 service project for the write-back cluster (or = $LOOKER_PRJ)</span>
+export SPOKE2_HOST_PRJ=spoke2-host-prj-int   <span class="c"># Spoke 2 Shared VPC host project</span>
+export SPOKE2_VPC=spoke2-vpc  WB_SUBNET=wb-gke-subnet
+export DATA_PRJ=lbg-data-prj-int            <span class="c"># BigQuery</span>
+export LOOKER_CLUSTER=looker-gke   LOOKER_POOL=default-pool
+export WB_CLUSTER=writeback-gke    WB_POOL=wb-pool        <span class="c"># NEW cluster in Spoke 2</span>
+export AH_NS=looker-actions        WB_NS=writeback
+export AH_GSA=action-hub@${LOOKER_PRJ}.iam.gserviceaccount.com
+export WBAPI_GSA=writeback-api@${WB_PRJ}.iam.gserviceaccount.com
+export WRITER_GSA=writer@${WB_PRJ}.iam.gserviceaccount.com
+export AH_EGRESS_RANGE=10.20.8.0/22         <span class="c"># Looker cluster pod range (Action Hub egress)</span></pre>
+<div class="verify"><b>Check:</b> names published to all teams; host names agreed: writeback-actions-int.internal, writeback-api-int.internal, writer.internal.</div></div>
+
+<!-- ============================================================ B -->
+<h2 id="B">B · Enable Google APIs <small>both projects</small></h2>
+<div class="step"><h3><span class="num">B1</span>Enable APIs in the Spoke 2 (Looker) project</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>gcloud services enable container.googleapis.com iam.googleapis.com iamcredentials.googleapis.com \
+  secretmanager.googleapis.com artifactregistry.googleapis.com logging.googleapis.com monitoring.googleapis.com \
+  --project=$LOOKER_PRJ</pre></div>
+<div class="step"><h3><span class="num">B2</span>Enable APIs in the write-back project (Spoke 2) and data project</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>gcloud services enable container.googleapis.com iam.googleapis.com iamcredentials.googleapis.com \
+  compute.googleapis.com dns.googleapis.com logging.googleapis.com monitoring.googleapis.com --project=$WB_PRJ
+gcloud services enable bigquery.googleapis.com --project=$DATA_PRJ</pre>
+<div class="verify"><b>Check:</b> <code>gcloud services list --enabled --project=…</code> shows them.</div></div>
+
+<!-- ============================================================ B+ -->
+<h2 id="BC">B+ · Create the write-back GKE cluster <small>new, Spoke 2, separate from the Looker cluster</small></h2>
+<div class="step"><h3><span class="num">NC1</span>Subnet with pod and service ranges, Private Google Access on</h3>
+<div class="meta"><span class="who network">Network</span> Ranges must not overlap the Looker cluster, Spoke 1 or the HUB.</div>
+<pre>gcloud compute networks subnets create $WB_SUBNET --project=$SPOKE2_HOST_PRJ --network=$SPOKE2_VPC --region=$REGION \
+  --range=10.30.4.0/24 \
+  --secondary-range=wb-pods=10.31.0.0/20,wb-services=10.31.16.0/24 \
+  --enable-private-ip-google-access</pre>
+<p>If Spoke 2 routes are advertised to the HUB, ask the Network team to add the new ranges (only needed if anything outside Spoke 2 must reach the cluster).</p></div>
+<div class="step"><h3><span class="num">NC2</span>Share the subnet with the write-back service project (Shared VPC only)</h3>
+<div class="meta"><span class="who network">Network</span> Skip if the cluster is created in the host/Looker project.</div>
+<pre>gcloud compute networks subnets add-iam-policy-binding $WB_SUBNET --region=$REGION --project=$SPOKE2_HOST_PRJ \
+  --member="serviceAccount:service-&lt;WB_PRJ_NUMBER&gt;@container-engine-robot.iam.gserviceaccount.com" --role=roles/compute.networkUser
+gcloud projects add-iam-policy-binding $SPOKE2_HOST_PRJ \
+  --member="serviceAccount:service-&lt;WB_PRJ_NUMBER&gt;@container-engine-robot.iam.gserviceaccount.com" --role=roles/container.hostServiceAgentUser</pre></div>
+<div class="step"><h3><span class="num">NC3</span>Create the private regional cluster with Workload Identity switched on</h3>
+<div class="meta"><span class="who platform">Platform</span> Creating with <code>--workload-pool</code> creates the workload pool at the same time.</div>
+<pre>gcloud container clusters create $WB_CLUSTER --project=$WB_PRJ --region=$REGION \
+  --network=projects/$SPOKE2_HOST_PRJ/global/networks/$SPOKE2_VPC \
+  --subnetwork=projects/$SPOKE2_HOST_PRJ/regions/$REGION/subnetworks/$WB_SUBNET \
+  --cluster-secondary-range-name=wb-pods --services-secondary-range-name=wb-services \
+  --enable-ip-alias --enable-private-nodes --enable-private-endpoint --master-ipv4-cidr=172.16.40.0/28 \
+  --enable-master-authorized-networks --master-authorized-networks=&lt;ci-cd-range&gt;,&lt;admin-range&gt; \
+  --workload-pool=${WB_PRJ}.svc.id.goog \
+  --enable-dataplane-v2 \
+  --release-channel=regular --enable-shielded-nodes \
+  --num-nodes=1 --machine-type=e2-standard-4 \
+  --workload-metadata=GKE_METADATA \
+  --service-account=wb-gke-nodes@${WB_PRJ}.iam.gserviceaccount.com \
+  --labels=app=looker-writeback,env=int</pre>
+<p>Dataplane V2 enforces NetworkPolicies. The node service account <code>wb-gke-nodes@</code> is a minimal account (logging, monitoring, Artifact Registry read) – create it first with <code>gcloud iam service-accounts create wb-gke-nodes</code> and grant <code>roles/logging.logWriter</code>, <code>roles/monitoring.metricWriter</code>, <code>roles/monitoring.viewer</code>.</p></div>
+<div class="step"><h3><span class="num">NC4</span>Get credentials and name the kubectl contexts used in this runbook</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>gcloud container clusters get-credentials $WB_CLUSTER --region=$REGION --project=$WB_PRJ --internal-ip
+kubectl config rename-context gke_${WB_PRJ}_${REGION}_${WB_CLUSTER} wb-gke
+
+gcloud container clusters get-credentials $LOOKER_CLUSTER --region=$REGION --project=$LOOKER_PRJ --internal-ip
+kubectl config rename-context gke_${LOOKER_PRJ}_${REGION}_${LOOKER_CLUSTER} looker-gke</pre>
+<div class="verify"><b>Check:</b> <code>kubectl --context=wb-gke get nodes</code> lists Ready nodes; <code>gcloud container clusters list --project=$WB_PRJ</code> shows <code>writeback-gke</code> RUNNING.</div></div>
+
+<!-- ============================================================ C -->
+<h2 id="C">C · Workload Identity and the workload pool</h2>
+<div class="info"><b>Which “pool” is needed?</b> Google Cloud has two different things called a pool:
+<ul>
+<li><b>GKE workload pool</b> – <code>PROJECT_ID.svc.id.goog</code>. Created automatically when Workload Identity is switched on for a cluster; one per project; you cannot name it. <b>This is the one we use</b>: it lets a Kubernetes service account act as a Google service account without key files.</li>
+<li><b>IAM Workload Identity <i>Federation</i> pool</b> – <code>gcloud iam workload-identity-pools create</code>. Only needed when an <i>outside</i> identity (for example an Entra token) must call Google APIs. <b>Not needed here</b>: our direction is the opposite – a Google service account signs in to Entra – so the trust is configured on the Entra side as a federated credential (step L2).</li>
+</ul></div>
+<div class="step"><h3><span class="num">C1</span>Switch on Workload Identity on the Spoke 2 cluster (creates its workload pool)</h3>
+<div class="meta"><span class="who platform">Platform</span> Skip if already enabled.</div>
+<pre>gcloud container clusters update $LOOKER_CLUSTER --location=$REGION --project=$LOOKER_PRJ \
+  --workload-pool=${LOOKER_PRJ}.svc.id.goog</pre></div>
+<div class="step"><h3><span class="num">C2</span>Switch the Spoke 2 node pool to the GKE metadata server</h3>
+<div class="meta"><span class="who platform">Platform</span> Rolls the nodes – plan a window.</div>
+<pre>gcloud container node-pools update $LOOKER_POOL --cluster=$LOOKER_CLUSTER --location=$REGION --project=$LOOKER_PRJ \
+  --workload-metadata=GKE_METADATA</pre></div>
+<div class="step"><h3><span class="num">C3</span>Write-back cluster: already on from NC3 – run only if an existing cluster is reused</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>gcloud container clusters update $WB_CLUSTER --location=$REGION --project=$WB_PRJ --workload-pool=${WB_PRJ}.svc.id.goog
+gcloud container node-pools update $WB_POOL --cluster=$WB_CLUSTER --location=$REGION --project=$WB_PRJ --workload-metadata=GKE_METADATA</pre>
+<div class="verify"><b>Check:</b> see C4.</div></div>
+
+<div class="step"><h3><span class="num">C4</span>Check the workload pool and node pools with gcloud</h3>
+<div class="meta"><span class="who platform">Platform</span> Run for both clusters (Looker cluster with $LOOKER_*, write-back cluster with $WB_*).</div>
+<p><b>1. Workload pool on the cluster</b> – must return <code>&lt;project&gt;.svc.id.goog</code>. Empty output means Workload Identity is off.</p>
+<pre>gcloud container clusters describe $WB_CLUSTER --location=$REGION --project=$WB_PRJ \
+  --format="value(workloadIdentityConfig.workloadPool)"
+<span class="c"># → lbg-writeback-prj-int.svc.id.goog</span>
+
+gcloud container clusters describe $LOOKER_CLUSTER --location=$REGION --project=$LOOKER_PRJ \
+  --format="value(workloadIdentityConfig.workloadPool)"
+<span class="c"># → looker-prj-int.svc.id.goog</span></pre>
+<p><b>2. Every node pool uses the GKE metadata server</b> – each pool must show <code>GKE_METADATA</code>. A pool showing <code>GCE_METADATA</code> or blank will give pods the node's identity instead.</p>
+<pre>gcloud container node-pools list --cluster=$WB_CLUSTER --location=$REGION --project=$WB_PRJ \
+  --format="table(name, config.workloadMetadataConfig.mode, version)"
+<span class="c"># NAME          MODE          VERSION
+# default-pool  GKE_METADATA  1.30.x-gke.x</span>
+
+gcloud container node-pools describe $WB_POOL --cluster=$WB_CLUSTER --location=$REGION --project=$WB_PRJ \
+  --format="value(config.workloadMetadataConfig.mode)"
+<span class="c"># → GKE_METADATA</span></pre>
+<p><b>3. All clusters in the project and their pools at a glance</b></p>
+<pre>gcloud container clusters list --project=$WB_PRJ \
+  --format="table(name, location, workloadIdentityConfig.workloadPool)"</pre>
+<p><b>Same project?</b> If the write-back cluster is created in the Looker project, both clusters share one workload pool. A KSA with the same namespace and name on both clusters maps to the same Google SA – keep the namespaces distinct (<code>looker-actions</code> only on the Looker cluster, <code>writeback</code> only on the write-back cluster).</p>
+<p><b>4. Confirm no IAM Workload Identity <i>Federation</i> pool is needed</b> – the GKE pool does <u>not</u> appear in this list; this list is only for external identity federation. For write-back it can be empty.</p>
+<pre>gcloud iam workload-identity-pools list --location=global --project=$WB_PRJ
+<span class="c"># → Listed 0 items.   (expected for this design)</span></pre>
+<p><b>5. Pods actually run on a Workload Identity node</b></p>
+<pre>kubectl --context=wb-gke get nodes -L iam.gke.io/gke-metadata-server-enabled
+<span class="c"># every node → true</span></pre>
+<div class="verify"><b>Check:</b> both clusters return their <code>.svc.id.goog</code> pool; every node pool shows <code>GKE_METADATA</code>; every node label is <code>true</code>.</div></div>
+
+<!-- ============================================================ D -->
+<h2 id="D">D · Namespaces</h2>
+<div class="step"><h3><span class="num">D1</span>Create namespace looker-actions (Looker cluster) and writeback (write-back cluster)</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>kubectl --context=looker-gke create namespace looker-actions
+kubectl --context=wb-gke create namespace writeback</pre></div>
+<div class="step"><h3><span class="num">D2</span>Default-deny NetworkPolicy in both namespaces</h3>
+<div class="meta"><span class="who platform">Platform</span> Specific allow rules come in K6.</div>
+<pre>cat &lt;&lt;'EOF' | kubectl --context=wb-gke apply -n writeback -f -
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: default-deny-ingress }
+spec: { podSelector: {}, policyTypes: [Ingress] }
+EOF
+<span class="c"># repeat with --context=looker-gke -n looker-actions</span></pre></div>
+<div class="step"><h3><span class="num">D3</span>Resource quota and labels</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>kubectl --context=wb-gke label namespace writeback app=looker-writeback env=int cost-centre=biaas
+kubectl --context=wb-gke create quota wb-quota -n writeback --hard=requests.cpu=4,requests.memory=4Gi,limits.memory=8Gi</pre></div>
+
+<!-- ============================================================ E -->
+<h2 id="E">E · Google service accounts <small>no key files, ever</small></h2>
+<div class="step"><h3><span class="num">E1</span>Create action-hub@ (Spoke 2 project)</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>gcloud iam service-accounts create action-hub --project=$LOOKER_PRJ \
+  --display-name="Looker write-back Action Hub" --description="Calls Entra, Apigee token exchange and Write-back API"</pre></div>
+<div class="step"><h3><span class="num">E2</span>Create writeback-api@ (write-back project, Spoke 2)</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>gcloud iam service-accounts create writeback-api --project=$WB_PRJ --display-name="Write-back API"</pre></div>
+<div class="step"><h3><span class="num">E3</span>Create writer@ (write-back project, Spoke 2)</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>gcloud iam service-accounts create writer --project=$WB_PRJ --display-name="Write-back Writer (BigQuery insert only)"</pre></div>
+<div class="step"><h3><span class="num">E4</span>Record the unique id of action-hub@ (needed by Entra in L2)</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>gcloud iam service-accounts describe $AH_GSA --format="value(uniqueId)"
+<span class="c"># → 1098765432109876543210   (send to IAM / Entra team)</span></pre>
+<div class="verify"><b>Check:</b> <code>gcloud iam service-accounts keys list --iam-account=…</code> shows only Google-managed system keys – no user-managed keys.</div></div>
+
+<!-- ============================================================ F -->
+<h2 id="F">F · Kubernetes service accounts and Workload Identity bindings</h2>
+<div class="step"><h3><span class="num">F1</span>Create the three KSAs</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>kubectl --context=looker-gke create serviceaccount action-hub-ksa -n looker-actions
+kubectl --context=wb-gke create serviceaccount writeback-ksa  -n writeback
+kubectl --context=wb-gke create serviceaccount writer-ksa     -n writeback</pre></div>
+<div class="step"><h3><span class="num">F2</span>Allow each KSA to act as its GSA (roles/iam.workloadIdentityUser)</h3>
+<div class="meta"><span class="who platform">Platform</span> The member string uses the workload pool from C.</div>
+<pre>gcloud iam service-accounts add-iam-policy-binding $AH_GSA --project=$LOOKER_PRJ \
+  --role=roles/iam.workloadIdentityUser --member="serviceAccount:${LOOKER_PRJ}.svc.id.goog[looker-actions/action-hub-ksa]"
+
+gcloud iam service-accounts add-iam-policy-binding $WBAPI_GSA --project=$WB_PRJ \
+  --role=roles/iam.workloadIdentityUser --member="serviceAccount:${WB_PRJ}.svc.id.goog[writeback/writeback-ksa]"
+
+gcloud iam service-accounts add-iam-policy-binding $WRITER_GSA --project=$WB_PRJ \
+  --role=roles/iam.workloadIdentityUser --member="serviceAccount:${WB_PRJ}.svc.id.goog[writeback/writer-ksa]"</pre></div>
+<div class="step"><h3><span class="num">F3</span>Annotate each KSA with its GSA</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>kubectl --context=looker-gke annotate serviceaccount action-hub-ksa -n looker-actions iam.gke.io/gcp-service-account=$AH_GSA
+kubectl --context=wb-gke annotate serviceaccount writeback-ksa  -n writeback      iam.gke.io/gcp-service-account=$WBAPI_GSA
+kubectl --context=wb-gke annotate serviceaccount writer-ksa     -n writeback      iam.gke.io/gcp-service-account=$WRITER_GSA</pre></div>
+<div class="step"><h3><span class="num">F4</span>Test each binding with a throw-away pod</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>kubectl --context=wb-gke run wi-test -n writeback --rm -it --restart=Never --image=google/cloud-sdk:slim \
+  --overrides='{"spec":{"serviceAccountName":"writer-ksa"}}' -- gcloud auth list
+<span class="c"># repeat for writeback-ksa and (looker-gke) action-hub-ksa</span></pre>
+<div class="verify"><b>Check:</b> the active account is <code>writer@lbg-writeback-prj-int.iam.gserviceaccount.com</code> (and the matching SA for the others).</div></div>
+
+<div class="step"><h3><span class="num">F5</span>Full Workload Identity check for each service (gcloud + kubectl)</h3>
+<div class="meta"><span class="who platform">Platform</span> Shown for the Write-back API (writeback-ksa → writeback-api@). Repeat for writer-ksa → writer@ and action-hub-ksa → action-hub@.</div>
+<p><b>1. The Google service account exists and is enabled</b></p>
+<pre>gcloud iam service-accounts describe $WBAPI_GSA --project=$WB_PRJ \
+  --format="table(email, uniqueId, disabled)"
+<span class="c"># EMAIL                                              UNIQUE_ID               DISABLED
+# writeback-api@lbg-writeback-prj-int.iam.gserviceaccount.com  1123…            False</span></pre>
+<p><b>2. The KSA is allowed to act as the GSA</b> – the policy must contain <code>roles/iam.workloadIdentityUser</code> for exactly <code>PROJECT.svc.id.goog[namespace/ksa]</code>.</p>
+<pre>gcloud iam service-accounts get-iam-policy $WBAPI_GSA --project=$WB_PRJ \
+  --flatten="bindings[].members" --filter="bindings.role:roles/iam.workloadIdentityUser" \
+  --format="table(bindings.role, bindings.members)"
+<span class="c"># ROLE                            MEMBERS
+# roles/iam.workloadIdentityUser  serviceAccount:lbg-writeback-prj-int.svc.id.goog[writeback/writeback-ksa]</span></pre>
+<p><b>3. The KSA carries the right annotation</b></p>
+<pre>kubectl --context=wb-gke get serviceaccount writeback-ksa -n writeback \
+  -o jsonpath='{.metadata.annotations.iam\.gke\.io/gcp-service-account}{"\n"}'
+<span class="c"># → writeback-api@lbg-writeback-prj-int.iam.gserviceaccount.com</span></pre>
+<p><b>4. The running pod uses that KSA</b></p>
+<pre>kubectl --context=wb-gke get pods -n writeback -l app=writeback-api \
+  -o custom-columns=POD:.metadata.name,KSA:.spec.serviceAccountName,NODE:.spec.nodeName</pre>
+<p><b>5. Inside the pod, the metadata server returns the GSA</b> (no key files involved)</p>
+<pre>kubectl --context=wb-gke exec -n writeback deploy/writeback-api -- \
+  curl -s -H "Metadata-Flavor: Google" \
+  http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email
+<span class="c"># → writeback-api@lbg-writeback-prj-int.iam.gserviceaccount.com
+# (if the image has no curl, use the test pod from F4 with serviceAccountName: writeback-ksa)</span></pre>
+<p><b>6. The pod can get a Google access token and an ID token</b></p>
+<pre><span class="c"># access token (used by Writer for BigQuery)</span>
+kubectl --context=wb-gke exec -n writeback deploy/writer -- curl -s -H "Metadata-Flavor: Google" \
+  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" | head -c 80
+
+<span class="c"># ID token for the Writer audience (used by Write-back API → Writer, step 6)</span>
+kubectl --context=wb-gke exec -n writeback deploy/writeback-api -- curl -s -H "Metadata-Flavor: Google" \
+  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=https://writer.internal&amp;format=full" \
+  | cut -d. -f2 | base64 -d 2&gt;/dev/null
+<span class="c"># → {"aud":"https://writer.internal","email":"writeback-api@…","email_verified":true,…}
+
+# ID token for Entra (used by Action Hub, step 2.2) – run in Spoke 2</span>
+kubectl --context=looker-gke exec -n looker-actions deploy/action-hub -- curl -s -H "Metadata-Flavor: Google" \
+  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=api://AzureADTokenExchange" \
+  | cut -d. -f2 | base64 -d 2&gt;/dev/null
+<span class="c"># → "aud":"api://AzureADTokenExchange", "sub":"&lt;unique id of action-hub@&gt;"  ← must equal the subject in Entra (L2)</span></pre>
+<p><b>7. The GSA has only the permissions it needs</b></p>
+<pre><span class="c"># secret access – only action-hub@ should appear</span>
+gcloud secrets get-iam-policy looker-action-secret --project=$LOOKER_PRJ --format="table(bindings.role, bindings.members)"
+
+<span class="c"># BigQuery – writer@ on writeback_log only</span>
+bq get-iam-policy --format=prettyjson ${DATA_PRJ}:writeback.writeback_log
+
+<span class="c"># project-level roles held by a GSA (should be none or minimal)</span>
+gcloud projects get-iam-policy $WB_PRJ --flatten="bindings[].members" \
+  --filter="bindings.members:serviceAccount:$WBAPI_GSA" --format="table(bindings.role)"</pre>
+<p><b>8. No user-managed keys exist</b></p>
+<pre>gcloud iam service-accounts keys list --iam-account=$WBAPI_GSA --project=$WB_PRJ --managed-by=user
+<span class="c"># → Listed 0 items.</span></pre>
+
+<h3 style="margin-top:16px">Troubleshooting Workload Identity</h3>
+<div class="tw"><table>
+<tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+<tr><td>Metadata server returns the <b>node</b> service account (…-compute@developer…)</td><td>Node pool not on <code>GKE_METADATA</code>, or pod has no KSA annotation</td><td>C2/C3 on the node pool; F3 annotation; restart the pod</td></tr>
+<tr><td><code>Permission 'iam.serviceAccounts.getAccessToken' denied</code></td><td>Missing or misspelled <code>workloadIdentityUser</code> binding (wrong namespace or KSA name)</td><td>Re-run F2 with the exact <code>PROJECT.svc.id.goog[ns/ksa]</code></td></tr>
+<tr><td>Cluster describe returns empty workload pool</td><td>Workload Identity not enabled on the cluster</td><td>C1 / C3</td></tr>
+<tr><td>Works in one namespace, not another</td><td>Binding is per namespace + KSA</td><td>Add a binding for the other namespace/KSA</td></tr>
+<tr><td>Entra rejects the client assertion (<code>AADSTS70021</code>)</td><td>Federated credential subject ≠ GSA unique id, or wrong audience</td><td>Compare <code>sub</code> from step 6 with L2; audience must be <code>api://AzureADTokenExchange</code></td></tr>
+<tr><td>Writer returns 403 caller_not_allowed</td><td>ID token audience or email mismatch</td><td>Check step 6 output: aud = https://writer.internal, email = writeback-api@</td></tr>
+<tr><td>Change not picked up</td><td>Pods started before the binding / annotation</td><td><code>kubectl rollout restart deploy/&lt;name&gt; -n &lt;ns&gt;</code></td></tr>
+</table></div>
+<div class="verify"><b>Check:</b> steps 1–8 pass for all three service accounts; the <code>sub</code> in the Entra ID token equals the unique id recorded in E4.</div></div>
+
+<!-- ============================================================ G -->
+<h2 id="G">G · Organisation policy</h2>
+<div class="step"><h3><span class="num">G1</span>Block service-account key creation on all three projects</h3>
+<div class="meta"><span class="who sec">Cloud Security</span> Usually inherited from the organisation – confirm.</div>
+<pre>gcloud resource-manager org-policies describe iam.disableServiceAccountKeyCreation --project=$WB_PRJ --effective</pre>
+<div class="verify"><b>Check:</b> <code>enforced: true</code> for $LOOKER_PRJ, $WB_PRJ and $DATA_PRJ.</div></div>
+
+<!-- ============================================================ H -->
+<h2 id="H">H · Secret Manager</h2>
+<div class="step"><h3><span class="num">H1</span>Create looker-action-secret (random, never written to a file)</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>openssl rand -hex 32 | gcloud secrets create looker-action-secret --project=$LOOKER_PRJ \
+  --replication-policy=user-managed --locations=$REGION --data-file=- \
+  --labels=app=looker-writeback</pre></div>
+<div class="step"><h3><span class="num">H2</span>Grant read access to action-hub@ only</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>gcloud secrets add-iam-policy-binding looker-action-secret --project=$LOOKER_PRJ \
+  --member="serviceAccount:$AH_GSA" --role=roles/secretmanager.secretAccessor</pre></div>
+<div class="step"><h3><span class="num">H3</span>Give the value to the Looker admin through a secure channel (used in P5)</h3>
+<div class="meta"><span class="who platform">Platform</span><span class="who looker">BIaaS</span></div>
+<pre>gcloud secrets versions access latest --secret=looker-action-secret --project=$LOOKER_PRJ   <span class="c"># run by an authorised admin only</span></pre>
+<div class="verify"><b>Check:</b> <code>gcloud secrets get-iam-policy looker-action-secret</code> lists only action-hub@ (plus admin groups).</div></div>
+
+<!-- ============================================================ I -->
+<h2 id="I">I · Artifact Registry and CI</h2>
+<div class="step"><h3><span class="num">I1</span>Create the Docker repository</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>gcloud artifacts repositories create apps --repository-format=docker --location=$REGION --project=$WB_PRJ</pre></div>
+<div class="step"><h3><span class="num">I2</span>CI pipeline builds, scans and pushes three images</h3>
+<div class="meta"><span class="who eng">Engineering</span><span class="who platform">DevOps</span></div>
+<pre>europe-west2-docker.pkg.dev/lbg-writeback-prj-int/apps/action-hub:1.0.0
+europe-west2-docker.pkg.dev/lbg-writeback-prj-int/apps/writeback-api:1.0.0
+europe-west2-docker.pkg.dev/lbg-writeback-prj-int/apps/writer:1.0.0</pre></div>
+<div class="step"><h3><span class="num">I3</span>Let both clusters pull the images</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre><span class="c"># node service account of each cluster needs reader on the repository</span>
+gcloud artifacts repositories add-iam-policy-binding apps --location=$REGION --project=$WB_PRJ \
+  --member="serviceAccount:&lt;looker-cluster-node-sa&gt;" --role=roles/artifactregistry.reader
+gcloud artifacts repositories add-iam-policy-binding apps --location=$REGION --project=$WB_PRJ \
+  --member="serviceAccount:wb-gke-nodes@${WB_PRJ}.iam.gserviceaccount.com" --role=roles/artifactregistry.reader</pre>
+<div class="verify"><b>Check:</b> images visible in the repository; vulnerability scan has no critical findings.</div></div>
+
+<!-- ============================================================ J -->
+<h2 id="J">J · BigQuery</h2>
+<div class="step"><h3><span class="num">J1</span>Create dataset writeback</h3>
+<div class="meta"><span class="who data">Data Platform</span></div>
+<pre>bq --location=$REGION mk --dataset --description="Looker write-back" --label=app:looker-writeback ${DATA_PRJ}:writeback</pre></div>
+<div class="step"><h3><span class="num">J2</span>Create table writeback_log</h3>
+<div class="meta"><span class="who data">Data Platform</span></div>
+<pre>bq query --use_legacy_sql=false --project_id=$DATA_PRJ '
+CREATE TABLE writeback.writeback_log (
+  request_id  STRING    NOT NULL,
+  record_key  STRING    NOT NULL,
+  field       STRING    NOT NULL,
+  new_value   STRING,
+  actor_email STRING    NOT NULL,
+  actor_id    STRING    NOT NULL,      -- Looker user id
+  written_at  TIMESTAMP NOT NULL)
+PARTITION BY DATE(written_at) CLUSTER BY record_key;'</pre></div>
+<div class="step"><h3><span class="num">J3</span>Create view current_state</h3>
+<div class="meta"><span class="who data">Data Platform</span></div>
+<pre>bq query --use_legacy_sql=false --project_id=$DATA_PRJ '
+CREATE VIEW writeback.current_state AS
+SELECT * EXCEPT(rn) FROM (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY record_key, field ORDER BY written_at DESC) rn
+  FROM writeback.writeback_log) WHERE rn = 1;'</pre></div>
+<div class="step"><h3><span class="num">J4</span>writer@ may insert into writeback_log only (platform-owned dataset)</h3>
+<p>Use this only for a dataset owned by the BIaaS platform. For <b>tenant-owned datasets</b>, writer@ gets no BigQuery access at all – use J7 instead.</p>
+<div class="meta"><span class="who data">Data Platform</span></div>
+<pre>bq add-iam-policy-binding --member="serviceAccount:$WRITER_GSA" --role=roles/bigquery.dataEditor ${DATA_PRJ}:writeback.writeback_log</pre></div>
+<div class="step"><h3><span class="num">J5</span>Looker’s BigQuery connection may read the view</h3>
+<div class="meta"><span class="who data">Data Platform</span></div>
+<pre>bq add-iam-policy-binding --member="serviceAccount:&lt;looker-connection-sa&gt;" --role=roles/bigquery.dataViewer ${DATA_PRJ}:writeback.current_state</pre></div>
+<div class="step"><h3><span class="num">J6</span>Retention (as agreed with the data owner)</h3>
+<div class="meta"><span class="who data">Data Platform</span></div>
+<pre>bq update --time_partitioning_expiration=$((3*365*24*3600)) ${DATA_PRJ}:writeback.writeback_log   <span class="c"># example: 3 years</span></pre>
+<div class="verify"><b>Check:</b> a test insert as writer@ works; a SELECT on another dataset as writer@ is denied.</div></div>
+
+<div class="step"><h3><span class="num">J7</span>Per-tenant write access by impersonation (tenant-owned datasets)</h3>
+<div class="meta"><span class="who data">Tenant / data owner</span><span class="who platform">Platform</span> See service-impersonation.html.</div>
+<pre><span class="c"># by the tenant, in the tenant data project</span>
+gcloud iam service-accounts create writer-tenant-a --project=$TENANT_PRJ
+bq add-iam-policy-binding --member="serviceAccount:writer-tenant-a@${TENANT_PRJ}.iam.gserviceaccount.com" \
+  --role=roles/bigquery.dataEditor ${TENANT_PRJ}:tenant_a.writeback_log
+gcloud iam service-accounts add-iam-policy-binding writer-tenant-a@${TENANT_PRJ}.iam.gserviceaccount.com --project=$TENANT_PRJ \
+  --role=roles/iam.serviceAccountTokenCreator --member="serviceAccount:$WRITER_GSA"
+
+<span class="c"># by the platform: register the tenant in the Writer config</span>
+kubectl --context=wb-gke -n writeback patch configmap writer-config --type merge \
+  -p '{"data":{"TENANT_PROJECTS":"tenant_a=&lt;TENANT_PRJ&gt;"}}'</pre>
+<div class="verify"><b>Check:</b> <code>gcloud auth print-access-token --impersonate-service-account=writer-tenant-a@…</code> works when run as writer@ (from the F4 test pod); fails for any other identity.</div></div>
+
+<!-- ============================================================ K -->
+<h2 id="K">K · Network, DNS and TLS <small>everything stays inside Spoke 2</small></h2>
+<div class="step"><h3><span class="num">K1</span>Reserve a static internal IP for the Write-back API load balancer</h3>
+<div class="meta"><span class="who network">Network</span></div>
+<pre>gcloud compute addresses create writeback-api-ilb-ip --region=$REGION --project=$WB_PRJ \
+  --subnet=projects/$SPOKE2_HOST_PRJ/regions/$REGION/subnetworks/$WB_SUBNET --addresses=10.30.4.20</pre></div>
+<div class="step"><h3><span class="num">K2</span>Internal load balancer, reachable only from the Looker cluster pod range</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>apiVersion: v1
+kind: Service
+metadata:
+  name: writeback-api-ilb
+  namespace: writeback
+  annotations: { networking.gke.io/load-balancer-type: "Internal" }
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 10.30.4.20
+  externalTrafficPolicy: Local          # keeps the caller IP so the NetworkPolicy in K6 can match the Looker pod range
+  loadBalancerSourceRanges: [ "10.20.8.0/22" ]        # $AH_EGRESS_RANGE = Looker cluster pod range
+  selector: { app: writeback-api }
+  ports: [ { port: 443, targetPort: 8443 } ]</pre></div>
+<div class="step"><h3><span class="num">K3</span>VPC firewall rule (defence in depth)</h3>
+<div class="meta"><span class="who network">Network</span></div>
+<pre>gcloud compute firewall-rules create allow-actionhub-to-writeback-api --project=$SPOKE2_HOST_PRJ --network=$SPOKE2_VPC \
+  --direction=INGRESS --action=ALLOW --rules=tcp:8443 --source-ranges=$AH_EGRESS_RANGE --target-tags=&lt;wb-gke-node-tag&gt;
+<span class="c"># plus GKE control-plane → node firewall (created automatically for the cluster; check it is not blocked by org rules)</span></pre></div>
+<div class="step"><h3><span class="num">K4</span>Private DNS records</h3>
+<div class="meta"><span class="who network">Network</span></div>
+<pre>gcloud dns record-sets create writeback-api-int.internal. --zone=spoke2-internal-zone --type=A --ttl=300 --rrdatas=10.30.4.20 --project=$SPOKE2_HOST_PRJ
+<span class="c"># writeback-actions-int.internal is only needed if Looker calls the Action Hub through an ILB; see K9</span></pre></div>
+<div class="step"><h3><span class="num">K5</span>TLS certificates from the internal CA</h3>
+<div class="meta"><span class="who sec">PKI</span><span class="who platform">Platform</span></div>
+<pre><span class="c"># certificate issued by the internal CA (or Certificate Authority Service) for each host, stored as a TLS secret</span>
+kubectl --context=wb-gke create secret tls writeback-api-tls -n writeback --cert=writeback-api.crt --key=writeback-api.key
+kubectl --context=wb-gke create secret tls writer-tls        -n writeback --cert=writer.crt        --key=writer.key
+kubectl --context=looker-gke create secret tls action-hub-tls    -n looker-actions --cert=action-hub.crt --key=action-hub.key
+<span class="c"># Looker must trust the internal CA (Looker admin / platform: add CA to Looker's trust store)</span></pre></div>
+<div class="step"><h3><span class="num">K6</span>NetworkPolicy allow rules</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: writer-from-writeback-api-only, namespace: writeback }
+spec:
+  podSelector: { matchLabels: { app: writer } }
+  policyTypes: [Ingress]
+  ingress: [ { from: [ { podSelector: { matchLabels: { app: writeback-api } } } ] } ]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: writeback-api-from-ilb, namespace: writeback }
+spec:
+  podSelector: { matchLabels: { app: writeback-api } }
+  policyTypes: [Ingress]
+  ingress: [ { from: [ { ipBlock: { cidr: 10.20.8.0/22 } } ], ports: [ { port: 8443 } ] } ]</pre></div>
+<div class="step"><h3><span class="num">K7</span>Reach Apigee from both clusters through the existing Spoke 2 PSC endpoint</h3>
+<div class="meta"><span class="who network">Network</span><span class="who apigee">Apigee</span></div>
+<pre><span class="c"># check the endpoint exists in Spoke 2</span>
+gcloud compute forwarding-rules list --project=$SPOKE2_HOST_PRJ --filter="target~serviceAttachments"
+<span class="c"># only if missing: create it</span>
+gcloud compute addresses create apigee-psc-ip --region=$REGION --subnet=&lt;spoke2-subnet&gt; --project=$SPOKE2_HOST_PRJ
+gcloud compute forwarding-rules create apigee-psc --region=$REGION --project=$SPOKE2_HOST_PRJ --network=$SPOKE2_VPC \
+  --address=apigee-psc-ip --target-service-attachment=&lt;apigee-service-attachment-uri&gt;
+<span class="c"># DNS api-int.lloyds.internal → PSC IP; allow egress 443 from both cluster pod ranges to the PSC IP</span>
+kubectl --context=wb-gke run t -n writeback --rm -it --restart=Never --image=curlimages/curl -- \
+  curl -s -o /dev/null -w "%{http_code}\n" https://api-int.lloyds.internal/lloyds-auth-int/v1/jwks</pre></div>
+<div class="step"><h3><span class="num">K8</span>Check Looker cluster → write-back cluster (inside Spoke 2, no HUB)</h3>
+<div class="meta"><span class="who network">Network</span></div>
+<pre>kubectl --context=looker-gke run nettest -n looker-actions --rm -it --restart=Never --image=curlimages/curl -- \
+  curl -sv https://writeback-api-int.internal/healthz</pre>
+<div class="verify"><b>Check:</b> 200 from the Looker cluster (namespace looker-actions); timeout from any other range or cluster.</div></div>
+<div class="step"><h3><span class="num">K9</span>Expose the Action Hub to Looker (same cluster)</h3>
+<div class="meta"><span class="who platform">Platform</span> Looker and the Action Hub share the Looker cluster, so a ClusterIP service is enough.</div>
+<pre>apiVersion: v1
+kind: Service
+metadata: { name: action-hub, namespace: looker-actions }
+spec: { type: ClusterIP, selector: { app: action-hub }, ports: [ { port: 443, targetPort: 8443 } ] }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: action-hub-from-looker-only, namespace: looker-actions }
+spec:
+  podSelector: { matchLabels: { app: action-hub } }
+  policyTypes: [Ingress]
+  ingress: [ { from: [ { namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: looker } } } ] } ]
+# "looker" = the namespace where Looker runs on the Looker cluster – adjust to your name</pre>
+<p>Action Hub URL for Looker (P5): <code>https://action-hub.looker-actions.svc.cluster.local</code> (TLS certificate must include this name), or an internal DNS alias <code>writeback-actions-int.internal</code> pointing to it.</p></div>
+<div class="step"><h3><span class="num">K10</span>Egress from the Looker cluster to Entra</h3>
+<div class="meta"><span class="who network">Network</span><span class="who sec">Security</span></div>
+<p>The Action Hub calls <code>login.microsoftonline.com</code> (step 2.2). Allow it through the Spoke 2 egress path (proxy or Cloud NAT with FQDN allow-list), from the Looker cluster pod range only. The write-back cluster needs no internet egress – Google APIs go through Private Google Access.</p>
+<pre>kubectl --context=looker-gke run t -n looker-actions --rm -it --restart=Never --image=curlimages/curl -- \
+  curl -s -o /dev/null -w "%{http_code}\n" https://login.microsoftonline.com/&lt;tenant&gt;/v2.0/.well-known/openid-configuration
+<span class="c"># → 200</span></pre></div>
+<div class="step"><h3><span class="num">K11</span>Control-plane access for CI/CD</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>gcloud container clusters update $WB_CLUSTER --region=$REGION --project=$WB_PRJ \
+  --enable-master-authorized-networks --master-authorized-networks=&lt;ci-cd-range&gt;,&lt;admin-range&gt;</pre>
+<div class="verify"><b>Check:</b> the deployment pipeline can run <code>kubectl --context=wb-gke get ns</code>; nothing else can reach the control plane.</div></div>
+
+<!-- ============================================================ L -->
+<h2 id="L">L · Microsoft Entra <small>service identity only – no user check</small></h2>
+<div class="step"><h3><span class="num">L1</span>Register app looker-writeback-action-hub (no secret, no certificate)</h3>
+<div class="meta"><span class="who iam">IAM (Entra)</span></div>
+<pre>az ad app create --display-name looker-writeback-action-hub --sign-in-audience AzureADMyOrg
+az ad sp create --id &lt;appId&gt;</pre></div>
+<div class="step"><h3><span class="num">L2</span>Add the federated credential that trusts action-hub@</h3>
+<div class="meta"><span class="who iam">IAM (Entra)</span> Uses the unique id from E4.</div>
+<pre>az ad app federated-credential create --id &lt;appId&gt; --parameters '{
+  "name": "gke-action-hub-int",
+  "issuer": "https://accounts.google.com",
+  "subject": "1098765432109876543210",
+  "audiences": ["api://AzureADTokenExchange"],
+  "description": "GKE action-hub@ via Workload Identity" }'</pre></div>
+<div class="step"><h3><span class="num">L3</span>Grant permission to the ID&amp;A exchange API and admin consent</h3>
+<div class="meta"><span class="who iam">IAM (Entra)</span></div>
+<pre>az ad app permission add --id &lt;appId&gt; --api &lt;ida-exchange-app-id&gt; --api-permissions &lt;app-role-id&gt;=Role
+az ad app permission admin-consent --id &lt;appId&gt;</pre></div>
+<div class="step"><h3><span class="num">L4</span>Confirm Looker SAML sign-in is unchanged</h3>
+<div class="meta"><span class="who iam">IAM (Entra)</span></div>
+<p>Users keep signing in to Looker through the existing SAML app – authentication only. No Entra group or Microsoft Graph permission is needed for write-back.</p>
+<div class="verify"><b>Check (after F4):</b> from a pod running as action-hub@, a Google ID token (audience api://AzureADTokenExchange) used as client_assertion returns an Entra access token.</div></div>
+
+<!-- ============================================================ M -->
+<h2 id="M">M · ID&amp;A onboarding</h2>
+<div class="step"><h3><span class="num">M1</span>Register the Action Hub as an ID&amp;A client</h3>
+<div class="meta"><span class="who ida">ID&amp;A</span></div>
+<p>Provide: Entra app id of looker-writeback-action-hub, environment, purpose, owner.</p></div>
+<div class="step"><h3><span class="num">M2</span>Configure the token profile</h3>
+<div class="meta"><span class="who ida">ID&amp;A</span></div>
+<pre>sub   = looker-action-hub
+aud   = writeback-api
+scope = writeback.write
+exp   = 900 s (15 min)
+alg   = RS256 with kid</pre></div>
+<div class="step"><h3><span class="num">M3</span>Confirm public keys (JWKS) and key-rotation notice</h3>
+<div class="meta"><span class="who ida">ID&amp;A</span></div>
+<div class="verify"><b>Check:</b> a sample JWT decodes with the claims above and its kid is in the JWKS.</div></div>
+
+<!-- ============================================================ N -->
+<h2 id="N">N · Apigee (lloyds-auth-int)</h2>
+<div class="step"><h3><span class="num">N1</span>Onboard the consumer / API product</h3>
+<div class="meta"><span class="who apigee">Apigee</span></div></div>
+<div class="step"><h3><span class="num">N2</span>Flow POST /v1/token-exchange</h3>
+<div class="meta"><span class="who apigee">Apigee</span></div>
+<pre>SpikeArrest (50ps) → Quota per client (600/min) → VerifyJWT on subject_token
+  (Entra JWKS, issuer https://sts.windows.net/&lt;tenant&gt;/, audience api://ida-token-exchange)
+→ route to ID&amp;A token exchange → return {access_token, expires_in}</pre></div>
+<div class="step"><h3><span class="num">N3</span>Flow GET /v1/jwks</h3>
+<div class="meta"><span class="who apigee">Apigee</span></div>
+<pre>Proxy ID&amp;A /.well-known/jwks.json with ResponseCache 10 min</pre>
+<div class="verify"><b>Check:</b> valid Entra token → ID&amp;A JWT; tampered token → 401; /v1/jwks returns keys; both reachable over PSC (K7).</div></div>
+
+<!-- ============================================================ O -->
+<h2 id="O">O · Deploy the three services</h2>
+<div class="step"><h3><span class="num">O1</span>ConfigMaps (non-secret settings)</h3>
+<div class="meta"><span class="who eng">Engineering</span></div>
+<pre><span class="c"># Looker cluster – Action Hub</span>
+kubectl --context=looker-gke create configmap action-hub-config -n looker-actions \
+  --from-literal=ENTRA_TENANT_ID=&lt;tenant&gt; --from-literal=ACTION_HUB_APP_ID=&lt;appId&gt; \
+  --from-literal=TOKEN_EXCHANGE_URL=https://api-int.lloyds.internal/lloyds-auth-int/v1/token-exchange \
+  --from-literal=WRITEBACK_API_URL=https://writeback-api-int.internal/v1/writeback   <span class="c"># ILB in Spoke 2 (K2)</span> \
+  --from-literal=LOOKER_SECRET_NAME=projects/${LOOKER_PRJ}/secrets/looker-action-secret/versions/latest
+<span class="c"># Write-back cluster – Write-back API</span>
+kubectl --context=wb-gke create configmap writeback-api-config -n writeback \
+  --from-literal=JWKS_URL=https://api-int.lloyds.internal/lloyds-auth-int/v1/jwks \
+  --from-literal=IDA_ISSUER=https://ida.lloyds.internal --from-literal=JWT_AUDIENCE=writeback-api \
+  --from-literal=ALLOWED_CALLERS=looker-action-hub --from-literal=WRITER_URL=https://writer.internal
+kubectl --context=wb-gke create configmap writeback-rules -n writeback --from-file=writeback-rules.yaml
+<span class="c"># Write-back cluster – Writer</span>
+kubectl --context=wb-gke create configmap writer-config -n writeback \
+  --from-literal=ALLOWED_CALLER=$WBAPI_GSA --from-literal=AUDIENCE=https://writer.internal \
+  --from-literal=BQ_TABLE=${DATA_PRJ}.writeback.writeback_log</pre></div>
+<div class="step"><h3><span class="num">O2</span>Deployments (pattern for all three)</h3>
+<div class="meta"><span class="who eng">Engineering</span><span class="who platform">Platform</span></div>
+<pre>apiVersion: apps/v1
+kind: Deployment
+metadata: { name: writeback-api, namespace: writeback, labels: { app: writeback-api } }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: writeback-api } }
+  template:
+    metadata: { labels: { app: writeback-api } }
+    spec:
+      serviceAccountName: writeback-ksa                    # → writeback-api@ via Workload Identity
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+      - name: app
+        image: europe-west2-docker.pkg.dev/lbg-writeback-prj-int/apps/writeback-api:1.0.0
+        envFrom: [ { configMapRef: { name: writeback-api-config } } ]
+        volumeMounts:
+        - { name: tls,   mountPath: /tls,    readOnly: true }
+        - { name: rules, mountPath: /config, readOnly: true }
+        ports: [ { containerPort: 8443 } ]
+        readinessProbe: { httpGet: { path: /readyz, port: 8443, scheme: HTTPS } }
+        livenessProbe:  { httpGet: { path: /healthz, port: 8443, scheme: HTTPS } }
+        resources: { requests: { cpu: 250m, memory: 256Mi }, limits: { memory: 512Mi } }
+        securityContext: { readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+      volumes:
+      - { name: tls,   secret:    { secretName: writeback-api-tls } }
+      - { name: rules, configMap: { name: writeback-rules } }</pre>
+<p>Same pattern for <b>action-hub</b> (Looker cluster, KSA action-hub-ksa, ClusterIP service from K9) and <b>writer</b> (KSA writer-ksa, ClusterIP service writer.internal).</p></div>
+<div class="step"><h3><span class="num">O3</span>PodDisruptionBudget and autoscaling</h3>
+<div class="meta"><span class="who platform">Platform</span></div>
+<pre>kubectl --context=wb-gke -n writeback create pdb writeback-api-pdb --selector=app=writeback-api --min-available=1
+kubectl --context=wb-gke -n writeback autoscale deployment writeback-api --cpu-percent=70 --min=2 --max=6
+<span class="c"># repeat for writer and action-hub</span></pre>
+<div class="verify"><b>Check:</b> all pods Ready; <code>/healthz</code> 200; Write-back API readiness shows JWKS loaded; Action Hub reads the secret.</div></div>
+
+<!-- ============================================================ P -->
+<h2 id="P">P · Looker configuration</h2>
+<div class="step"><h3><span class="num">P1</span>Create the manual group “Writeback Users”</h3>
+<div class="meta"><span class="who looker">BIaaS (Looker admin)</span></div>
+<p>Admin › Users › Groups › Add Group → <code>Writeback Users</code>.</p></div>
+<div class="step"><h3><span class="num">P2</span>Create user attribute writeback_allowed</h3>
+<div class="meta"><span class="who looker">BIaaS</span></div>
+<p>Admin › Users › User Attributes › Create: name <code>writeback_allowed</code>, type String, default value <code>no</code>, user access <b>None</b>, hide values <b>Yes</b>.</p></div>
+<div class="step"><h3><span class="num">P3</span>Set the group value</h3>
+<div class="meta"><span class="who looker">BIaaS</span></div>
+<p>Open <code>writeback_allowed</code> › Group Values › add <code>Writeback Users</code> = <code>yes</code>. Never set a value on an individual user.</p></div>
+<div class="step"><h3><span class="num">P4</span>Role for write-back users</h3>
+<div class="meta"><span class="who looker">BIaaS</span></div>
+<p>Admin › Users › Roles: a role with <code>send_to_integration</code> on the write-back model, assigned to <code>Writeback Users</code>.</p></div>
+<div class="step"><h3><span class="num">P5</span>Register the Action Hub</h3>
+<div class="meta"><span class="who looker">BIaaS</span></div>
+<p>Admin › Platform › Actions › Add Action Hub: URL <code>https://action-hub.looker-actions.svc.cluster.local</code> (or the alias <code>https://writeback-actions-int.internal</code>, see K9), Authorization token = value from H3. Refresh, then enable “Write back”.</p></div>
+<div class="step"><h3><span class="num">P6</span>LookML changes</h3>
+<div class="meta"><span class="who looker">Looker developers</span></div>
+<pre>dimension: forecast_value {
+  type: number
+  sql: ${TABLE}.forecast_value ;;
+  tags: ["writeback_key"]          # shows the Write back action on this field
+}
+<span class="c"># explores used by the dashboard read writeback.current_state (or an authorised view) so new values show after refresh</span></pre></div>
+<div class="step"><h3><span class="num">P7</span>Add pilot users to “Writeback Users”</h3>
+<div class="meta"><span class="who looker">BIaaS</span> Through the agreed access-request process.</div>
+<div class="verify"><b>Check:</b> a member sees <code>writeback_allowed = yes</code> (Admin › Users › user › attributes), a non-member sees <code>no</code>; only members see the action.</div></div>
+
+<!-- ============================================================ Q -->
+<h2 id="Q">Q · Logging and monitoring</h2>
+<div class="step"><h3><span class="num">Q1</span>Log-based metrics</h3>
+<div class="meta"><span class="who sre">SRE</span></div>
+<pre>gcloud logging metrics create writeback_401 --project=$WB_PRJ \
+  --log-filter='resource.type="k8s_container" AND resource.labels.namespace_name="writeback" AND jsonPayload.http_status=401'
+gcloud logging metrics create writeback_403 --project=$WB_PRJ \
+  --log-filter='resource.type="k8s_container" AND resource.labels.namespace_name="writeback" AND jsonPayload.http_status=403'
+gcloud logging metrics create token_exchange_failures --project=$LOOKER_PRJ \
+  --log-filter='resource.labels.namespace_name="looker-actions" AND jsonPayload.event="token_exchange" AND jsonPayload.outcome!="ok"'</pre></div>
+<div class="step"><h3><span class="num">Q2</span>Alert policies</h3>
+<div class="meta"><span class="who sre">SRE</span></div>
+<p>401/403 &gt; 3× baseline for 5 min · token-exchange failures &gt; 1% · Writer 5xx &gt; 0.5% · latency p95 &gt; 2 s for 10 min · JWKS age &gt; 30 min → BIaaS on-call.</p></div>
+<div class="step"><h3><span class="num">Q3</span>Dashboard and log retention</h3>
+<div class="meta"><span class="who sre">SRE</span></div>
+<p>Cloud Monitoring dashboard per service; log bucket retention per LBG policy. Confirm no tokens or secrets appear in logs.</p></div>
+
+<!-- ============================================================ R -->
+<h2 id="R">R · End-to-end verification (INT)</h2>
+<div class="tw"><table>
+<tr><th>#</th><th>Test</th><th>Expected</th></tr>
+<tr><td>R1</td><td>Member of “Writeback Users” changes a value</td><td>“success”; one row in writeback_log; dashboard shows the new value</td></tr>
+<tr><td>R2</td><td>Non-member calls the action (via API)</td><td>403</td></tr>
+<tr><td>R3</td><td>Action Hub called with wrong / no Looker secret</td><td>401</td></tr>
+<tr><td>R4</td><td>Write-back API called with no / expired / tampered JWT, wrong aud</td><td>401</td></tr>
+<tr><td>R5</td><td>Same request twice</td><td>One row only</td></tr>
+<tr><td>R6</td><td>Writer called from another pod</td><td>Blocked by NetworkPolicy</td></tr>
+<tr><td>R7</td><td>writer@ tries to read another table</td><td>Access denied</td></tr>
+<tr><td>R8</td><td>Search logs</td><td>No tokens or secrets</td></tr>
+</table></div>
+
+<!-- ============================================================ S -->
+<h2 id="S">S · Promote to PRE and PRD</h2>
+<div class="step"><h3><span class="num">S1</span>Repeat A–Q for PRE with PRE names and identities</h3>
+<div class="meta"><span class="who platform">All teams</span></div>
+<p>New service accounts (new unique ids), new Entra federated credential per environment, ID&amp;A and Apigee PRE registrations, new secret value.</p></div>
+<div class="step"><h3><span class="num">S2</span>Performance, resilience and UAT in PRE</h3>
+<div class="meta"><span class="who sre">QA / SRE</span></div></div>
+<div class="step"><h3><span class="num">S3</span>CAB approval, then repeat for PRD</h3>
+<div class="meta"><span class="who platform">Release</span></div>
+<div class="verify"><b>Check:</b> PRD smoke test R1 passes; pilot users added; hypercare started.</div></div>
+
+<h2>Final checklist</h2>
+<ul class="check">
+<li>New write-back cluster created in Spoke 2 (NC1–NC4): private, Dataplane V2, Workload Identity</li>
+<li>Workload Identity on both clusters; C4 checks passed (pool, node pools GKE_METADATA, node labels)</li>
+<li>3 GSAs, 3 KSAs, 3 bindings, annotations; F4 and F5 checks passed for each</li>
+<li>No user-managed SA keys anywhere; org policy enforced</li>
+<li>looker-action-secret exists; only action-hub@ can read it</li>
+<li>BigQuery dataset, table, view; writer@ insert-only on one table</li>
+<li>ILB + firewall + NetworkPolicies + DNS + TLS; Apigee reachable via Spoke 2 PSC; Entra egress from Looker cluster only (K1–K11)</li>
+<li>Per-tenant impersonation grants in place for tenant-owned datasets (J7)</li>
+<li>Entra app with federated credential (subject = action-hub@ unique id), no secret</li>
+<li>ID&amp;A client and token profile; Apigee token-exchange and JWKS flows</li>
+<li>Three services deployed with probes, PDB, HPA</li>
+<li>Looker group, attribute, group value, role, Action Hub, LookML tags</li>
+<li>Metrics, alerts, dashboard; tests R1–R8 passed</li>
+</ul>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:'default',flowchart:{htmlLabels:true}});</script>
+</body>
+</html>
