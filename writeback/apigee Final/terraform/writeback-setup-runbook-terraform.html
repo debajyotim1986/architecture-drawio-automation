@@ -1,0 +1,1941 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Write-back Set-up Runbook – Terraform</title>
+<style>
+:root{--ink:#1d2733;--muted:#5b6b7b;--line:#d9e1ea;--soft:#f5f8fb;--accent:#5c2d91;--accent2:#7b42bc;--tf:#7b42bc}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:var(--ink);font:15px/1.6 "Segoe UI",Helvetica,Arial,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+header{border-bottom:3px solid var(--accent);padding-bottom:14px;margin-bottom:20px}
+.eyebrow{font-size:13px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+h1{font-size:30px;margin:6px 0 8px;color:var(--accent)}
+h2{font-size:22px;margin:44px 0 6px;padding:10px 14px;border-radius:8px;color:#fff;background:var(--accent)}
+h2 small{font-weight:400;font-size:14px;opacity:.85;margin-left:8px}
+h3{font-size:16.5px;margin:0 0 6px;color:var(--accent)}
+p.lede{color:var(--muted);margin:0 0 10px}
+nav.toc{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:12px 18px;margin:16px 0}
+nav.toc ol{margin:6px 0 0;padding-left:22px;columns:3;column-gap:26px}
+nav.toc li{break-inside:avoid}
+nav.toc a{color:var(--accent2);text-decoration:none}
+.step{border:1px solid var(--line);border-left:6px solid var(--accent2);border-radius:10px;padding:12px 16px;margin:14px 0;background:#fff}
+.step .meta{font-size:12.5px;color:var(--muted);margin-bottom:6px}
+.who{display:inline-block;font-size:11px;font-weight:700;color:#fff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.platform{background:#12355b}.iam{background:#005a9e}.ida{background:#7030a0}.apigee{background:#8c6a00}.network{background:#3a3a3a}.data{background:#005353}.eng{background:#38761d}.looker{background:#255a12}.sre{background:#8e1d4f}.sec{background:#a0430a}
+.num{display:inline-block;min-width:52px;margin-right:12px;font-weight:700;color:var(--accent2)}
+.file{float:right;font:12px Consolas,"Courier New",monospace;color:#fff;background:var(--tf);border-radius:6px;padding:2px 8px;margin-left:8px}
+pre{background:#0f1b2a;color:#e8eef5;border-radius:8px;padding:12px 14px;overflow-x:auto;font:12.5px/1.5 Consolas,"Courier New",monospace;margin:8px 0}
+pre.hcl{border-left:5px solid var(--tf)}
+pre .c{color:#8fb3d9}
+pre.mermaid{background:transparent;color:inherit;padding:0;margin:0;overflow:visible;border:0}
+code{font-family:Consolas,"Courier New",monospace;background:#efe8f8;border-radius:4px;padding:1px 5px;font-size:12.5px}
+.verify{background:#e2efda;border-radius:6px;padding:6px 10px;margin-top:6px;font-size:13.5px}
+.verify b{color:#38761d}
+.note{background:#fff4ce;border-left:5px solid #c9a227;border-radius:6px;padding:10px 14px;margin:12px 0}
+.info{background:#efe8f8;border-left:5px solid var(--accent2);border-radius:6px;padding:10px 14px;margin:12px 0}
+.warn{background:#fde9e7;border-left:5px solid #c00000;border-radius:6px;padding:10px 14px;margin:12px 0}
+table{border-collapse:collapse;width:100%;margin:10px 0 16px;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:var(--accent);color:#fff}
+tr:nth-child(even) td{background:#fbf9fe}
+td.y{color:#38761d;font-weight:700}td.n{color:#a0430a;font-weight:700}
+.tw{overflow-x:auto}
+.dia{border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0;overflow-x:auto;text-align:center}
+.cap{font-size:13px;color:var(--muted);text-align:center;margin:-6px 0 14px}
+ul.check{list-style:none;padding-left:0}ul.check li:before{content:"☐ ";color:var(--accent2)}
+@media(max-width:860px){nav.toc ol{columns:1}.file{float:none;display:inline-block;margin:4px 0 0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Looker write-back to BigQuery · Architecture v6 · One-time set-up · Terraform edition</div>
+  <h1>Write-back set-up runbook – Terraform</h1>
+  <p class="lede">The same set-up as <code>writeback-setup-runbook.html</code> (revision 2), done as code. Every GCP resource, the new write-back GKE cluster, the Kubernetes objects on both clusters, the Entra app and the monitoring are created by Terraform; each step shows the real code from the repository <code>writeback-terraform/</code>, who applies it and how to check it worked.</p>
+  <p class="lede"><b>Starting point:</b> the Looker GKE cluster in Spoke 2 <b>already exists</b>. Terraform never creates, changes or destroys it – it only reads it (checks) and creates objects inside a new namespace <code>looker-actions</code> on it. Everything else is taken care of here.</p>
+</header>
+
+<div class="note"><b>Same design, same names.</b> Write-back API and Writer API on the new cluster <code>writeback-gke</code> in Spoke 2; Action Hub on the existing Looker cluster; write permission = Looker group “Writeback Users” → <code>writeback_allowed = yes</code>; tenants by impersonation. Step numbers (B1, NC3, F2, K7 …) match the gcloud runbook so both can be read side by side. Differences are listed in <a href="#X">section X</a>.</div>
+<nav class="toc"><b>Sections</b><ol><li><a href="#T">Before you start (tools, identities, state)</a></li><li><a href="#A">Names → tfvars</a></li><li><a href="#C0">Existing Looker cluster – read-only checks</a></li><li><a href="#B">Google APIs</a></li><li><a href="#BC">Network and the new write-back cluster</a></li><li><a href="#E">Service accounts, Workload Identity, org policy</a></li><li><a href="#H">Secret Manager</a></li><li><a href="#I">Artifact Registry</a></li><li><a href="#J">BigQuery</a></li><li><a href="#K">ILB address, firewall, DNS, PSC</a></li><li><a href="#Q">Logging and monitoring</a></li><li><a href="#AP1">Apply 10-foundation</a></li><li><a href="#K5">TLS certificates (PKI)</a></li><li><a href="#L">Microsoft Entra (15-entra)</a></li><li><a href="#MN">ID&amp;A and Apigee (not Terraform)</a></li><li><a href="#O">Workloads on both clusters (20-workloads)</a></li><li><a href="#P">Looker configuration (script)</a></li><li><a href="#J7">Per-tenant writers (40-tenant)</a></li><li><a href="#R">Verify</a></li><li><a href="#S">Promote, pipeline and drift</a></li><li><a href="#D2">Day-2 operations</a></li><li><a href="#M">gcloud step → Terraform map</a></li><li><a href="#X">Differences from the gcloud runbook</a></li><li><a href="#Z">Final checklist</a></li></ol></nav>
+<div class="dia"><pre class="mermaid">
+flowchart LR
+  T0["00-bootstrap<br/>state bucket"] --> F10["10-foundation<br/>APIs · subnet · writeback-gke<br/>GSAs · WI bindings · secrets<br/>Artifact Registry · BigQuery<br/>ILB IP · firewall · DNS · alerts"]
+  LK[("Existing Looker GKE<br/>read only")] -. checks .-> F10
+  F10 --> PKI["PKI adds TLS PEMs<br/>to Secret Manager"]
+  F10 --> E15["15-entra<br/>app + federated credential"]
+  E15 --> MN["ID&A + Apigee<br/>onboarding (manual)"]
+  F10 --> W20["20-workloads<br/>namespaces · KSAs · NetworkPolicies<br/>ConfigMaps · Deployments · ILB"]
+  E15 --> W20
+  PKI --> W20
+  T40["40-tenant-writer<br/>per tenant"] --> W20
+  MN --> V
+  W20 --> LS["Looker config<br/>configure_looker.py"]
+  LS --> V["verify.sh +<br/>tests R1–R8"]
+  V --> S["PRE → PRD<br/>same code, new tfvars"]
+  classDef default fill:#efe8f8,stroke:#7b42bc,color:#1d2733
+  classDef ext fill:#e2efda,stroke:#255a12,color:#1d2733
+  classDef man fill:#fff4ce,stroke:#c9a227,color:#1d2733
+  class LK ext
+  class PKI,MN,LS man
+</pre></div>
+<div class="cap">Figure 1 – Stacks in apply order. Purple = Terraform, yellow = done by another team or a script, green = existing and only read.</div>
+<div class="tw"><table>
+<tr><th>Part of the set-up</th><th>Terraform?</th><th>Where</th><th>Why / how</th></tr>
+<tr><td>Google APIs, subnet, Shared VPC grants, write-back cluster + node pool</td><td class="y">Yes</td><td>10-foundation</td><td>B, B+ NC1–NC3, C3</td></tr>
+<tr><td>Existing Looker cluster (Workload Identity, node pools, add-ons)</td><td class="n">Read only</td><td>10-foundation <code>check</code> blocks</td><td>Not ours to change; checks fail the plan with the exact gcloud fix if C1/C2 are missing</td></tr>
+<tr><td>Google SAs, Workload Identity bindings, org policy</td><td class="y">Yes</td><td>10-foundation</td><td>E1–E3, F2, G1 (org policy optional – usually inherited)</td></tr>
+<tr><td>Secrets (containers, IAM, generated Action Hub secret)</td><td class="y">Yes</td><td>10-foundation</td><td>Value generated <i>ephemerally</i> and written write-only – never in plan or state</td></tr>
+<tr><td>TLS certificate + key</td><td class="n">No (PKI)</td><td>Secret Manager version</td><td>Private keys must not pass through Terraform state; PKI adds the PEM, pods mount it</td></tr>
+<tr><td>Artifact Registry + pull IAM; BigQuery dataset, table, view, IAM</td><td class="y">Yes</td><td>10-foundation</td><td>I1, I3, J1–J6</td></tr>
+<tr><td>ILB IP, firewall, DNS record, Apigee PSC (reuse or create)</td><td class="y">Yes</td><td>10-foundation</td><td>K1, K3, K4, K7</td></tr>
+<tr><td>Log metrics and alert policies</td><td class="y">Yes</td><td>10-foundation</td><td>Q1, Q2</td></tr>
+<tr><td>Entra app, federated credential, app-role grant</td><td class="y">Yes</td><td>15-entra</td><td>L1–L3, applied by the IAM team with their rights</td></tr>
+<tr><td>ID&amp;A client + token profile; Apigee flows</td><td class="n">No</td><td>Team processes</td><td>M1–M3, N1–N3 owned by ID&amp;A / Apigee teams (unchanged)</td></tr>
+<tr><td>Namespaces, KSAs, NetworkPolicies, ConfigMaps, Deployments, Services, PDB, HPA</td><td class="y">Yes</td><td>20-workloads</td><td>D, F1/F3, K2, K6, K9, O1–O3 on both clusters</td></tr>
+<tr><td>Looker group, attribute, role, Action Hub registration</td><td class="n">Script</td><td>looker/configure_looker.py</td><td>No official Looker Terraform provider; script is idempotent (P1–P5)</td></tr>
+<tr><td>Image build, scan, push</td><td class="n">CI</td><td>Pipeline</td><td>I2 – Terraform only receives the tag/digest</td></tr>
+<tr><td>Per-tenant writer SA and grants</td><td class="y">Yes</td><td>40-tenant-writer</td><td>J7 – applied in the tenant's project, once per tenant</td></tr>
+</table></div>
+<div class="tw"><table>
+<tr><th>Path</th><th>What it holds</th></tr>
+<tr><td><code>stacks/00-bootstrap/</code></td><td>GCS bucket for Terraform state (local state, once per environment)</td></tr>
+<tr><td><code>stacks/10-foundation/</code></td><td><code>00-locals-and-existing.tf · 01-apis.tf · 02-network.tf · 03-gke-writeback.tf · 04-service-accounts.tf · 05-secrets.tf · 06-artifact-registry.tf · 07-bigquery.tf · 08-monitoring.tf · outputs.tf</code></td></tr>
+<tr><td><code>stacks/15-entra/</code></td><td>Entra app registration, service principal, federated credential, app-role assignment</td></tr>
+<tr><td><code>stacks/20-workloads/</code></td><td><code>providers.tf · looker-cluster.tf · writeback-cluster.tf · files/writeback-rules.yaml</code></td></tr>
+<tr><td><code>stacks/40-tenant-writer/</code></td><td>One tenant-owned writer SA + table grant + impersonation grant</td></tr>
+<tr><td><code>modules/k8s-app/</code></td><td>Hardened Deployment, ClusterIP Service, PDB, HPA, SecretProviderClass (TLS from Secret Manager)</td></tr>
+<tr><td><code>envs/int|pre|prd/</code></td><td><code>&lt;stack&gt;.tfvars</code> and <code>backend-&lt;stack&gt;.hcl</code> per environment</td></tr>
+<tr><td><code>scripts/</code></td><td><code>tf.sh</code> (plan to file → apply that plan) · <code>verify.sh</code> (read-only checks)</td></tr>
+<tr><td><code>looker/</code></td><td><code>configure_looker.py</code> – P1–P5 through the Looker API</td></tr>
+</table></div>
+
+<!-- ============================================================ T -->
+<h2 id="T">T · Before you start <small>tools, identities, state</small></h2>
+<div class="step"><h3><span class="num">T1</span>Tools on the CI runner (and on any admin laptop)</h3><div class="meta"><span class="who platform">Platform</span></div>
+<div class="tw"><table><tr><th>Tool</th><th>Version</th><th>Why</th></tr>
+<tr><td>Terraform</td><td>≥ 1.11</td><td>write-only arguments (<code>secret_data_wo</code>) and ephemeral resources keep the secret out of state</td></tr>
+<tr><td>Providers</td><td>google ~&gt; 6.30 · kubernetes ~&gt; 2.36 · azuread ~&gt; 3.1 · random ~&gt; 3.7</td><td>pinned in each stack; commit <code>.terraform.lock.hcl</code></td></tr>
+<tr><td>gcloud + <code>gke-gcloud-auth-plugin</code></td><td>current</td><td>Kubernetes provider authenticates through the plugin – no token is written to state</td></tr>
+<tr><td>kubectl, bq</td><td>current</td><td>checks in <code>verify.sh</code></td></tr>
+</table></div><div class="verify"><b>Check:</b> terraform version shows ≥ 1.11; gke-gcloud-auth-plugin --version works.</div></div>
+<div class="step"><h3><span class="num">T2</span>Deployer identities – one per stack, least privilege</h3><div class="meta"><span class="who platform">Platform</span><span class="who sec">Cloud Security</span></div>
+<p>The pipeline runs each stack as its own Google service account (impersonated from the CI's Workload Identity Federation – no key files). Suggested roles:</p>
+<div class="tw"><table><tr><th>Stack</th><th>Runs as</th><th>Roles (where)</th></tr>
+<tr><td>10-foundation</td><td><code>tf-wb-foundation@</code></td><td>wb project: <code>container.admin</code>, <code>compute.networkAdmin</code>, <code>iam.serviceAccountAdmin</code>, <code>resourcemanager.projectIamAdmin</code>, <code>secretmanager.admin</code>, <code>artifactregistry.admin</code>, <code>logging.configWriter</code>, <code>monitoring.alertPolicyEditor</code>, <code>serviceusage.serviceUsageAdmin</code>, <code>iam.serviceAccountUser</code> on <code>wb-gke-nodes@</code><br>looker project: <code>iam.serviceAccountAdmin</code>, <code>secretmanager.admin</code>, <code>container.clusterViewer</code>, <code>logging.configWriter</code>, <code>monitoring.alertPolicyEditor</code><br>host project: <code>compute.networkAdmin</code>, <code>compute.securityAdmin</code>, <code>dns.admin</code> (zone), <code>resourcemanager.projectIamAdmin</code> (only for the two GKE grants)<br>data project: <code>bigquery.admin</code> on dataset <code>writeback</code> (or <code>bigquery.dataOwner</code>)</td></tr>
+<tr><td>15-entra</td><td>IAM team's Entra identity</td><td>Application Administrator + rights to grant the app role (Privileged Role Administrator or Cloud Application Administrator per policy); <code>storage.objectAdmin</code> on the state bucket</td></tr>
+<tr><td>20-workloads</td><td><code>tf-wb-workloads@</code></td><td><code>container.developer</code> on both clusters (or a namespaced RBAC role for <code>looker-actions</code> on the Looker cluster); <code>storage.objectViewer</code> on the 10/15 state</td></tr>
+<tr><td>40-tenant-writer</td><td>Tenant's deployer</td><td>tenant project: <code>iam.serviceAccountAdmin</code>, <code>bigquery.dataOwner</code> on the tenant dataset</td></tr>
+</table></div>
+<p>If the Network team must own host-project changes, move <code>02-network.tf</code> into its own stack (it only needs <code>wb_project</code>'s number as input) – nothing else changes.</p><div class="verify"><b>Check:</b> each deployer SA can plan its own stack and gets 403 on the others.</div></div>
+<div class="step"><h3><span class="num">T3</span>Create the state bucket (00-bootstrap, local state, once per environment)<span class="file">stacks/00-bootstrap/main.tf</span></h3><div class="meta"><span class="who platform">Platform</span></div><pre class="hcl">resource "google_storage_bucket" "tf_state" {
+  name                        = var.state_bucket
+  location                    = var.region
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+  force_destroy               = false
+
+  versioning { enabled = true }
+
+  lifecycle_rule {
+    condition { num_newer_versions = 20 }
+    action { type = "Delete" }
+  }
+
+  labels     = { app = "looker-writeback", env = var.env, purpose = "terraform-state" }
+  depends_on = [google_project_service.storage]
+}</pre><pre class="sh">cd stacks/00-bootstrap
+terraform init
+terraform apply -var-file=../../envs/int/00-bootstrap.tfvars
+<span class="c"># then move its own state into the bucket (optional):</span>
+<span class="c">#   add backend "gcs" {} and run terraform init -migrate-state -backend-config="bucket=lbg-writeback-tfstate-int" -backend-config="prefix=writeback/int/00-bootstrap"</span></pre><div class="verify"><b>Check:</b> gcloud storage buckets describe gs://lbg-writeback-tfstate-int shows versioning enabled and public access prevention enforced.</div></div>
+<div class="step"><h3><span class="num">T4</span>How every stack is run<span class="file">scripts/tf.sh</span></h3><div class="meta"><span class="who platform">Platform</span></div><pre class="sh"><span class="c">#!/usr/bin/env bash</span>
+<span class="c"># Usage: scripts/tf.sh &lt;env&gt; &lt;stack&gt; &lt;init|plan|apply|destroy-plan|output&gt; [extra terraform args]</span>
+<span class="c">#   env   : int | pre | prd</span>
+<span class="c">#   stack : 10-foundation | 15-entra | 20-workloads | 40-tenant-&lt;key&gt;</span>
+<span class="c"># Always plans to a file and applies exactly that plan.</span>
+set -euo pipefail
+
+ENV="${1:?env}"; STACK="${2:?stack}"; CMD="${3:?command}"; shift 3 || true
+ROOT="$(cd "$(dirname "$0")/.." &amp;&amp; pwd)"
+case "$STACK" in
+  40-tenant-*) DIR="$ROOT/stacks/40-tenant-writer" ;;
+  *)           DIR="$ROOT/stacks/$STACK" ;;
+esac
+VARS="$ROOT/envs/$ENV/$STACK.tfvars"
+BACKEND="$ROOT/envs/$ENV/backend-$STACK.hcl"
+PLAN="$ROOT/.plans/$ENV-$STACK.tfplan"
+mkdir -p "$ROOT/.plans"
+export TF_DATA_DIR="$ROOT/.terraform-data/$ENV-$STACK"   <span class="c"># keeps one .terraform per env+stack</span>
+
+tf() { terraform -chdir="$DIR" "$@"; }
+
+case "$CMD" in
+  init)         tf init -reconfigure -backend-config="$BACKEND" "$@" ;;
+  plan)         tf init -reconfigure -backend-config="$BACKEND" -input=false &gt;/dev/null
+                tf plan -input=false -var-file="$VARS" -out="$PLAN" "$@" ;;
+  apply)        tf apply -input=false "$PLAN" ;;
+  destroy-plan) tf plan -destroy -input=false -var-file="$VARS" -out="$PLAN" "$@" ;;
+  output)       tf output "$@" ;;
+  *) echo "unknown command $CMD"; exit 2 ;;
+esac</pre>
+<p>Plan is always written to a file, reviewed (pull request comment / pipeline approval), and exactly that file is applied. Each env + stack has its own state prefix <code>writeback/&lt;env&gt;/&lt;stack&gt;</code> and its own <code>.terraform</code> folder.</p></div>
+<div class="step"><h3><span class="num">T5</span>Network reach of the runner</h3><div class="meta"><span class="who network">Network</span><span class="who platform">Platform</span></div>
+<p>The new cluster has a <b>private endpoint only</b>. Stack 20-workloads talks to both control planes, so the CI runner must sit in a range listed in <code>master_authorized_networks</code> (K11) and in the Looker cluster's authorised networks, with a route through Spoke 2. Stacks 00/10/15/40 only call Google and Microsoft APIs.</p><div class="verify"><b>Check:</b> from the runner: kubectl --context=looker-gke get ns works (after 10-foundation, the same for wb-gke).</div></div>
+
+<!-- ============================================================ A -->
+<h2 id="A">A · Names and variables <small>decide once – they live in tfvars</small></h2>
+<div class="step"><h3><span class="num">A1</span>Names per environment (INT shown)<span class="file">envs/int/10-foundation.tfvars</span></h3><div class="meta"><span class="who platform">Platform</span><span class="who network">Network</span></div><pre class="hcl"><span class="c"># A1 – names for INT (same values as the gcloud runbook exports)</span>
+env                 = "int"
+region              = "europe-west2"
+looker_project      = "looker-prj-int"          <span class="c"># Spoke 2: existing Looker cluster + Action Hub</span>
+wb_project          = "lbg-writeback-prj-int"   <span class="c"># Spoke 2 service project for the NEW write-back cluster</span>
+data_project        = "lbg-data-prj-int"        <span class="c"># BigQuery</span>
+spoke2_host_project = "spoke2-host-prj-int"
+spoke2_vpc          = "spoke2-vpc"
+shared_vpc          = true
+
+looker_cluster       = "looker-gke"               <span class="c"># existing – read only</span>
+looker_connection_sa = "looker-bq-conn@looker-prj-int.iam.gserviceaccount.com"
+ah_egress_range      = "10.20.8.0/22"             <span class="c"># Looker cluster pod range</span>
+
+wb_cluster       = "writeback-gke"
+wb_pool          = "wb-pool"
+wb_subnet        = "wb-gke-subnet"
+wb_subnet_cidr   = "10.30.4.0/24"   <span class="c"># ranges must not overlap Looker cluster, Spoke 1 or HUB – confirm with Network per env</span>
+wb_pods_cidr     = "10.31.0.0/20"
+wb_services_cidr = "10.31.16.0/24"
+wb_master_cidr   = "172.16.40.0/28"
+master_authorized_networks = {
+  ci-cd-runners = "10.40.0.0/24"   <span class="c"># replace with the real CI/CD range</span>
+  admin-bastion = "10.40.1.0/28"   <span class="c"># replace with the real admin range</span>
+}
+
+writeback_api_ilb_ip   = "10.30.4.20"
+spoke2_dns_zone        = "spoke2-internal-zone"
+spoke2_dns_domain      = "internal."
+writeback_api_hostname = "writeback-api-int"
+
+apigee_psc = { create = false, name = "apigee-psc" }   <span class="c"># existing Spoke 2 PSC endpoint is reused</span>
+
+manage_org_policy                 = false   <span class="c"># inherited from the organisation – checked in G1</span>
+create_looker_action_secret_value = true
+looker_action_secret_version      = 1       <span class="c"># bump to rotate</span>
+
+platform_owned_dataset   = true
+writeback_retention_days = 1095
+
+notification_channels = []   <span class="c"># "projects/&lt;p&gt;/notificationChannels/&lt;id&gt;" of BIaaS on-call</span></pre><p>PRE and PRD files have the same keys with <code>-pre</code> / <code>-prd</code> values. Namespaces and KSA names are fixed in <code>locals</code> (<code>looker-actions</code>, <code>writeback</code>, <code>action-hub-ksa</code>, <code>writeback-ksa</code>, <code>writer-ksa</code>) so the Workload Identity members always match.</p><div class="verify"><b>Check:</b> IP ranges confirmed by Network (no overlap with Looker cluster, Spoke 1, HUB); host names agreed; tfvars merged to main.</div></div>
+
+<!-- ============================================================ C0 -->
+<h2 id="C0">C0 · The existing Looker cluster <small>read only – Terraform checks, never changes</small></h2>
+<div class="step"><h3><span class="num">C0-1</span>Read the cluster and assert Workload Identity, GKE metadata server and the Secret Manager add-on<span class="file">stacks/10-foundation/00-locals-and-existing.tf</span></h3><div class="meta"><span class="who platform">Platform</span></div><pre class="hcl">data "google_container_cluster" "looker" {
+  name     = var.looker_cluster
+  location = var.region
+  project  = var.looker_project
+}
+
+<span class="c"># C1 / C4-1 : Workload Identity must already be on for the existing Looker cluster.</span>
+check "looker_cluster_workload_identity" {
+  assert {
+    condition = (
+      length(data.google_container_cluster.looker.workload_identity_config) &gt; 0 &amp;&amp;
+      data.google_container_cluster.looker.workload_identity_config[0].workload_pool == local.looker_pool_id
+    )
+    error_message = "Looker cluster has no workload pool ${local.looker_pool_id}. Run gcloud runbook step C1 once (cluster is not managed by Terraform)."
+  }
+}
+
+<span class="c"># C2 / C4-2 : every Looker node pool must use the GKE metadata server.</span>
+check "looker_node_pools_gke_metadata" {
+  assert {
+    condition = alltrue([
+      for np in data.google_container_cluster.looker.node_pool :
+      try(np.node_config[0].workload_metadata_config[0].mode, "") == "GKE_METADATA"
+    ])
+    error_message = "A Looker node pool is not on GKE_METADATA. Run gcloud runbook step C2 for that pool (rolls the nodes – plan a window)."
+  }
+}
+
+<span class="c"># Secret Manager add-on on the Looker cluster is needed to mount action-hub TLS from Secret Manager.</span>
+check "looker_cluster_secret_manager_addon" {
+  assert {
+    condition     = try(data.google_container_cluster.looker.secret_manager_config[0].enabled, false)
+    error_message = "Secret Manager add-on is off on the Looker cluster. Enable it once: gcloud container clusters update ${var.looker_cluster} --enable-secret-manager --location=${var.region} --project=${var.looker_project}"
+  }
+}</pre><p>A failing <code>check</code> prints the warning in the plan but does not stop it. Treat any check warning as a stop: run the one gcloud command it prints (these are the gcloud runbook steps <b>C1</b>, <b>C2</b> and the add-on switch) through the Looker cluster's own change process, then plan again.</p><pre class="sh"><span class="c"># only if a check warns – owned by the Looker cluster team</span>
+gcloud container clusters update looker-gke --location=europe-west2 --project=looker-prj-int --workload-pool=looker-prj-int.svc.id.goog   <span class="c"># C1</span>
+gcloud container node-pools update default-pool --cluster=looker-gke --location=europe-west2 --project=looker-prj-int --workload-metadata=GKE_METADATA   <span class="c"># C2 – rolls nodes</span>
+gcloud container clusters update looker-gke --location=europe-west2 --project=looker-prj-int --enable-secret-manager</pre><div class="verify"><b>Check:</b> terraform plan shows no “Check block assertion failed” warnings.</div></div>
+
+<!-- ============================================================ B -->
+<h2 id="B">B · Enable Google APIs <small>three projects</small></h2>
+<div class="step"><h3><span class="num">B1–B2</span>APIs as a map, never disabled on destroy<span class="file">stacks/10-foundation/01-apis.tf</span></h3><div class="meta"><span class="who platform">Platform</span></div><pre class="hcl"><span class="c"># -----------------------------------------------------------------------------</span>
+<span class="c"># B · Enable Google APIs (gcloud runbook B1, B2)</span>
+<span class="c"># -----------------------------------------------------------------------------</span>
+locals {
+  project_apis = {
+    looker = {
+      project = var.looker_project
+      apis = ["container", "iam", "iamcredentials", "secretmanager", "artifactregistry", "logging", "monitoring"]
+    }
+    wb = {
+      project = var.wb_project
+      apis = ["container", "iam", "iamcredentials", "compute", "dns", "secretmanager", "artifactregistry",
+              "logging", "monitoring", "cloudresourcemanager", "serviceusage"]
+    }
+    data = {
+      project = var.data_project
+      apis    = ["bigquery"]
+    }
+  }
+
+  api_pairs = merge([
+    for k, v in local.project_apis : {
+      for a in v.apis : "${k}/${a}" =&gt; { project = v.project, service = "${a}.googleapis.com" }
+    }
+  ]...)
+}
+
+resource "google_project_service" "apis" {
+  for_each = local.api_pairs
+
+  project                    = each.value.project
+  service                    = each.value.service
+  disable_on_destroy         = false <span class="c"># never switch an API off on destroy</span>
+  disable_dependent_services = false
+}</pre><div class="verify"><b>Check:</b> after apply: gcloud services list --enabled --project=lbg-writeback-prj-int lists container, secretmanager, artifactregistry …</div></div>
+
+<!-- ============================================================ BC -->
+<h2 id="BC">B+ · Network and the new write-back GKE cluster <small>Spoke 2, separate from the Looker cluster</small></h2>
+<div class="step"><h3><span class="num">NC1</span>Subnet with pod and service ranges, Private Google Access on<span class="file">stacks/10-foundation/02-network.tf</span></h3><div class="meta"><span class="who network">Network</span></div><pre class="hcl"><span class="c"># NC1 — subnet with pod and service ranges, Private Google Access on</span>
+resource "google_compute_subnetwork" "wb" {
+  project                  = var.spoke2_host_project
+  name                     = var.wb_subnet
+  region                   = var.region
+  network                  = local.network_self
+  ip_cidr_range            = var.wb_subnet_cidr
+  private_ip_google_access = true
+
+  secondary_ip_range {
+    range_name    = "wb-pods"
+    ip_cidr_range = var.wb_pods_cidr
+  }
+  secondary_ip_range {
+    range_name    = "wb-services"
+    ip_cidr_range = var.wb_services_cidr
+  }
+
+  log_config {
+    aggregation_interval = "INTERVAL_5_SEC"
+    flow_sampling        = 0.5
+    metadata             = "INCLUDE_ALL_METADATA"
+  }
+}</pre></div>
+<div class="step"><h3><span class="num">NC2</span>Shared VPC grants for the write-back project’s GKE and Cloud Services agents<span class="file">stacks/10-foundation/02-network.tf</span></h3><div class="meta"><span class="who network">Network</span></div><pre class="hcl"><span class="c"># NC2 — share the subnet with the write-back service project (Shared VPC only)</span>
+locals {
+  gke_robot   = "serviceAccount:service-${data.google_project.wb.number}@container-engine-robot.iam.gserviceaccount.com"
+  cloud_svcs  = "serviceAccount:${data.google_project.wb.number}@cloudservices.gserviceaccount.com"
+}
+
+resource "google_compute_subnetwork_iam_member" "wb_network_user" {
+  for_each = var.shared_vpc ? toset([local.gke_robot, local.cloud_svcs]) : toset([])
+
+  project    = var.spoke2_host_project
+  region     = var.region
+  subnetwork = google_compute_subnetwork.wb.name
+  role       = "roles/compute.networkUser"
+  member     = each.value
+  depends_on = [google_project_service.apis]
+}
+
+resource "google_project_iam_member" "gke_host_agent" {
+  count = var.shared_vpc ? 1 : 0
+
+  project    = var.spoke2_host_project
+  role       = "roles/container.hostServiceAgentUser"
+  member     = local.gke_robot
+  depends_on = [google_project_service.apis]
+}</pre><div class="verify"><b>Check:</b> skipped automatically when shared_vpc = false.</div></div>
+<div class="step"><h3><span class="num">NC3</span>Minimal node service account<span class="file">stacks/10-foundation/03-gke-writeback.tf</span></h3><div class="meta"><span class="who platform">Platform</span></div><pre class="hcl"><span class="c"># minimal node service account (never the default compute SA)</span>
+resource "google_service_account" "wb_gke_nodes" {
+  project      = var.wb_project
+  account_id   = "wb-gke-nodes"
+  display_name = "Write-back GKE nodes (logging, monitoring, image pull)"
+  depends_on   = [google_project_service.apis]
+}
+
+resource "google_project_iam_member" "wb_gke_nodes" {
+  for_each = toset([
+    "roles/logging.logWriter",
+    "roles/monitoring.metricWriter",
+    "roles/monitoring.viewer",
+    "roles/stackdriver.resourceMetadata.writer",
+  ])
+  project = var.wb_project
+  role    = each.value
+  member  = google_service_account.wb_gke_nodes.member
+}</pre></div>
+<div class="step"><h3><span class="num">NC3 · C3 · K11</span>Private regional cluster – Workload Identity, Dataplane V2, Secret Manager add-on, authorised networks<span class="file">stacks/10-foundation/03-gke-writeback.tf</span></h3><div class="meta"><span class="who platform">Platform</span></div><pre class="hcl">resource "google_container_cluster" "wb" {
+  provider = google
+  project  = var.wb_project
+  name     = var.wb_cluster
+  location = var.region
+
+  network    = local.network_self
+  subnetwork = google_compute_subnetwork.wb.id
+
+  <span class="c"># node pool is managed separately below</span>
+  remove_default_node_pool = true
+  initial_node_count       = 1
+
+  deletion_protection = true
+  datapath_provider   = "ADVANCED_DATAPATH" <span class="c"># Dataplane V2 – enforces NetworkPolicies</span>
+  networking_mode     = "VPC_NATIVE"
+
+  release_channel { channel = "REGULAR" }
+
+  ip_allocation_policy {
+    cluster_secondary_range_name  = "wb-pods"
+    services_secondary_range_name = "wb-services"
+  }
+
+  private_cluster_config {
+    enable_private_nodes    = true
+    enable_private_endpoint = true
+    master_ipv4_cidr_block  = var.wb_master_cidr
+    master_global_access_config { enabled = false }
+  }
+
+  master_authorized_networks_config {
+    dynamic "cidr_blocks" {
+      for_each = var.master_authorized_networks
+      content {
+        display_name = cidr_blocks.key
+        cidr_block   = cidr_blocks.value
+      }
+    }
+  }
+
+  workload_identity_config {
+    workload_pool = local.wb_pool_id
+  }
+
+  <span class="c"># TLS key material is mounted from Secret Manager (no Kubernetes Secret, no YAML)</span>
+  secret_manager_config { enabled = true }
+
+  enable_shielded_nodes = true
+
+  <span class="c"># initial (deleted) default pool must still use the minimal SA and GKE metadata server</span>
+  node_config {
+    service_account = google_service_account.wb_gke_nodes.email
+    oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
+    workload_metadata_config { mode = "GKE_METADATA" }
+  }
+
+  resource_labels = local.labels
+
+  depends_on = [
+    google_project_service.apis,
+    google_compute_subnetwork_iam_member.wb_network_user,
+    google_project_iam_member.gke_host_agent,
+  ]
+
+  lifecycle {
+    ignore_changes = [node_config] <span class="c"># only applies to the removed default pool</span>
+  }
+}</pre><p><code>workload_identity_config</code> creates the workload pool <code>lbg-writeback-prj-int.svc.id.goog</code> at the same time (gcloud C3 is not needed). <code>deletion_protection = true</code> stops an accidental destroy.</p></div>
+<div class="step"><h3><span class="num">NC3</span>Node pool – every pool on GKE_METADATA<span class="file">stacks/10-foundation/03-gke-writeback.tf</span></h3><div class="meta"><span class="who platform">Platform</span></div><pre class="hcl">resource "google_container_node_pool" "wb" {
+  project  = var.wb_project
+  name     = var.wb_pool
+  cluster  = google_container_cluster.wb.id
+  location = var.region
+
+  autoscaling {
+    min_node_count = var.wb_node_min
+    max_node_count = var.wb_node_max
+  }
+
+  management {
+    auto_repair  = true
+    auto_upgrade = true
+  }
+
+  upgrade_settings {
+    max_surge       = 1
+    max_unavailable = 0
+  }
+
+  node_config {
+    machine_type    = var.wb_machine_type
+    disk_type       = "pd-balanced"
+    disk_size_gb    = 50
+    image_type      = "COS_CONTAINERD"
+    service_account = google_service_account.wb_gke_nodes.email
+    oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
+    tags            = [var.wb_node_tag]
+    labels          = local.labels
+
+    workload_metadata_config { mode = "GKE_METADATA" } <span class="c"># C4-2: every pool GKE_METADATA</span>
+
+    shielded_instance_config {
+      enable_secure_boot          = true
+      enable_integrity_monitoring = true
+    }
+  }
+}</pre><div class="verify"><b>Check:</b> gcloud container node-pools list --cluster=writeback-gke … shows MODE GKE_METADATA (also in verify.sh).</div></div>
+<div class="step"><h3><span class="num">NC4</span>kubectl contexts for checks (same as the gcloud runbook)</h3><div class="meta"><span class="who platform">Platform</span></div><pre class="sh">gcloud container clusters get-credentials writeback-gke --region=europe-west2 --project=lbg-writeback-prj-int --internal-ip
+kubectl config rename-context gke_lbg-writeback-prj-int_europe-west2_writeback-gke wb-gke
+gcloud container clusters get-credentials looker-gke --region=europe-west2 --project=looker-prj-int --internal-ip
+kubectl config rename-context gke_looker-prj-int_europe-west2_looker-gke looker-gke</pre><p>Terraform itself does not need these contexts – the Kubernetes provider reads the endpoint and CA from the cluster data sources.</p></div>
+
+<!-- ============================================================ E -->
+<h2 id="E">E · F2 · G · Service accounts, Workload Identity bindings, organisation policy <small>no key files, ever</small></h2>
+<div class="step"><h3><span class="num">E1–E3</span>Three Google service accounts<span class="file">stacks/10-foundation/04-service-accounts.tf</span></h3><div class="meta"><span class="who platform">Platform</span></div><pre class="hcl"><span class="c"># E1 — Action Hub runs on the EXISTING Looker cluster (Spoke 2)</span>
+resource "google_service_account" "action_hub" {
+  project      = var.looker_project
+  account_id   = "action-hub"
+  display_name = "Looker write-back Action Hub"
+  description  = "Calls Entra, Apigee token exchange and the Write-back API"
+  depends_on   = [google_project_service.apis]
+}
+
+<span class="c"># E2 — Write-back API (new write-back cluster)</span>
+resource "google_service_account" "writeback_api" {
+  project      = var.wb_project
+  account_id   = "writeback-api"
+  display_name = "Write-back API"
+  depends_on   = [google_project_service.apis]
+}
+
+<span class="c"># E3 — Writer (new write-back cluster)</span>
+resource "google_service_account" "writer" {
+  project      = var.wb_project
+  account_id   = "writer"
+  display_name = "Write-back Writer (BigQuery insert only)"
+  depends_on   = [google_project_service.apis]
+}</pre></div>
+<div class="step"><h3><span class="num">F2</span>Each KSA may act as its GSA (roles/iam.workloadIdentityUser)<span class="file">stacks/10-foundation/04-service-accounts.tf</span></h3><div class="meta"><span class="who platform">Platform</span></div><pre class="hcl"><span class="c"># F2 — allow each KSA to act as its GSA</span>
+locals {
+  wi_bindings = {
+    action_hub = {
+      sa     = google_service_account.action_hub.name
+      member = "serviceAccount:${local.looker_pool_id}[${local.ah_ns}/${local.ah_ksa}]"
+    }
+    writeback_api = {
+      sa     = google_service_account.writeback_api.name
+      member = "serviceAccount:${local.wb_pool_id}[${local.wb_ns}/${local.wbapi_ksa}]"
+    }
+    writer = {
+      sa     = google_service_account.writer.name
+      member = "serviceAccount:${local.wb_pool_id}[${local.wb_ns}/${local.writer_ksa}]"
+    }
+  }
+}
+
+resource "google_service_account_iam_member" "workload_identity" {
+  for_each = local.wi_bindings
+
+  service_account_id = each.value.sa
+  role               = "roles/iam.workloadIdentityUser"
+  member             = each.value.member
+
+  <span class="c"># the wb workload pool exists only once the cluster has been created</span>
+  depends_on = [google_container_cluster.wb]
+}</pre><p>The KSAs themselves (F1) and their annotations (F3) are created in 20-workloads with the same names, read from this stack’s outputs.</p><div class="verify"><b>Check:</b> verify.sh section F5 – each GSA has exactly one member PROJECT.svc.id.goog[ns/ksa].</div></div>
+<div class="step"><h3><span class="num">E4</span>Unique id of action-hub@ for Entra<span class="file">stacks/10-foundation/outputs.tf</span></h3><div class="meta"><span class="who platform">Platform</span><span class="who iam">IAM (Entra)</span></div><pre class="hcl"><span class="c"># E4 — Entra federated credential subject (send to IAM / Entra team, or read by stack 15)</span>
+output "action_hub_unique_id" { value = google_service_account.action_hub.unique_id }</pre><p>No hand-over needed any more: 15-entra reads this output from the remote state.</p></div>
+<div class="step"><h3><span class="num">G1</span>Block service-account key creation (optional here)<span class="file">stacks/10-foundation/04-service-accounts.tf</span></h3><div class="meta"><span class="who sec">Cloud Security</span></div><pre class="hcl"><span class="c"># G1 — block user-managed SA keys (only if not already inherited from the organisation)</span>
+resource "google_org_policy_policy" "no_sa_keys" {
+  for_each = var.manage_org_policy ? toset(distinct([var.looker_project, var.wb_project, var.data_project])) : toset([])
+
+  name   = "projects/${each.value}/policies/iam.disableServiceAccountKeyCreation"
+  parent = "projects/${each.value}"
+
+  spec {
+    rules { enforce = "TRUE" }
+  }
+}</pre><p>Default <code>manage_org_policy = false</code>: the constraint is normally inherited from the organisation, and only Cloud Security holds <code>orgpolicy.policyAdmin</code>. <code>verify.sh</code> checks it is effective either way.</p><div class="verify"><b>Check:</b> enforced: true on looker, wb and data projects.</div></div>
+
+<!-- ============================================================ H -->
+<h2 id="H">H · Secret Manager <small>secret values never in state, plan, files or YAML</small></h2>
+<div class="step"><h3><span class="num">H1</span>looker-action-secret – container and a generated value written write-only<span class="file">stacks/10-foundation/05-secrets.tf</span></h3><div class="meta"><span class="who platform">Platform</span></div><pre class="hcl"><span class="c"># H1 — container</span>
+resource "google_secret_manager_secret" "looker_action" {
+  project   = var.looker_project
+  secret_id = "looker-action-secret"
+  labels    = local.labels
+
+  replication {
+    user_managed {
+      replicas { location = var.region }
+    }
+  }
+  depends_on = [google_project_service.apis]
+}
+
+<span class="c"># H1 — value: generated ephemerally and sent write-only, so it is never in plan or state.</span>
+<span class="c">#      Rotate by bumping var.looker_action_secret_version (then re-do P5 in Looker).</span>
+ephemeral "random_password" "looker_action" {
+  length  = 64
+  special = false
+}
+
+resource "google_secret_manager_secret_version" "looker_action" {
+  count = var.create_looker_action_secret_value ? 1 : 0
+
+  secret                 = google_secret_manager_secret.looker_action.id
+  secret_data_wo         = ephemeral.random_password.looker_action.result
+  secret_data_wo_version = var.looker_action_secret_version
+}</pre><p><code>ephemeral</code> values exist only during the run; <code>secret_data_wo</code> is a write-only argument, so the value is sent to Secret Manager but never saved in the state file or shown in the plan. To rotate, set <code>looker_action_secret_version = 2</code>, apply, then repeat P5 in Looker.</p></div>
+<div class="step"><h3><span class="num">H1-alt</span>If your Terraform or provider is older: let Terraform create only the container</h3><div class="meta"><span class="who platform">Platform</span></div><p>Set <code>create_looker_action_secret_value = false</code> and add the value once, piped so it never touches disk:</p><pre class="sh">openssl rand -hex 32 | gcloud secrets versions add looker-action-secret --project=looker-prj-int --data-file=-</pre></div>
+<div class="step"><h3><span class="num">H2</span>Only action-hub@ can read it<span class="file">stacks/10-foundation/05-secrets.tf</span></h3><div class="meta"><span class="who platform">Platform</span></div><pre class="hcl"><span class="c"># H2 — only action-hub@ can read it</span>
+resource "google_secret_manager_secret_iam_member" "looker_action_reader" {
+  project   = var.looker_project
+  secret_id = google_secret_manager_secret.looker_action.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = google_service_account.action_hub.member
+}</pre><div class="verify"><b>Check:</b> verify.sh section H – the only secretAccessor is action-hub@.</div></div>
+<div class="step"><h3><span class="num">H3</span>Looker receives the value without anyone copying it</h3><div class="meta"><span class="who platform">Platform</span><span class="who looker">BIaaS (Looker admin)</span></div><p><code>configure_looker.py</code> (phase P) reads the latest version from Secret Manager and sends it straight to the Looker API as the Action Hub authorisation token. No person sees or pastes it.</p></div>
+<div class="step"><h3><span class="num">K5a</span>TLS secret containers (values come from PKI – step K5)<span class="file">stacks/10-foundation/05-secrets.tf</span></h3><div class="meta"><span class="who platform">Platform</span></div><pre class="hcl"><span class="c"># K5 — TLS secrets (containers only; PKI adds the PEM as a new version)</span>
+locals {
+  tls_secrets = {
+    "writeback-api-tls" = { project = var.wb_project, reader = google_service_account.writeback_api.member }
+    "writer-tls"        = { project = var.wb_project, reader = google_service_account.writer.member }
+    "action-hub-tls"    = { project = var.looker_project, reader = google_service_account.action_hub.member }
+  }
+}
+
+resource "google_secret_manager_secret" "tls" {
+  for_each = local.tls_secrets
+
+  project   = each.value.project
+  secret_id = each.key
+  labels    = merge(local.labels, { kind = "tls" })
+
+  replication {
+    user_managed {
+      replicas { location = var.region }
+    }
+  }
+  depends_on = [google_project_service.apis]
+}
+
+resource "google_secret_manager_secret_iam_member" "tls_reader" {
+  for_each = local.tls_secrets
+
+  project   = each.value.project
+  secret_id = google_secret_manager_secret.tls[each.key].secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = each.value.reader
+}</pre></div>
+
+<!-- ============================================================ I -->
+<h2 id="I">I · Artifact Registry <small>images are built by CI</small></h2>
+<div class="step"><h3><span class="num">I1 · I3</span>Repository with immutable tags; both clusters’ node SAs may pull<span class="file">stacks/10-foundation/06-artifact-registry.tf</span></h3><div class="meta"><span class="who platform">Platform</span></div><pre class="hcl"><span class="c"># -----------------------------------------------------------------------------</span>
+<span class="c"># I · Artifact Registry (I1) and pull access for both clusters (I3).</span>
+<span class="c"># Building / scanning / pushing images (I2) stays in the CI pipeline.</span>
+<span class="c"># -----------------------------------------------------------------------------</span>
+resource "google_artifact_registry_repository" "apps" {
+  project       = var.wb_project
+  location      = var.region
+  repository_id = "apps"
+  format        = "DOCKER"
+  description   = "Looker write-back images: action-hub, writeback-api, writer"
+  labels        = local.labels
+
+  docker_config { immutable_tags = true }
+
+  depends_on = [google_project_service.apis]
+}
+
+locals {
+  image_pullers = toset(concat(
+    [google_service_account.wb_gke_nodes.member],
+    [for sa in local.looker_node_sas : "serviceAccount:${sa}"],
+  ))
+}
+
+resource "google_artifact_registry_repository_iam_member" "pull" {
+  for_each = local.image_pullers
+
+  project    = var.wb_project
+  location   = var.region
+  repository = google_artifact_registry_repository.apps.name
+  role       = "roles/artifactregistry.reader"
+  member     = each.value
+}</pre><p>The Looker cluster’s node SAs are read from the existing cluster (or set <code>looker_node_service_accounts</code>). I2 (build, scan, push) stays in the CI pipeline; the release passes the tag or digest to 20-workloads in <code>image_tags</code>.</p><div class="verify"><b>Check:</b> images visible; vulnerability scan has no critical findings.</div></div>
+
+<!-- ============================================================ J -->
+<h2 id="J">J · BigQuery <small>Data Platform</small></h2>
+<div class="step"><h3><span class="num">J1 · J2 · J6</span>Dataset and append-only log table with partition expiry (retention)<span class="file">stacks/10-foundation/07-bigquery.tf</span></h3><div class="meta"><span class="who data">Data Platform</span></div><pre class="hcl"><span class="c"># J1</span>
+resource "google_bigquery_dataset" "writeback" {
+  project     = var.data_project
+  dataset_id  = "writeback"
+  location    = var.region
+  description = "Looker write-back"
+  labels      = local.labels
+
+  delete_contents_on_destroy = false
+  depends_on                 = [google_project_service.apis]
+}
+
+<span class="c"># J2 + J6 (retention via partition expiry)</span>
+resource "google_bigquery_table" "writeback_log" {
+  project             = var.data_project
+  dataset_id          = google_bigquery_dataset.writeback.dataset_id
+  table_id            = "writeback_log"
+  deletion_protection = true
+  labels              = local.labels
+
+  time_partitioning {
+    type          = "DAY"
+    field         = "written_at"
+    expiration_ms = var.writeback_retention_days * 24 * 60 * 60 * 1000
+  }
+
+  clustering = ["record_key"]
+
+  schema = jsonencode([
+    { name = "request_id", type = "STRING", mode = "REQUIRED" },
+    { name = "record_key", type = "STRING", mode = "REQUIRED" },
+    { name = "field", type = "STRING", mode = "REQUIRED" },
+    { name = "new_value", type = "STRING", mode = "NULLABLE" },
+    { name = "actor_email", type = "STRING", mode = "REQUIRED" },
+    { name = "actor_id", type = "STRING", mode = "REQUIRED", description = "Looker user id" },
+    { name = "written_at", type = "TIMESTAMP", mode = "REQUIRED" },
+  ])
+}</pre></div>
+<div class="step"><h3><span class="num">J3</span>View current_state (latest value per key and field)<span class="file">stacks/10-foundation/07-bigquery.tf</span></h3><div class="meta"><span class="who data">Data Platform</span></div><pre class="hcl"><span class="c"># J3</span>
+resource "google_bigquery_table" "current_state" {
+  project             = var.data_project
+  dataset_id          = google_bigquery_dataset.writeback.dataset_id
+  table_id            = "current_state"
+  deletion_protection = false
+  labels              = local.labels
+
+  view {
+    use_legacy_sql = false
+    query          = &lt;&lt;-SQL
+      SELECT * EXCEPT(rn) FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY record_key, field ORDER BY written_at DESC) AS rn
+        FROM `${var.data_project}.writeback.writeback_log`)
+      WHERE rn = 1
+    SQL
+  }
+
+  depends_on = [google_bigquery_table.writeback_log]
+}</pre></div>
+<div class="step"><h3><span class="num">J4 · J5</span>writer@ inserts into writeback_log only; Looker reads the view<span class="file">stacks/10-foundation/07-bigquery.tf</span></h3><div class="meta"><span class="who data">Data Platform</span></div><pre class="hcl"><span class="c"># J4 — writer@ may write to writeback_log only (platform-owned dataset)</span>
+resource "google_bigquery_table_iam_member" "writer_insert" {
+  count = var.platform_owned_dataset ? 1 : 0
+
+  project    = var.data_project
+  dataset_id = google_bigquery_dataset.writeback.dataset_id
+  table_id   = google_bigquery_table.writeback_log.table_id
+  role       = "roles/bigquery.dataEditor"
+  member     = google_service_account.writer.member
+}
+
+<span class="c"># J5 — Looker's BigQuery connection reads the view</span>
+resource "google_bigquery_table_iam_member" "looker_reads_view" {
+  project    = var.data_project
+  dataset_id = google_bigquery_dataset.writeback.dataset_id
+  table_id   = google_bigquery_table.current_state.table_id
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${var.looker_connection_sa}"
+}
+
+<span class="c"># A view reads its base table with the caller's rights unless it is authorised:</span>
+resource "google_bigquery_dataset_access" "current_state_authorised" {
+  project    = var.data_project
+  dataset_id = google_bigquery_dataset.writeback.dataset_id
+  view {
+    project_id = var.data_project
+    dataset_id = google_bigquery_dataset.writeback.dataset_id
+    table_id   = google_bigquery_table.current_state.table_id
+  }
+}</pre><div class="verify"><b>Check:</b> a test insert as writer@ works; a SELECT on another dataset as writer@ is denied; Looker can query current_state but not writeback_log.</div></div>
+
+<!-- ============================================================ K -->
+<h2 id="K">K · ILB address, firewall, DNS, Apigee PSC <small>everything stays inside Spoke 2</small></h2>
+<div class="step"><h3><span class="num">K1</span>Static internal IP for the Write-back API ILB<span class="file">stacks/10-foundation/02-network.tf</span></h3><div class="meta"><span class="who network">Network</span></div><pre class="hcl"><span class="c"># K1 — static internal IP for the Write-back API internal load balancer</span>
+resource "google_compute_address" "writeback_api_ilb" {
+  project      = var.wb_project
+  name         = "writeback-api-ilb-ip"
+  region       = var.region
+  address_type = "INTERNAL"
+  purpose      = "GCE_ENDPOINT"
+  subnetwork   = google_compute_subnetwork.wb.id
+  address      = var.writeback_api_ilb_ip
+  labels       = local.labels
+  depends_on   = [google_compute_subnetwork_iam_member.wb_network_user]
+}</pre></div>
+<div class="step"><h3><span class="num">K3</span>Firewall – only the Looker pod range on 8443<span class="file">stacks/10-foundation/02-network.tf</span></h3><div class="meta"><span class="who network">Network</span></div><pre class="hcl"><span class="c"># K3 — VPC firewall (defence in depth): only the Looker pod range may reach port 8443 on write-back nodes</span>
+resource "google_compute_firewall" "actionhub_to_writeback_api" {
+  project       = var.spoke2_host_project
+  name          = "allow-actionhub-to-writeback-api-${var.env}"
+  network       = local.network_self
+  direction     = "INGRESS"
+  priority      = 1000
+  source_ranges = [var.ah_egress_range]
+  target_tags   = [var.wb_node_tag]
+
+  allow {
+    protocol = "tcp"
+    ports    = ["8443"]
+  }
+
+  log_config { metadata = "INCLUDE_ALL_METADATA" }
+}</pre></div>
+<div class="step"><h3><span class="num">K4</span>Private DNS record<span class="file">stacks/10-foundation/02-network.tf</span></h3><div class="meta"><span class="who network">Network</span></div><pre class="hcl"><span class="c"># K4 — private DNS record for the Write-back API ILB</span>
+resource "google_dns_record_set" "writeback_api" {
+  project      = var.spoke2_host_project
+  managed_zone = var.spoke2_dns_zone
+  name         = "${var.writeback_api_hostname}.${var.spoke2_dns_domain}"
+  type         = "A"
+  ttl          = 300
+  rrdatas      = [google_compute_address.writeback_api_ilb.address]
+}</pre></div>
+<div class="step"><h3><span class="num">K7</span>Apigee through the existing Spoke 2 PSC endpoint (created only if missing) + egress rule<span class="file">stacks/10-foundation/02-network.tf</span></h3><div class="meta"><span class="who network">Network</span><span class="who apigee">Apigee</span></div><pre class="hcl"><span class="c"># K7 — Apigee through the EXISTING Spoke 2 PSC endpoint (create only if missing)</span>
+data "google_compute_forwarding_rule" "apigee_psc" {
+  count   = var.apigee_psc.create ? 0 : 1
+  project = var.spoke2_host_project
+  region  = var.region
+  name    = var.apigee_psc.name
+}
+
+resource "google_compute_forwarding_rule" "apigee_psc" {
+  count                 = var.apigee_psc.create ? 1 : 0
+  project               = var.spoke2_host_project
+  name                  = var.apigee_psc.name
+  region                = var.region
+  network               = local.network_self
+  ip_address            = google_compute_address.apigee_psc[0].id
+  target                = var.apigee_psc.service_attachment_uri
+  load_balancing_scheme = "" <span class="c"># required empty for a PSC consumer endpoint</span>
+}
+
+<span class="c"># Write-back nodes may reach the Apigee PSC IP on 443 (only egress the cluster needs outside Google APIs)</span>
+resource "google_compute_firewall" "wb_egress_apigee" {
+  project            = var.spoke2_host_project
+  name               = "allow-wb-gke-to-apigee-psc-${var.env}"
+  network            = local.network_self
+  direction          = "EGRESS"
+  priority           = 1000
+  destination_ranges = ["${local.apigee_psc_ip}/32"]
+  target_tags        = [var.wb_node_tag]
+
+  allow {
+    protocol = "tcp"
+    ports    = ["443"]
+  }
+}</pre><div class="verify"><b>Check:</b> kubectl --context=wb-gke run t -n writeback --rm -it --restart=Never --image=curlimages/curl -- curl -s -o /dev/null -w "%{http_code}" https://api-int.lloyds.internal/lloyds-auth-int/v1/jwks → 200</div></div>
+<div class="step"><h3><span class="num">K10</span>Egress from the Looker cluster to Entra</h3><div class="meta"><span class="who network">Network</span><span class="who sec">Cloud Security</span></div><p>Not in Terraform here: the Looker cluster’s egress path (proxy or Cloud NAT FQDN allow-list for <code>login.microsoftonline.com</code>) belongs to the Spoke 2 network stack. Check it exactly as in the gcloud runbook K10.</p></div>
+
+<!-- ============================================================ Q -->
+<h2 id="Q">Q · Logging and monitoring <small>SRE</small></h2>
+<div class="step"><h3><span class="num">Q1</span>Log-based metrics<span class="file">stacks/10-foundation/08-monitoring.tf</span></h3><div class="meta"><span class="who sre">SRE</span></div><pre class="hcl"><span class="c"># -----------------------------------------------------------------------------</span>
+<span class="c"># Q · log-based metrics and alert policies (Q1, Q2). Owner: SRE</span>
+<span class="c"># -----------------------------------------------------------------------------</span>
+locals {
+  log_metrics = {
+    writeback_401 = {
+      project = var.wb_project
+      filter  = "resource.type=\"k8s_container\" AND resource.labels.cluster_name=\"${var.wb_cluster}\" AND resource.labels.namespace_name=\"${local.wb_ns}\" AND jsonPayload.http_status=401"
+    }
+    writeback_403 = {
+      project = var.wb_project
+      filter  = "resource.type=\"k8s_container\" AND resource.labels.cluster_name=\"${var.wb_cluster}\" AND resource.labels.namespace_name=\"${local.wb_ns}\" AND jsonPayload.http_status=403"
+    }
+    writer_5xx = {
+      project = var.wb_project
+      filter  = "resource.type=\"k8s_container\" AND resource.labels.namespace_name=\"${local.wb_ns}\" AND labels.\"k8s-pod/app\"=\"writer\" AND jsonPayload.http_status&gt;=500"
+    }
+    token_exchange_failures = {
+      project = var.looker_project
+      filter  = "resource.type=\"k8s_container\" AND resource.labels.namespace_name=\"${local.ah_ns}\" AND jsonPayload.event=\"token_exchange\" AND jsonPayload.outcome!=\"ok\""
+    }
+  }
+}
+
+resource "google_logging_metric" "wb" {
+  for_each = local.log_metrics
+
+  project = each.value.project
+  name    = each.key
+  filter  = each.value.filter
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+    unit        = "1"
+  }
+}</pre></div>
+<div class="step"><h3><span class="num">Q2</span>Alert policies to BIaaS on-call<span class="file">stacks/10-foundation/08-monitoring.tf</span></h3><div class="meta"><span class="who sre">SRE</span></div><pre class="hcl">resource "google_monitoring_alert_policy" "wb" {
+  for_each = local.alerts
+
+  project      = each.value.project
+  display_name = "[${upper(var.env)}] ${each.value.name}"
+  combiner     = "OR"
+  severity     = "ERROR"
+
+  dynamic "conditions" {
+    for_each = each.value.metrics
+    content {
+      display_name = conditions.value
+      condition_threshold {
+        filter          = "metric.type=\"logging.googleapis.com/user/${conditions.value}\" AND resource.type=\"k8s_container\""
+        comparison      = "COMPARISON_GT"
+        threshold_value = each.value.threshold
+        duration        = "0s"
+        aggregations {
+          alignment_period     = "300s"
+          per_series_aligner   = "ALIGN_SUM"
+          cross_series_reducer = "REDUCE_SUM"
+        }
+      }
+    }
+  }
+
+  notification_channels = var.notification_channels
+  user_labels           = local.labels
+
+  documentation {
+    mime_type = "text/markdown"
+    content   = "Looker write-back (${var.env}). Runbook: writeback-setup-runbook-terraform.html, phase Q. Search logs by X-Request-Id."
+  }
+
+  depends_on = [google_logging_metric.wb]
+}</pre><p>Latency p95 &gt; 2 s and JWKS age &gt; 30 min need application metrics; add them once the services export OpenTelemetry metrics. Q3 (dashboard, log retention) follows the platform standard.</p></div>
+
+<!-- ============================================================ AP1 -->
+<h2 id="AP1">Apply 10-foundation <small>Platform with Network, Data and SRE approvals</small></h2>
+<div class="step"><h3><span class="num">AP1</span>Plan, review, apply</h3><div class="meta"><span class="who platform">Platform</span><span class="who network">Network</span><span class="who data">Data Platform</span><span class="who sre">SRE</span></div><pre class="sh">scripts/tf.sh int 10-foundation plan        <span class="c"># review: no destroys, check warnings = 0</span>
+scripts/tf.sh int 10-foundation apply       <span class="c"># applies exactly the reviewed plan (~20–30 min, mostly the cluster)</span>
+scripts/tf.sh int 10-foundation output      <span class="c"># GSAs, unique id, ILB IP, FQDN, registry, secret ids</span></pre><p>Plan reviewers by file: <code>02-network.tf</code> → Network, <code>07-bigquery.tf</code> → Data Platform, <code>08-monitoring.tf</code> → SRE, the rest → Platform. Use CODEOWNERS so the pull request asks the right team.</p><div class="verify"><b>Check:</b> second plan right after apply says “No changes”.</div></div>
+
+<!-- ============================================================ K5 -->
+<h2 id="K5">K5 · TLS certificates <small>PKI – kept out of Terraform on purpose</small></h2>
+<div class="step"><h3><span class="num">K5</span>Issue one certificate per host and store chain + key as one PEM version</h3><div class="meta"><span class="who sec">PKI</span><span class="who platform">Platform</span></div><pre class="sh"><span class="c"># hosts: writeback-api-int.internal · writer.writeback.svc.cluster.local (+ SAN writer.internal) · action-hub.looker-actions.svc.cluster.local</span>
+cat writeback-api.crt intermediate.crt writeback-api.key | gcloud secrets versions add writeback-api-tls --project=lbg-writeback-prj-int --data-file=-
+cat writer.crt        intermediate.crt writer.key        | gcloud secrets versions add writer-tls        --project=lbg-writeback-prj-int --data-file=-
+cat action-hub.crt    intermediate.crt action-hub.key    | gcloud secrets versions add action-hub-tls    --project=looker-prj-int        --data-file=-
+shred -u *.key   <span class="c"># nothing stays on disk</span></pre><p>Pods mount the PEM through the GKE Secret Manager add-on (SecretProviderClass in <code>modules/k8s-app</code>), reading it with their own Workload Identity. There is no Kubernetes Secret and no key in any YAML or state. Looker must still trust the internal CA (Looker admin).</p><div class="verify"><b>Check:</b> verify.sh section H shows a PEM version for each of the three secrets.</div></div>
+
+<!-- ============================================================ L -->
+<h2 id="L">L · Microsoft Entra <small>stack 15-entra, applied by the IAM team</small></h2>
+<div class="step"><h3><span class="num">L1</span>App registration (single tenant) requesting the ID&amp;A exchange app role<span class="file">stacks/15-entra/main.tf</span></h3><div class="meta"><span class="who iam">IAM (Entra)</span></div><pre class="hcl"><span class="c"># L1 — app registration (single tenant)</span>
+resource "azuread_application" "action_hub" {
+  display_name     = "looker-writeback-action-hub-${var.env}"
+  sign_in_audience = "AzureADMyOrg"
+  owners           = var.entra_owners
+  notes            = "Looker write-back Action Hub (${var.env}). Authenticates with GKE Workload Identity; no secrets."
+
+  required_resource_access {
+    resource_app_id = var.ida_exchange_app_client_id
+    resource_access {
+      id   = var.ida_exchange_app_role_id
+      type = "Role"
+    }
+  }
+}
+
+resource "azuread_service_principal" "action_hub" {
+  client_id = azuread_application.action_hub.client_id
+  owners    = var.entra_owners
+}</pre></div>
+<div class="step"><h3><span class="num">L2</span>Federated credential – subject read from 10-foundation<span class="file">stacks/15-entra/main.tf</span></h3><div class="meta"><span class="who iam">IAM (Entra)</span></div><pre class="hcl"><span class="c"># action-hub@ unique id comes from the foundation stack (gcloud runbook E4)</span>
+data "terraform_remote_state" "foundation" {
+  backend = "gcs"
+  config = {
+    bucket = var.state_bucket
+    prefix = "writeback/${var.env}/10-foundation"
+  }
+}
+
+<span class="c"># L2 — federated credential: issuer Google, subject = unique id of action-hub@</span>
+resource "azuread_application_federated_identity_credential" "gke_action_hub" {
+  application_id = azuread_application.action_hub.id
+  display_name   = "gke-action-hub-${var.env}"
+  description    = "GKE action-hub@ via Workload Identity"
+  issuer         = "https://accounts.google.com"
+  subject        = data.terraform_remote_state.foundation.outputs.action_hub_unique_id
+  audiences      = ["api://AzureADTokenExchange"]
+}</pre><div class="verify"><b>Check:</b> federated_subject output equals action_hub_unique_id from 10-foundation.</div></div>
+<div class="step"><h3><span class="num">L3</span>Grant the application permission (admin consent for an app role)<span class="file">stacks/15-entra/main.tf</span></h3><div class="meta"><span class="who iam">IAM (Entra)</span></div><pre class="hcl"><span class="c"># L3 — grant the application permission (this IS the admin consent for an app role)</span>
+data "azuread_service_principal" "ida_exchange" {
+  client_id = var.ida_exchange_app_client_id
+}
+
+resource "azuread_app_role_assignment" "ida_exchange" {
+  app_role_id         = var.ida_exchange_app_role_id
+  principal_object_id = azuread_service_principal.action_hub.object_id
+  resource_object_id  = data.azuread_service_principal.ida_exchange.object_id
+}</pre><pre class="sh">scripts/tf.sh int 15-entra plan &amp;&amp; scripts/tf.sh int 15-entra apply</pre><p>L4 (Looker SAML sign-in unchanged) needs no action. Output <code>action_hub_app_client_id</code> goes to ID&amp;A (M1) and is read by 20-workloads for the Action Hub ConfigMap.</p><div class="verify"><b>Check:</b> after 20-workloads: a Google ID token from an action-hub pod (aud api://AzureADTokenExchange) used as client_assertion returns an Entra access token.</div></div>
+
+<!-- ============================================================ MN -->
+<h2 id="MN">M · N · ID&amp;A and Apigee <small>unchanged – owned by those teams</small></h2>
+<div class="tw"><table><tr><th>Step</th><th>Owner</th><th>Input from Terraform</th><th>Result</th></tr>
+<tr><td>M1 register Action Hub as ID&amp;A client</td><td>ID&amp;A</td><td><code>action_hub_app_client_id</code> (15-entra output)</td><td>client registered per environment</td></tr>
+<tr><td>M2 token profile</td><td>ID&amp;A</td><td>—</td><td>sub looker-action-hub · aud writeback-api · scope writeback.write · exp 900 s · RS256 + kid</td></tr>
+<tr><td>M3 JWKS + rotation notice</td><td>ID&amp;A</td><td>—</td><td>sample JWT decodes; kid in JWKS</td></tr>
+<tr><td>N1–N3 Apigee product, /v1/token-exchange, /v1/jwks</td><td>Apigee</td><td><code>apigee_psc_ip</code> (10-foundation) for the reachability test</td><td>valid Entra token → ID&amp;A JWT; tampered → 401; JWKS cached 10 min</td></tr>
+</table></div>
+<div class="info">If the Apigee team already manages proxies as code (apigeecli / Maven bundles or the <code>google_apigee_*</code> resources), keep that in their repository – this repository only consumes the URLs.</div>
+
+<!-- ============================================================ O -->
+<h2 id="O">D · F · K · O · Workloads on both clusters <small>stack 20-workloads</small></h2>
+<div class="info">Separate stack because the Kubernetes provider must point at clusters that already exist. Run it after 10-foundation, 15-entra and the PKI step, from a runner inside the authorised networks (T5).</div>
+<div class="step"><h3><span class="num">O0</span>Providers – both clusters, short-lived tokens through the GKE auth plugin<span class="file">stacks/20-workloads/providers.tf</span></h3><div class="meta"><span class="who platform">Platform</span></div><pre class="hcl"><span class="c"># -----------------------------------------------------------------------------</span>
+<span class="c"># 20-workloads · everything INSIDE the two clusters (phases D, F1/F3, K2, K6, K9, O)</span>
+<span class="c"># Separate stack on purpose: Kubernetes providers must point at clusters that</span>
+<span class="c"># already exist, so this runs after 10-foundation (never in the same apply).</span>
+<span class="c"># Run from a CI runner inside the master authorised networks.</span>
+<span class="c"># -----------------------------------------------------------------------------</span>
+terraform {
+  required_version = "&gt;= 1.11"
+  required_providers {
+    google     = { source = "hashicorp/google", version = "~&gt; 6.30" }
+    kubernetes = { source = "hashicorp/kubernetes", version = "~&gt; 2.36" }
+  }
+  backend "gcs" {}
+}
+
+provider "google" { region = var.region }
+
+data "terraform_remote_state" "foundation" {
+  backend = "gcs"
+  config = {
+    bucket = var.state_bucket
+    prefix = "writeback/${var.env}/10-foundation"
+  }
+}
+
+data "terraform_remote_state" "entra" {
+  backend = "gcs"
+  config = {
+    bucket = var.state_bucket
+    prefix = "writeback/${var.env}/15-entra"
+  }
+}
+
+<span class="c"># new write-back cluster (created by 10-foundation)</span>
+data "google_container_cluster" "wb" {
+  name     = var.wb_cluster
+  location = var.region
+  project  = var.wb_project
+}
+
+<span class="c"># existing Looker cluster (not managed by Terraform – only objects inside namespace looker-actions)</span>
+data "google_container_cluster" "looker" {
+  name     = var.looker_cluster
+  location = var.region
+  project  = var.looker_project
+}
+
+provider "kubernetes" {
+  alias                  = "wb"
+  host                   = "https://${data.google_container_cluster.wb.private_cluster_config[0].private_endpoint}"
+  cluster_ca_certificate = base64decode(data.google_container_cluster.wb.master_auth[0].cluster_ca_certificate)
+  exec { <span class="c"># short-lived token per run – never written to state</span>
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "gke-gcloud-auth-plugin"
+  }
+}
+
+provider "kubernetes" {
+  alias                  = "looker"
+  host                   = "https://${data.google_container_cluster.looker.endpoint}"
+  cluster_ca_certificate = base64decode(data.google_container_cluster.looker.master_auth[0].cluster_ca_certificate)
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "gke-gcloud-auth-plugin"
+  }
+}</pre></div>
+<div class="step"><h3><span class="num">D · F · K9 · O</span>Existing Looker cluster: namespace looker-actions, default deny, Looker-only ingress, KSA, ConfigMap, Action Hub<span class="file">stacks/20-workloads/looker-cluster.tf</span></h3><div class="meta"><span class="who platform">Platform</span><span class="who eng">Engineering</span></div><pre class="hcl"><span class="c"># -----------------------------------------------------------------------------</span>
+<span class="c"># Objects on the EXISTING Looker cluster — only namespace looker-actions.</span>
+<span class="c"># D1/D2/D3 · F1/F3 · K9 · O1/O2/O3 for the Action Hub</span>
+<span class="c"># -----------------------------------------------------------------------------</span>
+
+<span class="c"># D1 + D3</span>
+resource "kubernetes_namespace_v1" "looker_actions" {
+  provider = kubernetes.looker
+  metadata {
+    name   = local.ah_ns
+    labels = local.labels
+  }
+}
+
+resource "kubernetes_resource_quota_v1" "looker_actions" {
+  provider = kubernetes.looker
+  metadata {
+    name      = "ah-quota"
+    namespace = kubernetes_namespace_v1.looker_actions.metadata[0].name
+  }
+  spec { hard = var.namespace_quota }
+}
+
+<span class="c"># D2 — default deny ingress</span>
+resource "kubernetes_network_policy_v1" "ah_default_deny" {
+  provider = kubernetes.looker
+  metadata {
+    name      = "default-deny-ingress"
+    namespace = kubernetes_namespace_v1.looker_actions.metadata[0].name
+  }
+  spec {
+    pod_selector {}
+    policy_types = ["Ingress"]
+  }
+}
+
+<span class="c"># K9 — only pods in Looker's namespace may call the Action Hub</span>
+resource "kubernetes_network_policy_v1" "ah_from_looker" {
+  provider = kubernetes.looker
+  metadata {
+    name      = "action-hub-from-looker-only"
+    namespace = kubernetes_namespace_v1.looker_actions.metadata[0].name
+  }
+  spec {
+    pod_selector { match_labels = { app = "action-hub" } }
+    policy_types = ["Ingress"]
+    ingress {
+      from {
+        namespace_selector {
+          match_labels = { "kubernetes.io/metadata.name" = var.looker_namespace }
+        }
+      }
+      ports {
+        port     = "8443"
+        protocol = "TCP"
+      }
+    }
+  }
+}
+
+<span class="c"># F1 + F3 — KSA annotated with its GSA (binding F2 is in 10-foundation)</span>
+resource "kubernetes_service_account_v1" "action_hub" {
+  provider = kubernetes.looker
+  metadata {
+    name        = local.f.ksas.action_hub
+    namespace   = kubernetes_namespace_v1.looker_actions.metadata[0].name
+    annotations = { "iam.gke.io/gcp-service-account" = local.f.action_hub_gsa }
+    labels      = local.labels
+  }
+  automount_service_account_token = false
+}
+
+<span class="c"># O1 — non-secret settings only</span>
+resource "kubernetes_config_map_v1" "action_hub" {
+  provider = kubernetes.looker
+  metadata {
+    name      = "action-hub-config"
+    namespace = kubernetes_namespace_v1.looker_actions.metadata[0].name
+  }
+  data = {
+    ENTRA_TENANT_ID    = var.entra_tenant_id
+    ACTION_HUB_APP_ID  = data.terraform_remote_state.entra.outputs.action_hub_app_client_id
+    TOKEN_EXCHANGE_URL = var.token_exchange_url
+    WRITEBACK_API_URL  = "https://${local.f.writeback_api_fqdn}/v1/writeback"
+    LOOKER_SECRET_NAME = "${local.f.looker_action_secret}/versions/latest" <span class="c"># read at runtime via Workload Identity</span>
+  }
+}
+
+<span class="c"># O2 + O3 + K9 ClusterIP service</span>
+module "action_hub" {
+  source    = "../../modules/k8s-app"
+  providers = { kubernetes = kubernetes.looker }
+
+  name       = "action-hub"
+  namespace  = kubernetes_namespace_v1.looker_actions.metadata[0].name
+  ksa        = kubernetes_service_account_v1.action_hub.metadata[0].name
+  image      = local.images["action-hub"]
+  config_map = kubernetes_config_map_v1.action_hub.metadata[0].name
+  tls_secret = local.f.tls_secret_ids["action-hub-tls"]
+  labels     = local.labels
+}</pre></div>
+<div class="step"><h3><span class="num">D · F · K2 · K6 · O</span>Write-back cluster: namespace writeback, policies, KSAs, ConfigMaps, Write-back API, Writer, ILB<span class="file">stacks/20-workloads/writeback-cluster.tf</span></h3><div class="meta"><span class="who platform">Platform</span><span class="who eng">Engineering</span></div><pre class="hcl"><span class="c"># -----------------------------------------------------------------------------</span>
+<span class="c"># Objects on the NEW write-back cluster — namespace writeback.</span>
+<span class="c"># D1/D2/D3 · F1/F3 · K2 · K6 · O1/O2/O3 · J7 (tenant map) for Write-back API and Writer</span>
+<span class="c"># -----------------------------------------------------------------------------</span>
+
+<span class="c"># D1 + D3</span>
+resource "kubernetes_namespace_v1" "writeback" {
+  provider = kubernetes.wb
+  metadata {
+    name   = local.wb_ns
+    labels = local.labels
+  }
+}
+
+resource "kubernetes_resource_quota_v1" "writeback" {
+  provider = kubernetes.wb
+  metadata {
+    name      = "wb-quota"
+    namespace = kubernetes_namespace_v1.writeback.metadata[0].name
+  }
+  spec { hard = var.namespace_quota }
+}
+
+<span class="c"># D2</span>
+resource "kubernetes_network_policy_v1" "wb_default_deny" {
+  provider = kubernetes.wb
+  metadata {
+    name      = "default-deny-ingress"
+    namespace = kubernetes_namespace_v1.writeback.metadata[0].name
+  }
+  spec {
+    pod_selector {}
+    policy_types = ["Ingress"]
+  }
+}
+
+<span class="c"># K6 — Writer only from the Write-back API</span>
+resource "kubernetes_network_policy_v1" "writer_from_api" {
+  provider = kubernetes.wb
+  metadata {
+    name      = "writer-from-writeback-api-only"
+    namespace = kubernetes_namespace_v1.writeback.metadata[0].name
+  }
+  spec {
+    pod_selector { match_labels = { app = "writer" } }
+    policy_types = ["Ingress"]
+    ingress {
+      from {
+        pod_selector { match_labels = { app = "writeback-api" } }
+      }
+      ports {
+        port     = "8443"
+        protocol = "TCP"
+      }
+    }
+  }
+}
+
+<span class="c"># K6 — Write-back API only from the Looker cluster pod range (through the ILB)</span>
+resource "kubernetes_network_policy_v1" "api_from_ilb" {
+  provider = kubernetes.wb
+  metadata {
+    name      = "writeback-api-from-ilb"
+    namespace = kubernetes_namespace_v1.writeback.metadata[0].name
+  }
+  spec {
+    pod_selector { match_labels = { app = "writeback-api" } }
+    policy_types = ["Ingress"]
+    ingress {
+      from {
+        ip_block { cidr = var.ah_egress_range }
+      }
+      ports {
+        port     = "8443"
+        protocol = "TCP"
+      }
+    }
+  }
+}
+
+<span class="c"># F1 + F3</span>
+resource "kubernetes_service_account_v1" "writeback_api" {
+  provider = kubernetes.wb
+  metadata {
+    name        = local.f.ksas.writeback_api
+    namespace   = kubernetes_namespace_v1.writeback.metadata[0].name
+    annotations = { "iam.gke.io/gcp-service-account" = local.f.writeback_api_gsa }
+    labels      = local.labels
+  }
+  automount_service_account_token = false
+}
+
+resource "kubernetes_service_account_v1" "writer" {
+  provider = kubernetes.wb
+  metadata {
+    name        = local.f.ksas.writer
+    namespace   = kubernetes_namespace_v1.writeback.metadata[0].name
+    annotations = { "iam.gke.io/gcp-service-account" = local.f.writer_gsa }
+    labels      = local.labels
+  }
+  automount_service_account_token = false
+}
+
+<span class="c"># O1 — ConfigMaps (non-secret)</span>
+resource "kubernetes_config_map_v1" "writeback_api" {
+  provider = kubernetes.wb
+  metadata {
+    name      = "writeback-api-config"
+    namespace = kubernetes_namespace_v1.writeback.metadata[0].name
+  }
+  data = {
+    JWKS_URL        = var.jwks_url
+    IDA_ISSUER      = var.ida_issuer
+    JWT_AUDIENCE    = "writeback-api"
+    ALLOWED_CALLERS = "looker-action-hub"
+    WRITER_URL      = "https://writer.${local.wb_ns}.svc.cluster.local"
+    WRITER_AUDIENCE = var.writer_audience
+  }
+}
+
+resource "kubernetes_config_map_v1" "writeback_rules" {
+  provider = kubernetes.wb
+  metadata {
+    name      = "writeback-rules"
+    namespace = kubernetes_namespace_v1.writeback.metadata[0].name
+  }
+  data = {
+    "writeback-rules.yaml" = file("${path.module}/files/writeback-rules.yaml")
+  }
+}
+
+resource "kubernetes_config_map_v1" "writer" {
+  provider = kubernetes.wb
+  metadata {
+    name      = "writer-config"
+    namespace = kubernetes_namespace_v1.writeback.metadata[0].name
+  }
+  data = {
+    ALLOWED_CALLER  = local.f.writeback_api_gsa
+    AUDIENCE        = var.writer_audience
+    BQ_TABLE        = local.f.bq_writeback_log
+    TENANT_PROJECTS = local.tenant_projects_csv <span class="c"># J7 – tenant=project pairs</span>
+  }
+}
+
+<span class="c"># O2 + O3</span>
+module "writeback_api" {
+  source    = "../../modules/k8s-app"
+  providers = { kubernetes = kubernetes.wb }
+
+  name                 = "writeback-api"
+  namespace            = kubernetes_namespace_v1.writeback.metadata[0].name
+  ksa                  = kubernetes_service_account_v1.writeback_api.metadata[0].name
+  image                = local.images["writeback-api"]
+  config_map           = kubernetes_config_map_v1.writeback_api.metadata[0].name
+  tls_secret           = local.f.tls_secret_ids["writeback-api-tls"]
+  extra_config_volumes = { (kubernetes_config_map_v1.writeback_rules.metadata[0].name) = "/config" }
+  labels               = local.labels
+}
+
+module "writer" {
+  source    = "../../modules/k8s-app"
+  providers = { kubernetes = kubernetes.wb }
+
+  name       = "writer"
+  namespace  = kubernetes_namespace_v1.writeback.metadata[0].name
+  ksa        = kubernetes_service_account_v1.writer.metadata[0].name
+  image      = local.images["writer"]
+  config_map = kubernetes_config_map_v1.writer.metadata[0].name
+  tls_secret = local.f.tls_secret_ids["writer-tls"]
+  labels     = local.labels
+}
+
+<span class="c"># K2 — internal LB on the reserved IP, reachable only from the Looker pod range</span>
+resource "kubernetes_service_v1" "writeback_api_ilb" {
+  provider = kubernetes.wb
+  metadata {
+    name      = "writeback-api-ilb"
+    namespace = kubernetes_namespace_v1.writeback.metadata[0].name
+    annotations = {
+      "networking.gke.io/load-balancer-type" = "Internal"
+    }
+    labels = local.labels
+  }
+  spec {
+    type                        = "LoadBalancer"
+    load_balancer_ip            = local.f.writeback_api_ilb_ip
+    external_traffic_policy     = "Local" <span class="c"># keeps the caller IP for the K6 NetworkPolicy</span>
+    load_balancer_source_ranges = [var.ah_egress_range]
+    selector                    = { app = "writeback-api" }
+    port {
+      port        = 443
+      target_port = 8443
+    }
+  }
+  depends_on = [module.writeback_api]
+}
+
+output "action_hub_url_for_looker" {
+  description = "P5 – Action Hub URL to register in Looker."
+  value       = "https://${module.action_hub.service_dns}"
+}
+output "writer_url" { value = "https://${module.writer.service_dns}" }</pre></div>
+<div class="step"><h3><span class="num">O2 · O3</span>Module k8s-app – hardened Deployment, ClusterIP Service, PDB, HPA, TLS from Secret Manager<span class="file">modules/k8s-app/main.tf</span></h3><div class="meta"><span class="who platform">Platform</span><span class="who eng">Engineering</span></div><pre class="hcl"><span class="c"># -----------------------------------------------------------------------------</span>
+<span class="c"># module k8s-app — one hardened service (O2 / O3 pattern):</span>
+<span class="c">#   SecretProviderClass (TLS PEM from Secret Manager) · Deployment · ClusterIP</span>
+<span class="c">#   Service · PodDisruptionBudget · HorizontalPodAutoscaler</span>
+<span class="c"># Used for action-hub (Looker cluster), writeback-api and writer (write-back cluster).</span>
+<span class="c"># -----------------------------------------------------------------------------</span>
+terraform {
+  required_providers {
+    kubernetes = { source = "hashicorp/kubernetes", version = "~&gt; 2.36" }
+  }
+}
+
+variable "name" { type = string }
+variable "namespace" { type = string }
+variable "ksa" { type = string }
+variable "image" { type = string }
+variable "config_map" { type = string }
+
+variable "tls_secret" {
+  description = "Full Secret Manager resource name of the TLS PEM (cert chain + key)."
+  type        = string
+}
+
+variable "extra_config_volumes" {
+  description = "Extra ConfigMaps to mount read-only: name =&gt; mount path."
+  type        = map(string)
+  default     = {}
+}
+
+variable "replicas" {
+  type    = number
+  default = 2
+}
+variable "hpa_max" {
+  type    = number
+  default = 6
+}
+variable "port" {
+  type    = number
+  default = 8443
+}
+variable "cpu_request" {
+  type    = string
+  default = "250m"
+}
+variable "memory_request" {
+  type    = string
+  default = "256Mi"
+}
+variable "memory_limit" {
+  type    = string
+  default = "512Mi"
+}
+variable "labels" {
+  type    = map(string)
+  default = {}
+}
+
+locals {
+  selector = { app = var.name }
+  labels   = merge(var.labels, local.selector)
+  spc_name = "${var.name}-tls"
+}
+
+<span class="c"># K5 — TLS from Secret Manager through the GKE Secret Manager add-on</span>
+resource "kubernetes_manifest" "tls" {
+  manifest = {
+    apiVersion = "secrets-store.csi.x-k8s.io/v1"
+    kind       = "SecretProviderClass"
+    metadata   = { name = local.spc_name, namespace = var.namespace }
+    spec = {
+      provider = "gke"
+      parameters = {
+        secrets = yamlencode([{ resourceName = "${var.tls_secret}/versions/latest", path = "tls.pem" }])
+      }
+    }
+  }
+}
+
+<span class="c"># O2 — deployment</span>
+resource "kubernetes_deployment_v1" "app" {
+  metadata {
+    name      = var.name
+    namespace = var.namespace
+    labels    = local.labels
+  }
+
+  spec {
+    replicas = var.replicas
+    selector { match_labels = local.selector }
+
+    strategy {
+      type = "RollingUpdate"
+      rolling_update {
+        max_surge       = "1"
+        max_unavailable = "0"
+      }
+    }
+
+    template {
+      metadata { labels = local.labels }
+
+      spec {
+        service_account_name            = var.ksa <span class="c"># → GSA via Workload Identity</span>
+        automount_service_account_token = false
+
+        security_context {
+          run_as_non_root = true
+          seccomp_profile { type = "RuntimeDefault" }
+        }
+
+        container {
+          name  = "app"
+          image = var.image
+
+          env_from {
+            config_map_ref { name = var.config_map }
+          }
+          env {
+            name  = "TLS_PEM"
+            value = "/tls/tls.pem"
+          }
+
+          port { container_port = var.port }
+
+          readiness_probe {
+            http_get {
+              path   = "/readyz"
+              port   = var.port
+              scheme = "HTTPS"
+            }
+            period_seconds = 10
+          }
+          liveness_probe {
+            http_get {
+              path   = "/healthz"
+              port   = var.port
+              scheme = "HTTPS"
+            }
+            initial_delay_seconds = 10
+            period_seconds        = 20
+          }
+
+          resources {
+            requests = { cpu = var.cpu_request, memory = var.memory_request }
+            limits   = { memory = var.memory_limit }
+          }
+
+          security_context {
+            read_only_root_filesystem  = true
+            allow_privilege_escalation = false
+            capabilities { drop = ["ALL"] }
+          }
+
+          volume_mount {
+            name       = "tls"
+            mount_path = "/tls"
+            read_only  = true
+          }
+          volume_mount {
+            name       = "tmp"
+            mount_path = "/tmp"
+          }
+          dynamic "volume_mount" {
+            for_each = var.extra_config_volumes
+            content {
+              name       = volume_mount.key
+              mount_path = volume_mount.value
+              read_only  = true
+            }
+          }
+        }
+
+        volume {
+          name = "tls"
+          csi {
+            driver            = "secrets-store-gke.csi.k8s.io"
+            read_only         = true
+            volume_attributes = { secretProviderClass = local.spc_name }
+          }
+        }
+        volume {
+          name = "tmp"
+          empty_dir {}
+        }
+        dynamic "volume" {
+          for_each = var.extra_config_volumes
+          content {
+            name = volume.key
+            config_map { name = volume.key }
+          }
+        }
+
+        topology_spread_constraint {
+          max_skew           = 1
+          topology_key       = "topology.kubernetes.io/zone"
+          when_unsatisfiable = "ScheduleAnyway"
+          label_selector { match_labels = local.selector }
+        }
+      }
+    }
+  }
+
+  depends_on = [kubernetes_manifest.tls]
+
+  lifecycle {
+    ignore_changes = [spec[0].replicas] <span class="c"># owned by the HPA after the first apply</span>
+  }
+}
+
+<span class="c"># cluster-internal service (action-hub for Looker – K9; writer for the Write-back API)</span>
+resource "kubernetes_service_v1" "app" {
+  metadata {
+    name      = var.name
+    namespace = var.namespace
+    labels    = local.labels
+  }
+  spec {
+    type     = "ClusterIP"
+    selector = local.selector
+    port {
+      port        = 443
+      target_port = var.port
+    }
+  }
+}
+
+<span class="c"># O3 — PDB and autoscaling</span>
+resource "kubernetes_pod_disruption_budget_v1" "app" {
+  metadata {
+    name      = "${var.name}-pdb"
+    namespace = var.namespace
+  }
+  spec {
+    min_available = "1"
+    selector { match_labels = local.selector }
+  }
+}
+
+resource "kubernetes_horizontal_pod_autoscaler_v2" "app" {
+  metadata {
+    name      = var.name
+    namespace = var.namespace
+  }
+  spec {
+    min_replicas = var.replicas
+    max_replicas = var.hpa_max
+    scale_target_ref {
+      api_version = "apps/v1"
+      kind        = "Deployment"
+      name        = kubernetes_deployment_v1.app.metadata[0].name
+    }
+    metric {
+      type = "Resource"
+      resource {
+        name = "cpu"
+        target {
+          type                = "Utilization"
+          average_utilization = 70
+        }
+      }
+    }
+  }
+}
+
+output "service_dns" {
+  value = "${kubernetes_service_v1.app.metadata[0].name}.${var.namespace}.svc.cluster.local"
+}</pre></div>
+<div class="step"><h3><span class="num">AP2</span>Plan and apply</h3><div class="meta"><span class="who platform">Platform</span><span class="who eng">Engineering</span></div><pre class="sh">scripts/tf.sh int 20-workloads plan
+scripts/tf.sh int 20-workloads apply
+scripts/tf.sh int 20-workloads output action_hub_url_for_looker   <span class="c"># → https://action-hub.looker-actions.svc.cluster.local</span></pre><div class="verify"><b>Check:</b> all pods Ready; /healthz 200; Write-back API readiness shows JWKS loaded; Action Hub reads the secret; kubectl --context=looker-gke run nettest … curl https://writeback-api-int.internal/healthz → 200 (K8).</div></div>
+
+<!-- ============================================================ P -->
+<h2 id="P">P · Looker configuration <small>idempotent script – no official Looker Terraform provider</small></h2>
+<div class="step"><h3><span class="num">P1–P5</span>Group, hidden attribute, group value, role, Action Hub registration<span class="file">looker/configure_looker.py</span></h3><div class="meta"><span class="who looker">BIaaS (Looker admin)</span></div><pre class="py">"""
+P1–P5 · Looker configuration as code (there is no official Terraform provider for Looker).
+Idempotent: safe to run again; it only creates what is missing.
+
+Run by a Looker admin, from a host that can read looker-action-secret:
+    pip install looker-sdk google-cloud-secret-manager
+    export LOOKERSDK_BASE_URL=https://looker-int.internal   LOOKERSDK_CLIENT_ID=...   LOOKERSDK_CLIENT_SECRET=...
+    python configure_looker.py --env int --action-hub-url https://action-hub.looker-actions.svc.cluster.local \
+        --secret projects/looker-prj-int/secrets/looker-action-secret/versions/latest --model writeback_model
+
+The Looker API credentials come from the admin's environment (or a Secret Manager–backed
+CI variable) — never from a file in the repository. The action secret is read from
+Secret Manager and sent straight to Looker; it is never printed.
+"""
+import argparse
+
+import looker_sdk
+from looker_sdk import models40 as m
+from google.cloud import secretmanager
+
+GROUP = "Writeback Users"
+ATTR = "writeback_allowed"
+PERMISSION_SET = "writeback-send"
+MODEL_SET = "writeback-models"
+ROLE = "Writeback User"
+<span class="c"># send_to_integration needs access_data; Looker rejects the set if a dependency is missing</span>
+PERMISSIONS = ["access_data", "see_looks", "see_user_dashboards", "send_to_integration"]
+
+
+def one(items, **match):
+    for it in items or []:
+        if all(getattr(it, k) == v for k, v in match.items()):
+            return it
+    return None
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--env", required=True)
+    ap.add_argument("--action-hub-url", required=True)
+    ap.add_argument("--secret", required=True, help="Secret Manager version name of looker-action-secret")
+    ap.add_argument("--model", required=True, help="LookML model that carries the write-back explores")
+    args = ap.parse_args()
+
+    sdk = looker_sdk.init40()
+
+    <span class="c"># P1 — manual group</span>
+    group = one(sdk.search_groups(name=GROUP), name=GROUP) or sdk.create_group(m.WriteGroup(name=GROUP))
+    print(f"P1 group      {GROUP} id={group.id}")
+
+    <span class="c"># P2 — hidden user attribute, default 'no'</span>
+    attr = one(sdk.all_user_attributes(), name=ATTR) or sdk.create_user_attribute(m.WriteUserAttribute(
+        name=ATTR, label="Write-back allowed", type="string", default_value="no",
+        value_is_hidden=True, user_can_view=False, user_can_edit=False))
+    print(f"P2 attribute  {ATTR} id={attr.id}")
+
+    <span class="c"># P3 — group value yes (never on individual users)</span>
+    sdk.set_user_attribute_group_values(attr.id, [m.UserAttributeGroupValue(group_id=group.id, value="yes")])
+    print(f"P3 value      {GROUP} → {ATTR}=yes")
+
+    <span class="c"># P4 — role with send_to_integration on the write-back model, given to the group</span>
+    pset = one(sdk.all_permission_sets(), name=PERMISSION_SET) or sdk.create_permission_set(
+        m.WritePermissionSet(name=PERMISSION_SET, permissions=PERMISSIONS))
+    mset = one(sdk.all_model_sets(), name=MODEL_SET) or sdk.create_model_set(
+        m.WriteModelSet(name=MODEL_SET, models=[args.model]))
+    role = one(sdk.all_roles(), name=ROLE) or sdk.create_role(
+        m.WriteRole(name=ROLE, permission_set_id=pset.id, model_set_id=mset.id))
+    current = {g.id for g in sdk.role_groups(role.id)}
+    sdk.set_role_groups(role.id, sorted(current | {group.id}))
+    print(f"P4 role       {ROLE} id={role.id} → {GROUP}")
+
+    <span class="c"># P5 — register the Action Hub with the shared secret, then enable the write-back action</span>
+    token = secretmanager.SecretManagerServiceClient().access_secret_version(
+        name=args.secret).payload.data.decode()
+    hub = one(sdk.all_integration_hubs(), url=args.action_hub_url)
+    if hub:
+        sdk.update_integration_hub(hub.id, m.WriteIntegrationHub(url=args.action_hub_url, authorization_token=token))
+    else:
+        hub = sdk.create_integration_hub(m.WriteIntegrationHub(url=args.action_hub_url, authorization_token=token))
+    del token
+    health = sdk.get_integration_hub_health(hub.id)  <span class="c"># confirms Looker can reach the Action Hub</span>
+    print(f"P5 hub        id={hub.id} health={getattr(health, 'success', health)}")
+    for integ in sdk.all_integrations(integration_hub_id=hub.id):
+        if integ.label and "write back" in integ.label.lower():
+            sdk.update_integration(integ.id, m.WriteIntegration(enabled=True))
+            print(f"P5 action     {integ.label} enabled on hub {hub.id}")
+    print("P6 (LookML tags) and P7 (add pilot users to the group) stay in the normal change process.")
+
+
+if __name__ == "__main__":
+    main()</pre><pre class="sh">pip install looker-sdk google-cloud-secret-manager
+export LOOKERSDK_BASE_URL=https://looker-int.internal LOOKERSDK_CLIENT_ID=… LOOKERSDK_CLIENT_SECRET=…   <span class="c"># admin's own API key, from a vault</span>
+python looker/configure_looker.py --env int \
+  --action-hub-url "$(scripts/tf.sh int 20-workloads output -raw action_hub_url_for_looker)" \
+  --secret projects/looker-prj-int/secrets/looker-action-secret/versions/latest --model writeback_model</pre><p>P6 (LookML <code>tags: ["writeback_key"]</code> and explores on <code>writeback.current_state</code>) goes through the normal LookML pull request. P7 (adding pilot users to “Writeback Users”) stays in the access-request process.</p><div class="verify"><b>Check:</b> a member sees writeback_allowed = yes, a non-member sees no; only members see the action; the hub health check succeeds.</div></div>
+
+<!-- ============================================================ J7 -->
+<h2 id="J7">J7 · Per-tenant writers <small>stack 40-tenant-writer, once per tenant</small></h2>
+<div class="step"><h3><span class="num">J7</span>Tenant creates its writer SA, grants insert on one table and lets writer@ impersonate it<span class="file">stacks/40-tenant-writer/main.tf</span></h3><div class="meta"><span class="who data">Tenant</span><span class="who platform">Platform</span></div><pre class="hcl"><span class="c"># -----------------------------------------------------------------------------</span>
+<span class="c"># 40-tenant-writer · J7 per-tenant write access by impersonation</span>
+<span class="c"># Applied ONCE PER TENANT, in the TENANT's data project, by the tenant (or with</span>
+<span class="c"># their approval). Creates the tenant-owned writer SA, gives it insert on the</span>
+<span class="c"># tenant's table, and lets the platform writer@ impersonate it — nothing else.</span>
+<span class="c"># Afterwards the platform adds  &lt;tenant&gt; = &lt;tenant_project&gt;  to tenant_projects</span>
+<span class="c"># in envs/&lt;env&gt;/20-workloads.tfvars and re-applies 20-workloads.</span>
+<span class="c"># State prefix: writeback/&lt;env&gt;/40-tenant-&lt;tenant_key&gt;</span>
+<span class="c"># -----------------------------------------------------------------------------</span>
+terraform {
+  required_version = "&gt;= 1.11"
+  required_providers {
+    google = { source = "hashicorp/google", version = "~&gt; 6.30" }
+  }
+  backend "gcs" {}
+}
+
+provider "google" { region = var.region }
+
+variable "region" {
+  type    = string
+  default = "europe-west2"
+}
+variable "tenant_key" {
+  description = "Short tenant key, e.g. tenant_a (used in the SA id: writer-&lt;key&gt;)."
+  type        = string
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9_]{1,20}$", var.tenant_key))
+    error_message = "lower-case letters, digits and _ only."
+  }
+}
+variable "tenant_project" { type = string }
+variable "tenant_dataset" { type = string }
+variable "tenant_table" {
+  type    = string
+  default = "writeback_log"
+}
+variable "platform_writer_gsa" {
+  description = "writer@&lt;wb_project&gt;.iam.gserviceaccount.com (output writer_gsa of 10-foundation)."
+  type        = string
+}
+
+resource "google_service_account" "tenant_writer" {
+  project      = var.tenant_project
+  account_id   = "writer-${replace(var.tenant_key, "_", "-")}"
+  display_name = "Looker write-back writer for ${var.tenant_key} (tenant-owned)"
+}
+
+<span class="c"># insert on ONE table only</span>
+resource "google_bigquery_table_iam_member" "insert" {
+  project    = var.tenant_project
+  dataset_id = var.tenant_dataset
+  table_id   = var.tenant_table
+  role       = "roles/bigquery.dataEditor"
+  member     = google_service_account.tenant_writer.member
+}
+
+<span class="c"># only the platform writer@ may mint tokens for it</span>
+resource "google_service_account_iam_member" "platform_can_impersonate" {
+  service_account_id = google_service_account.tenant_writer.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${var.platform_writer_gsa}"
+}
+
+output "tenant_writer_sa" { value = google_service_account.tenant_writer.email }
+output "add_to_20_workloads" {
+  value = "tenant_projects = { ${var.tenant_key} = \"${var.tenant_project}\" }"
+}</pre><pre class="sh">scripts/tf.sh int 40-tenant-tenant_a plan &amp;&amp; scripts/tf.sh int 40-tenant-tenant_a apply     <span class="c"># by / with the tenant</span>
+<span class="c"># platform: add the tenant to envs/int/20-workloads.tfvars, then re-apply 20-workloads</span>
+<span class="c">#   tenant_projects = { tenant_a = "tenant-a-data-prj-int" }</span></pre><div class="verify"><b>Check:</b> from a pod running as writer@: gcloud auth print-access-token --impersonate-service-account=writer-tenant-a@… works; any other identity is refused.</div></div>
+
+<!-- ============================================================ R -->
+<h2 id="R">R · Verify <small>automated checks, then the end-to-end tests</small></h2>
+<div class="step"><h3><span class="num">V1</span>Read-only checks (C4, F5, G1, H, J, pods)<span class="file">scripts/verify.sh</span></h3><div class="meta"><span class="who platform">Platform</span></div><pre class="sh"><span class="c">#!/usr/bin/env bash</span>
+<span class="c"># Post-apply checks (gcloud runbook C4, F5, G1, H, J, K7/K8) — read-only.</span>
+<span class="c"># Usage: scripts/verify.sh &lt;env&gt;</span>
+set -uo pipefail
+ENV="${1:?env}"
+REGION=europe-west2
+LOOKER_PRJ=looker-prj-$ENV; WB_PRJ=lbg-writeback-prj-$ENV; DATA_PRJ=lbg-data-prj-$ENV
+LOOKER_CLUSTER=looker-gke; WB_CLUSTER=writeback-gke; WB_POOL=wb-pool
+AH_GSA=action-hub@$LOOKER_PRJ.iam.gserviceaccount.com
+WBAPI_GSA=writeback-api@$WB_PRJ.iam.gserviceaccount.com
+WRITER_GSA=writer@$WB_PRJ.iam.gserviceaccount.com
+pass=0; fail=0
+ok()  { echo "  PASS  $1"; pass=$((pass+1)); }
+bad() { echo "  FAIL  $1"; fail=$((fail+1)); }
+expect() { [[ "$2" == "$3" ]] &amp;&amp; ok "$1" || bad "$1 (got '$2', want '$3')"; }
+
+echo "C4 · workload pools and node pools"
+expect "wb pool"     "$(gcloud container clusters describe $WB_CLUSTER --location=$REGION --project=$WB_PRJ --format='value(workloadIdentityConfig.workloadPool)')" "$WB_PRJ.svc.id.goog"
+expect "looker pool" "$(gcloud container clusters describe $LOOKER_CLUSTER --location=$REGION --project=$LOOKER_PRJ --format='value(workloadIdentityConfig.workloadPool)')" "$LOOKER_PRJ.svc.id.goog"
+for c in "$WB_CLUSTER:$WB_PRJ" "$LOOKER_CLUSTER:$LOOKER_PRJ"; do
+  modes=$(gcloud container node-pools list --cluster=${c%%:*} --location=$REGION --project=${c##*:} --format='value(config.workloadMetadataConfig.mode)' | sort -u | tr '\n' ' ')
+  expect "${c%%:*} node pools GKE_METADATA" "$modes" "GKE_METADATA "
+done
+
+echo "F5 · Workload Identity bindings and keys"
+for pair in "$AH_GSA:$LOOKER_PRJ.svc.id.goog[looker-actions/action-hub-ksa]" \
+            "$WBAPI_GSA:$WB_PRJ.svc.id.goog[writeback/writeback-ksa]" \
+            "$WRITER_GSA:$WB_PRJ.svc.id.goog[writeback/writer-ksa]"; do
+  gsa=${pair%%:*}; member=${pair#*:}
+  got=$(gcloud iam service-accounts get-iam-policy $gsa --flatten='bindings[].members' \
+        --filter='bindings.role:roles/iam.workloadIdentityUser' --format='value(bindings.members)')
+  expect "$gsa ← $member" "$got" "serviceAccount:$member"
+  keys=$(gcloud iam service-accounts keys list --iam-account=$gsa --managed-by=user --format='value(name)' | wc -l)
+  expect "$gsa has no user-managed keys" "$keys" "0"
+done
+
+echo "G1 · org policy"
+enf=$(gcloud resource-manager org-policies describe iam.disableServiceAccountKeyCreation --project=$WB_PRJ --effective --format='value(booleanPolicy.enforced)')
+expect "no SA keys enforced on $WB_PRJ" "$enf" "True"
+
+echo "H · secret readers"
+readers=$(gcloud secrets get-iam-policy looker-action-secret --project=$LOOKER_PRJ --flatten='bindings[].members' \
+          --filter='bindings.role:roles/secretmanager.secretAccessor' --format='value(bindings.members)')
+expect "looker-action-secret readable only by action-hub@" "$readers" "serviceAccount:$AH_GSA"
+v=$(gcloud secrets versions list looker-action-secret --project=$LOOKER_PRJ --filter='state=ENABLED' --format='value(name)' | wc -l)
+[[ $v -ge 1 ]] &amp;&amp; ok "looker-action-secret has an enabled version" || bad "looker-action-secret has no value"
+for s in writeback-api-tls:$WB_PRJ writer-tls:$WB_PRJ action-hub-tls:$LOOKER_PRJ; do
+  v=$(gcloud secrets versions list ${s%%:*} --project=${s##*:} --filter='state=ENABLED' --format='value(name)' | wc -l)
+  [[ $v -ge 1 ]] &amp;&amp; ok "${s%%:*} has a PEM version" || bad "${s%%:*} is empty – ask PKI (K5)"
+done
+
+echo "J · BigQuery"
+bq show --format=none $DATA_PRJ:writeback.writeback_log &amp;&amp; ok "writeback_log exists" || bad "writeback_log missing"
+bq show --format=none $DATA_PRJ:writeback.current_state &amp;&amp; ok "current_state exists" || bad "current_state missing"
+
+echo "Kubernetes objects (needs kube contexts wb-gke / looker-gke – gcloud runbook NC4)"
+kubectl --context=wb-gke -n writeback get deploy writeback-api writer &gt;/dev/null 2&gt;&amp;1 &amp;&amp; ok "write-back deployments present" || bad "write-back deployments"
+kubectl --context=looker-gke -n looker-actions get deploy action-hub &gt;/dev/null 2&gt;&amp;1 &amp;&amp; ok "action-hub deployment present" || bad "action-hub deployment"
+got=$(kubectl --context=wb-gke -n writeback exec deploy/writeback-api -- curl -s -H 'Metadata-Flavor: Google' \
+      http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email 2&gt;/dev/null)
+expect "writeback-api pod runs as writeback-api@" "$got" "$WBAPI_GSA"
+
+echo; echo "passed $pass, failed $fail"; [[ $fail -eq 0 ]]</pre><div class="verify"><b>Check:</b> passed N, failed 0.</div></div>
+<div class="tw"><table>
+<tr><th>#</th><th>Test (unchanged from the gcloud runbook)</th><th>Expected</th></tr>
+<tr><td>R1</td><td>Member of “Writeback Users” changes a value</td><td>“success”; one row in writeback_log; dashboard shows the new value</td></tr>
+<tr><td>R2</td><td>Non-member calls the action (via API)</td><td>403</td></tr>
+<tr><td>R3</td><td>Action Hub called with wrong / no Looker secret</td><td>401</td></tr>
+<tr><td>R4</td><td>Write-back API called with no / expired / tampered JWT, wrong aud</td><td>401</td></tr>
+<tr><td>R5</td><td>Same request twice</td><td>One row only</td></tr>
+<tr><td>R6</td><td>Writer called from another pod</td><td>Blocked by NetworkPolicy</td></tr>
+<tr><td>R7</td><td>writer@ tries to read another table</td><td>Access denied</td></tr>
+<tr><td>R8</td><td>Search logs <i>and the Terraform state</i></td><td>No tokens, secrets or private keys (<code>terraform state pull | grep -iE "BEGIN .*PRIVATE|secret_data\"" </code> → nothing)</td></tr>
+</table></div>
+
+<!-- ============================================================ S -->
+<h2 id="S">S · Promote, pipeline and drift <small>same code, new tfvars</small></h2>
+<div class="step"><h3><span class="num">S1</span>PRE and PRD = the same commit with envs/pre and envs/prd</h3><div class="meta"><span class="who platform">Platform</span></div>
+<ul><li>New state bucket per environment (T3), new service accounts (new unique ids → new Entra federated credential per environment, created by 15-entra), new secret value, new ID&amp;A/Apigee registrations.</li>
+<li>Images by <b>digest</b> in PRE/PRD (<code>image_tags = { "writer" = "@sha256:…" }</code>).</li>
+<li>Pipeline per environment: <code>fmt -check</code> → <code>validate</code> → <code>tflint</code> / <code>checkov</code> → plan → approval (CAB for PRD) → apply saved plan → <code>verify.sh</code> → R1 smoke test.</li></ul></div>
+<div class="step"><h3><span class="num">S2</span>Nightly drift detection</h3><div class="meta"><span class="who sre">SRE</span><span class="who platform">Platform</span></div><pre class="sh">for s in 10-foundation 15-entra 20-workloads; do
+  scripts/tf.sh prd $s plan -detailed-exitcode -lock=false &gt;/dev/null; rc=$?
+  [ $rc -eq 2 ] &amp;&amp; echo "DRIFT in $s"      <span class="c"># 0 = no changes, 2 = drift → open a ticket</span>
+done</pre><p>Manual changes in the console show up next morning. The Looker cluster itself is not in any state, so its drift is the Looker cluster team’s.</p></div>
+
+<!-- ============================================================ D2 -->
+<h2 id="D2">Day-2 operations <small>what changes later and where</small></h2>
+<div class="tw"><table>
+<tr><th>Change</th><th>Do this</th></tr>
+<tr><td>Rotate the Looker ↔ Action Hub secret</td><td><code>looker_action_secret_version</code> +1 → apply 10-foundation → re-run configure_looker.py (updates the hub token) → restart action-hub pods</td></tr>
+<tr><td>Renew a TLS certificate</td><td>PKI adds a new PEM version (K5); pods read <code>versions/latest</code> on restart – <code>kubectl rollout restart</code></td></tr>
+<tr><td>Release a new image</td><td>Pipeline sets <code>image_tags</code> → plan/apply 20-workloads (rolling update, PDB keeps one pod)</td></tr>
+<tr><td>Add a tenant</td><td>Stack 40 for the tenant → add to <code>tenant_projects</code> → apply 20-workloads</td></tr>
+<tr><td>Remove a tenant</td><td>Remove from <code>tenant_projects</code> → apply 20-workloads → tenant destroys its stack 40</td></tr>
+<tr><td>Change who may write back</td><td>Looker group membership only – no Terraform</td></tr>
+<tr><td>Scale nodes or pods</td><td><code>wb_node_min/max</code> (10) or <code>replicas</code>/<code>hpa_max</code> (module input in 20)</td></tr>
+<tr><td>Decommission</td><td>Destroy 20 → 15 → 10 with <code>destroy-plan</code>; cluster, table and dataset have deletion protection – remove it deliberately first. The Looker cluster is never touched.</td></tr>
+</table></div>
+
+<!-- ============================================================ M -->
+<h2 id="M">gcloud step → Terraform map <small>read both runbooks side by side</small></h2>
+<div class="tw"><table><tr><th>gcloud runbook</th><th>Terraform resource / file</th><th>Stack</th></tr><tr><td>A1 names</td><td><code>envs/&lt;env&gt;/*.tfvars + locals</code></td><td>—</td></tr><tr><td>B1, B2 APIs</td><td><code>google_project_service.apis</code></td><td>10</td></tr><tr><td>NC1 subnet</td><td><code>google_compute_subnetwork.wb</code></td><td>10</td></tr><tr><td>NC2 Shared VPC grants</td><td><code>google_compute_subnetwork_iam_member.wb_network_user, google_project_iam_member.gke_host_agent</code></td><td>10</td></tr><tr><td>NC3 cluster, node SA</td><td><code>google_container_cluster.wb, google_container_node_pool.wb, google_service_account.wb_gke_nodes</code></td><td>10</td></tr><tr><td>NC4 kube contexts</td><td><code>not needed by Terraform (data sources); kept for checks</code></td><td>—</td></tr><tr><td>C1, C2 Looker cluster WI</td><td><code>check blocks (read only); gcloud fix if a check fails</code></td><td>10</td></tr><tr><td>C3 write-back cluster WI</td><td><code>workload_identity_config in the cluster</code></td><td>10</td></tr><tr><td>C4 checks</td><td><code>scripts/verify.sh</code></td><td>—</td></tr><tr><td>D1–D3 namespaces, deny, quota</td><td><code>kubernetes_namespace_v1, kubernetes_network_policy_v1 (default-deny), kubernetes_resource_quota_v1</code></td><td>20</td></tr><tr><td>E1–E3 GSAs</td><td><code>google_service_account.action_hub / writeback_api / writer</code></td><td>10</td></tr><tr><td>E4 unique id</td><td><code>output action_hub_unique_id → read by 15-entra</code></td><td>10</td></tr><tr><td>F1, F3 KSAs + annotation</td><td><code>kubernetes_service_account_v1.*</code></td><td>20</td></tr><tr><td>F2 WI binding</td><td><code>google_service_account_iam_member.workload_identity</code></td><td>10</td></tr><tr><td>F4, F5 tests</td><td><code>scripts/verify.sh (+ F4 test pod as in gcloud runbook)</code></td><td>—</td></tr><tr><td>G1 no-key policy</td><td><code>google_org_policy_policy.no_sa_keys (optional)</code></td><td>10</td></tr><tr><td>H1 secret</td><td><code>google_secret_manager_secret + ephemeral random_password + secret_data_wo</code></td><td>10</td></tr><tr><td>H2 reader</td><td><code>google_secret_manager_secret_iam_member.looker_action_reader</code></td><td>10</td></tr><tr><td>H3 hand-over</td><td><code>configure_looker.py reads it directly</code></td><td>script</td></tr><tr><td>I1 repository, I3 pull</td><td><code>google_artifact_registry_repository.apps, …_iam_member.pull</code></td><td>10</td></tr><tr><td>I2 build</td><td><code>CI pipeline (unchanged)</code></td><td>CI</td></tr><tr><td>J1–J6 BigQuery</td><td><code>google_bigquery_dataset / table / table_iam_member / dataset_access</code></td><td>10</td></tr><tr><td>J7 tenants</td><td><code>stack 40-tenant-writer + tenant_projects map</code></td><td>40, 20</td></tr><tr><td>K1 ILB IP</td><td><code>google_compute_address.writeback_api_ilb</code></td><td>10</td></tr><tr><td>K2 ILB service</td><td><code>kubernetes_service_v1.writeback_api_ilb</code></td><td>20</td></tr><tr><td>K3 firewall</td><td><code>google_compute_firewall.actionhub_to_writeback_api</code></td><td>10</td></tr><tr><td>K4 DNS</td><td><code>google_dns_record_set.writeback_api</code></td><td>10</td></tr><tr><td>K5 TLS</td><td><code>Secret Manager containers (10) + PKI PEM + SecretProviderClass (module)</code></td><td>10, PKI, 20</td></tr><tr><td>K6 NetworkPolicies</td><td><code>kubernetes_network_policy_v1.writer_from_api / api_from_ilb</code></td><td>20</td></tr><tr><td>K7 Apigee PSC</td><td><code>data/resource google_compute_forwarding_rule.apigee_psc + egress firewall</code></td><td>10</td></tr><tr><td>K8 reachability test</td><td><code>AP2 check</code></td><td>—</td></tr><tr><td>K9 Action Hub service + policy</td><td><code>module.action_hub (ClusterIP) + kubernetes_network_policy_v1.ah_from_looker</code></td><td>20</td></tr><tr><td>K10 Entra egress</td><td><code>Spoke 2 network stack (not here)</code></td><td>Network</td></tr><tr><td>K11 control plane</td><td><code>master_authorized_networks_config in the cluster</code></td><td>10</td></tr><tr><td>L1–L3 Entra</td><td><code>azuread_application, _service_principal, _application_federated_identity_credential, _app_role_assignment</code></td><td>15</td></tr><tr><td>M, N ID&amp;A, Apigee</td><td><code>team processes (unchanged)</code></td><td>—</td></tr><tr><td>O1 ConfigMaps</td><td><code>kubernetes_config_map_v1.*</code></td><td>20</td></tr><tr><td>O2, O3 Deployments, PDB, HPA</td><td><code>module k8s-app</code></td><td>20</td></tr><tr><td>P1–P5 Looker</td><td><code>looker/configure_looker.py</code></td><td>script</td></tr><tr><td>Q1, Q2 monitoring</td><td><code>google_logging_metric.wb, google_monitoring_alert_policy.wb</code></td><td>10</td></tr><tr><td>R, S verify, promote</td><td><code>verify.sh, envs/pre, envs/prd, drift job</code></td><td>—</td></tr></table></div>
+
+<!-- ============================================================ X -->
+<h2 id="X">X · Differences from the gcloud runbook <small>deliberate improvements – please review</small></h2>
+<div class="tw"><table><tr><th>Topic</th><th>gcloud runbook</th><th>Terraform edition</th><th>Reason</th></tr>
+<tr><td>TLS key material</td><td>Kubernetes TLS Secrets from local .crt/.key files (K5)</td><td>One PEM per service in Secret Manager, mounted by the GKE Secret Manager add-on</td><td>No key in a Kubernetes Secret, file or Terraform state; same Workload Identity as the app</td></tr>
+<tr><td>Writer address</td><td><code>WRITER_URL=https://writer.internal</code> (no DNS record existed)</td><td><code>WRITER_URL=https://writer.writeback.svc.cluster.local</code>; <code>writer.internal</code> kept as the ID-token <b>audience</b> only</td><td>The Writer is a ClusterIP service; the audience string does not need DNS</td></tr>
+<tr><td>Action Hub secret</td><td><code>openssl rand | gcloud secrets create</code></td><td>Ephemeral random value, write-only version (H1); H1-alt keeps the gcloud way</td><td>Same “never on disk” rule, now repeatable for rotation</td></tr>
+<tr><td>Hand-over of the secret to Looker (H3)</td><td>Admin reads the value and pastes it</td><td>Script reads Secret Manager and calls the Looker API</td><td>Nobody sees the value</td></tr>
+<tr><td>Looker cluster C1/C2</td><td>Commands run as part of the set-up</td><td>Asserted by <code>check</code> blocks; commands only if a check fails</td><td>The Looker cluster already exists and is not owned by this code</td></tr>
+<tr><td>View access</td><td>dataViewer on the view</td><td>dataViewer on the view + authorised view on the dataset</td><td>So Looker’s connection can query the view without rights on writeback_log</td></tr>
+<tr><td>Egress for the write-back nodes</td><td>Implied</td><td>Explicit egress rule to the Apigee PSC IP on 443</td><td>Matches a default-deny egress posture in Spoke 2</td></tr>
+<tr><td>Kubernetes access</td><td><code>kubectl</code> with renamed contexts</td><td>Provider with <code>gke-gcloud-auth-plugin</code> (no token in state)</td><td>State hygiene</td></tr>
+<tr><td>Pods</td><td>Pattern in O2</td><td>Same, plus <code>automount_service_account_token = false</code>, zone spread, <code>/tmp</code> emptyDir, HPA owns replicas</td><td>Hardening; read-only root filesystem needs a writable /tmp</td></tr>
+</table></div>
+
+<!-- ============================================================ Z -->
+<h2 id="Z">Final checklist</h2>
+<ul class="check">
+<li>State bucket per environment, versioned, public access prevented (T3); one deployer identity per stack (T2)</li>
+<li>Looker cluster checks pass – workload pool, GKE_METADATA on every pool, Secret Manager add-on (C0)</li>
+<li>10-foundation applied; second plan shows no changes; writeback-gke private, Dataplane V2, Workload Identity, authorised networks only</li>
+<li>3 GSAs + 3 Workload Identity bindings; no user-managed keys; org policy effective</li>
+<li>looker-action-secret has a value that never appeared in plan or state; only action-hub@ can read it</li>
+<li>Three TLS PEM versions added by PKI; pods mount them from Secret Manager</li>
+<li>BigQuery dataset, table (partition expiry), view (authorised); writer@ insert on one table only</li>
+<li>ILB IP + DNS + firewall + Apigee PSC reachable; Entra egress from the Looker cluster only</li>
+<li>15-entra applied: app, federated credential (subject = action-hub@ unique id), app role granted, no secret</li>
+<li>ID&amp;A client, token profile and Apigee flows in place (M, N)</li>
+<li>20-workloads applied on both clusters: namespaces, policies, KSAs, ConfigMaps, three services with PDB + HPA, ILB</li>
+<li>configure_looker.py run: group, attribute, group value, role, Action Hub registered and healthy; LookML tags merged</li>
+<li>Tenant stacks applied and listed in tenant_projects (J7)</li>
+<li>verify.sh passes; tests R1–R8 pass; alerts and drift job active</li>
+</ul>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:'default',flowchart:{htmlLabels:true}});</script>
+</body></html>
