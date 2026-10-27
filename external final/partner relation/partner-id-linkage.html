@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Partner ID Linkage</title>
+<style>
+:root{
+  --ink:#16202c;--muted:#5a6878;--line:#dfe5ec;--bg:#ffffff;--soft:#f6f8fb;--accent:#0f3d68;
+  --ida:#5b2c83;--ida-l:#f1e9f8;--reg:#0b6e6e;--reg-l:#e2f3f2;--lk:#1f5fa8;--lk-l:#e6effa;--bq:#b4530b;--bq-l:#fdeee2;--rt:#475569;--rt-l:#eef2f6;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15.5px/1.6 "Segoe UI",Inter,Helvetica,Arial,sans-serif}
+.wrap{max-width:1240px;margin:0 auto;padding:0 24px 80px}
+.hero{background:linear-gradient(120deg,#0f3d68 0%,#1f5fa8 55%,#0b6e6e 100%);color:#fff;border-radius:0 0 22px 22px;padding:38px 36px 34px;margin:0 -24px 30px}
+.hero .eyebrow{font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+.hero h1{font-size:34px;line-height:1.2;margin:8px 0 10px;font-weight:700}
+.hero p{max-width:860px;margin:0;opacity:.92;font-size:16px}
+.chain{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:20px}
+.chain span{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:4px 12px;font-weight:600;font-size:14px}
+.chain i{font-style:normal;opacity:.8}
+h2{font-size:24px;color:var(--accent);margin:46px 0 6px;display:flex;align-items:center;gap:12px}
+h2 .no{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;font-size:16px}
+p.lede{color:var(--muted);margin:0 0 14px;max-width:960px}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0 4px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;border-radius:999px;padding:3px 11px;border:1px solid}
+.chip.ida{color:var(--ida);background:var(--ida-l);border-color:#d6c3e8}
+.chip.reg{color:var(--reg);background:var(--reg-l);border-color:#b5dedb}
+.chip.lk{color:var(--lk);background:var(--lk-l);border-color:#bcd3ef}
+.chip.bq{color:var(--bq);background:var(--bq-l);border-color:#f3cfb1}
+.chip.rt{color:var(--rt);background:var(--rt-l);border-color:#cfd8e3}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 6px 24px rgba(15,61,104,.07);padding:22px 20px 14px;margin:14px 0 8px;overflow-x:auto}
+.card .mermaid{text-align:center;margin:0}
+.cap{font-size:13.5px;color:var(--muted);text-align:center;margin:8px 0 0}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:14px;margin:12px 0 8px}
+table{border-collapse:collapse;width:100%;font-size:14px;background:#fff}
+th{background:var(--accent);color:#fff;text-align:left;font-weight:600;padding:10px 12px;white-space:nowrap}
+td{border-top:1px solid var(--line);padding:9px 12px;vertical-align:top}
+tr:nth-child(even) td{background:#fafbfd}
+td.k{font-weight:700;color:var(--accent);white-space:nowrap}
+code{font-family:Consolas,"Courier New",monospace;background:#eef3f8;border-radius:5px;padding:1px 6px;font-size:13px;white-space:nowrap}
+.key{background:var(--soft);border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:10px;padding:12px 16px;margin:16px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:14px 0}
+.tile{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:#fff}
+.tile b{display:block;color:var(--accent);margin-bottom:4px}
+.tile p{margin:0;color:var(--muted);font-size:14px}
+footer{margin-top:40px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:12px}
+@media(max-width:760px){.hero h1{font-size:26px}.hero{padding:28px 20px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<section class="hero">
+  <div class="eyebrow">Partner analytics · Embedded Looker on Google Cloud</div>
+  <h1>How a partner ID is linked to groups, folders and dashboards</h1>
+  <p>Every external user is identified by one <b>partner ID</b>. Through the Tenant Registry it resolves to a tenant, the tenant’s Looker groups, the folders those groups may open and the dashboards inside them – and to the row filters that limit the data to that tenant.</p>
+  <div class="chain"><span>Partner ID</span><i>→</i><span>Tenant</span><i>→</i><span>Looker groups</span><i>→</i><span>Folders</span><i>→</i><span>Dashboards</span><i>+</i><span>Row filters</span></div>
+</section>
+
+<div class="grid">
+  <div class="tile"><b>One identity</b><p><code>PRT-ACME-0071</code> is issued by ID&amp;A and arrives as the token subject. It is the only value the caller supplies.</p></div>
+  <div class="tile"><b>Groups decide which dashboards</b><p>A user reaches a dashboard only through <b>group → folder → dashboard</b>. There is no direct user-to-dashboard mapping.</p></div>
+  <div class="tile"><b>Attributes decide which rows</b><p><code>tenant_id</code> and <code>business_group</code> are applied as filters on every query in BigQuery.</p></div>
+</div>
+
+<!-- ================================================= 1 -->
+<h2><span class="no">1</span>Which dashboards – partner → group → folder → dashboard</h2>
+<p class="lede">Example partner user <code>PRT-ACME-0071</code> of tenant <code>acme</code>. Membership of a Looker group gives <b>View</b> on that group’s folder; the folder holds the dashboards. Small italic text names the registry table that stores each link.</p>
+<div class="legend">
+  <span class="chip ida">Partner identity (ID&amp;A)</span><span class="chip reg">Tenant (registry)</span><span class="chip lk">Looker group</span><span class="chip" style="color:#7a5b00;background:#fff5d6;border-color:#ecd48a">Looker folder</span><span class="chip lk" style="background:#fff">Dashboard</span>
+</div>
+<div class="card"><pre class="mermaid">
+flowchart LR
+  P(["<b>Partner ID</b><br/>PRT-ACME-0071"])
+  T["<b>Tenant</b><br/>acme · Acme Ltd"]
+  G17["<b>Looker group 17</b><br/>Partner acme"]
+  G31["<b>Looker group 31</b><br/>Partner acme – Retail"]
+  F512["<b>Folder 512</b><br/>Partners / acme"]
+  F530["<b>Folder 530</b><br/>Partners / acme / Retail"]
+  D42["<b>Dashboard 42</b><br/>Home"]
+  D43["<b>Dashboard 43</b><br/>Monthly Revenue"]
+  D44["<b>Dashboard 44</b><br/>Retail KPIs"]
+
+  P -- "belongs to<br/><i>partner_users</i>" --> T
+  T -. "owns<br/><i>tenant_groups</i>" .-> G17
+  T -. "owns<br/><i>tenant_groups</i>" .-> G31
+  P -- "member of<br/><i>partner_groups</i>" --> G17
+  P -- "member of<br/><i>partner_groups</i>" --> G31
+  G17 == "can view<br/><i>group_folders</i>" ==> F512
+  G31 == "can view<br/><i>group_folders</i>" ==> F530
+  F512 --> D42
+  F512 --> D43
+  F530 --> D44
+
+  classDef ida fill:#f1e9f8,stroke:#5b2c83,stroke-width:2.5px,color:#2d1442
+  classDef reg fill:#e2f3f2,stroke:#0b6e6e,stroke-width:2.5px,color:#063c3c
+  classDef grp fill:#e6effa,stroke:#1f5fa8,stroke-width:2.5px,color:#0d2f57
+  classDef fld fill:#fff5d6,stroke:#b38600,stroke-width:2.5px,color:#4d3a00
+  classDef dsh fill:#ffffff,stroke:#1f5fa8,stroke-width:2.5px,color:#0d2f57
+  classDef usr fill:#eef2f6,stroke:#475569,stroke-width:2px,color:#1e293b,stroke-dasharray:6 4
+  classDef att fill:#ffffff,stroke:#0b6e6e,stroke-width:2px,color:#063c3c,stroke-dasharray:6 4
+  classDef bq fill:#fdeee2,stroke:#b4530b,stroke-width:2.5px,color:#5a2700
+  class P ida
+  class T reg
+  class G17,G31 grp
+  class F512,F530 fld
+  class D42,D43,D44 dsh
+  linkStyle 5,6 stroke:#b38600,stroke-width:3.5px
+  linkStyle 7,8,9 stroke:#1f5fa8,stroke-width:2px
+</pre>
+<div class="cap">Figure 1 – <code>PRT-ACME-0071</code> can open dashboards 42 and 43 (folder 512, via group 17) and 44 (folder 530, via group 31). Home dashboard for the tenant: 42</div></div>
+
+<h2><span class="no">2</span>Which rows, and which Looker user</h2>
+<p class="lede">The same partner ID also decides the data filter and the Looker account. Tenant and business group are sent as user attributes in the signed embed URL; Looker adds them as filters on every BigQuery query. The external user ID ties the partner to one permanent Looker embed user.</p>
+<div class="card"><pre class="mermaid">
+flowchart LR
+  P(["<b>Partner ID</b><br/>PRT-ACME-0071"])
+  T["<b>Tenant</b><br/>acme"]
+  BG["<b>Business group</b><br/>retail"]
+  A1["user attribute<br/><b>tenant_id = acme</b>"]
+  A2["user attribute<br/><b>business_group = retail</b>"]
+  R[("<b>BigQuery rows</b><br/>WHERE tenant_id = 'acme'<br/>AND business_group = 'retail'")]
+  X["<b>External user ID</b><br/>PRT-ACME-0071::acme"]
+  U["<b>Looker embed user</b><br/>id 2381"]
+
+  P -- "<i>partner_users.tenant_id</i>" --> T
+  P -- "<i>partner_users.business_groups</i>" --> BG
+  P -. "<i>generated column</i>" .-> X
+  T --> A1
+  BG --> A2
+  A1 -- "access filter" --> R
+  A2 -- "access filter" --> R
+  X -. "created at first login" .-> U
+
+  classDef ida fill:#f1e9f8,stroke:#5b2c83,stroke-width:2.5px,color:#2d1442
+  classDef reg fill:#e2f3f2,stroke:#0b6e6e,stroke-width:2.5px,color:#063c3c
+  classDef grp fill:#e6effa,stroke:#1f5fa8,stroke-width:2.5px,color:#0d2f57
+  classDef fld fill:#fff5d6,stroke:#b38600,stroke-width:2.5px,color:#4d3a00
+  classDef dsh fill:#ffffff,stroke:#1f5fa8,stroke-width:2.5px,color:#0d2f57
+  classDef usr fill:#eef2f6,stroke:#475569,stroke-width:2px,color:#1e293b,stroke-dasharray:6 4
+  classDef att fill:#ffffff,stroke:#0b6e6e,stroke-width:2px,color:#063c3c,stroke-dasharray:6 4
+  classDef bq fill:#fdeee2,stroke:#b4530b,stroke-width:2.5px,color:#5a2700
+  class P ida
+  class T,BG,X reg
+  class A1,A2 att
+  class R bq
+  class U usr
+  linkStyle 5,6 stroke:#b4530b,stroke-width:3px
+</pre>
+<div class="cap">Figure 2 – Row filter and Looker identity derived from the same partner ID</div></div>
+
+<!-- ================================================= 2 -->
+<h2><span class="no">3</span>The data model behind the chain</h2>
+<p class="lede">The Tenant Registry holds every link. Looker generates the group and folder IDs; we copy them into the registry so one query can resolve a partner ID to everything it needs.</p>
+<div class="card"><pre class="mermaid">
+erDiagram
+  TENANTS ||--o{ PARTNER_USERS : "has"
+  TENANTS ||--o{ TENANT_GROUPS : "owns"
+  PARTNER_USERS ||--o{ PARTNER_GROUPS : "is member via"
+  TENANT_GROUPS ||--o{ PARTNER_GROUPS : "includes"
+  TENANT_GROUPS ||--o{ GROUP_FOLDERS : "can view"
+  ROLE_CAPABILITIES ||--o{ PARTNER_USERS : "caps role"
+
+  TENANTS {
+    text tenant_id PK "acme"
+    text display_name "Acme Ltd"
+    text status "active"
+    text home_dashboard_id "42"
+  }
+  PARTNER_USERS {
+    text partner_id PK "PRT-ACME-0071"
+    text tenant_id FK "acme"
+    text status "active"
+    text max_role FK "analyst"
+    text business_groups "retail"
+    text looker_external_user_id UK "generated"
+    text looker_user_id "2381"
+  }
+  TENANT_GROUPS {
+    text tenant_id PK "acme"
+    text looker_group_id PK "17 / 31"
+    text group_name "Partner acme"
+    text group_type "tenant / business_group"
+  }
+  PARTNER_GROUPS {
+    text partner_id PK "PRT-ACME-0071"
+    text looker_group_id PK "17 / 31"
+    timestamptz valid_from "open"
+    timestamptz valid_to "null"
+  }
+  GROUP_FOLDERS {
+    text looker_group_id PK "17"
+    text looker_folder_id PK "512"
+    text folder_path "Partners/acme"
+    text permission "view"
+  }
+  ROLE_CAPABILITIES {
+    text role_name PK "analyst"
+    text_array looker_permissions "see dashboards"
+    text_array looker_models "partner_analytics"
+  }
+</pre>
+<div class="cap">Figure 3 – Registry tables (Cloud SQL for PostgreSQL). Dashboards are not stored: they are read live from the folders in Looker</div></div>
+
+<!-- ================================================= 3 -->
+<h2><span class="no">4</span>How the links are used at every login</h2>
+<p class="lede">The partner ID is resolved in one registry query; the result decides which dashboards are listed and what goes into the signed embed URL. Looker then enforces both controls on every open and every query.</p>
+<div class="card"><pre class="mermaid">
+flowchart LR
+  A(["<b>Token subject</b><br/>PRT-ACME-0071"]) --> B["<b>Registry lookup</b><br/>tenant acme<br/>groups 17, 31<br/>folders 512, 530"]
+  B --> C["<b>List dashboards</b><br/>42, 43, 44"]
+  C --> D["<b>Signed embed URL</b><br/>groups 17, 31<br/>tenant_id · business_group"]
+  D --> E["<b>Looker</b><br/>user 2381<br/>opens dashboard 42"]
+  E --> F[("<b>BigQuery</b><br/>acme / retail rows")]
+  classDef s1 fill:#f1e9f8,stroke:#5b2c83,stroke-width:2.5px,color:#2d1442
+  classDef s2 fill:#e2f3f2,stroke:#0b6e6e,stroke-width:2.5px,color:#063c3c
+  classDef s3 fill:#e6effa,stroke:#1f5fa8,stroke-width:2.5px,color:#0d2f57
+  classDef s4 fill:#fdeee2,stroke:#b4530b,stroke-width:2.5px,color:#5a2700
+  class A s1
+  class B s2
+  class C,D,E s3
+  class F s4
+</pre>
+<div class="cap">Figure 4 – Resolution at login: one lookup, one dashboard list, one signed URL</div></div>
+
+<!-- ================================================= 4 -->
+<h2><span class="no">5</span>The links in a table</h2>
+<p class="lede">Each row is one link in the chain: what it connects, where the link is stored, an example, and who creates it.</p>
+<div class="legend">
+  <span class="chip lk">Looker-generated</span><span class="chip reg">Manual (onboarding)</span><span class="chip ida">From ID&amp;A</span><span class="chip rt">Automatic</span>
+</div>
+<div class="tw"><table>
+<tr><th>#</th><th>From</th><th>To</th><th>Link stored in</th><th>Example</th><th>Who creates it</th><th>Cardinality</th></tr>
+<tr><td class="k">1</td><td>Partner ID</td><td>Tenant</td><td><code>partner_users.tenant_id</code></td><td><code>PRT-ACME-0071</code> → <code>acme</code></td><td><span class="chip reg">Manual</span> onboarding team</td><td>many partners → one tenant</td></tr>
+<tr><td class="k">2</td><td>Tenant</td><td>Looker groups</td><td><code>tenant_groups</code></td><td><code>acme</code> → <code>17</code>, <code>31</code></td><td><span class="chip lk">Looker-generated</span> id, copied in</td><td>one tenant → many groups</td></tr>
+<tr><td class="k">3</td><td>Partner ID</td><td>Looker groups (membership)</td><td><code>partner_groups</code></td><td><code>PRT-ACME-0071</code> → <code>17</code>, <code>31</code></td><td><span class="chip reg">Manual</span> per approved request</td><td>many ↔ many, with valid_from / valid_to</td></tr>
+<tr><td class="k">4</td><td>Looker group</td><td>Folder</td><td><code>group_folders</code> + Looker folder access (View)</td><td><code>17</code> → <code>512</code>, <code>31</code> → <code>530</code></td><td><span class="chip lk">Looker-generated</span> id, copied in</td><td>one group → one or more folders</td></tr>
+<tr><td class="k">5</td><td>Folder</td><td>Dashboards</td><td>Looker (folder contents) – not stored</td><td><code>512</code> → <code>42</code>, <code>43</code> · <code>530</code> → <code>44</code></td><td><span class="chip lk">Looker-generated</span> when saved or copied</td><td>one folder → many dashboards</td></tr>
+<tr><td class="k">6</td><td>Tenant</td><td>Landing dashboard</td><td><code>tenants.home_dashboard_id</code></td><td><code>acme</code> → <code>42</code></td><td><span class="chip reg">Manual</span> (Looker id)</td><td>one per tenant</td></tr>
+<tr><td class="k">7</td><td>Partner ID + tenant</td><td>Looker embed user</td><td><code>partner_users.looker_external_user_id</code></td><td><code>PRT-ACME-0071::acme</code> → user <code>2381</code></td><td><span class="chip rt">Automatic</span> generated column; user id by Looker at first login</td><td>one to one, permanent</td></tr>
+<tr><td class="k">8</td><td>Tenant</td><td>Data rows</td><td>User attribute <code>tenant_id</code> + LookML access filter</td><td><code>WHERE tenant_id = 'acme'</code></td><td><span class="chip rt">Automatic</span> sent in every signed URL</td><td>one tenant → its rows only</td></tr>
+<tr><td class="k">9</td><td>Partner ID</td><td>Business-group rows</td><td><code>partner_users.business_groups</code> → user attribute</td><td><code>WHERE business_group = 'retail'</code></td><td><span class="chip reg">Manual</span> value, applied automatically</td><td>one partner → one or more groups</td></tr>
+<tr><td class="k">10</td><td>Partner ID</td><td>Role / permissions</td><td><code>partner_users.max_role</code> → <code>role_capabilities</code></td><td><code>analyst</code> → see and explore dashboards</td><td><span class="chip reg">Manual</span> ceiling</td><td>one role per partner</td></tr>
+</table></div>
+
+<h2><span class="no">6</span>Identifiers at a glance</h2>
+<div class="tw"><table>
+<tr><th>Identifier</th><th>Example</th><th>Issued by</th><th>Where it lives</th><th>Used for</th></tr>
+<tr><td class="k">Partner ID</td><td><code>PRT-ACME-0071</code></td><td><span class="chip ida">ID&amp;A</span></td><td>Token subject · <code>partner_users</code></td><td>The single key the caller supplies</td></tr>
+<tr><td class="k">Tenant ID</td><td><code>acme</code></td><td><span class="chip reg">Onboarding</span></td><td><code>tenants</code></td><td>Groups the partner company; row filter</td></tr>
+<tr><td class="k">Looker group ID</td><td><code>17</code>, <code>31</code></td><td><span class="chip lk">Looker</span></td><td>Looker · <code>tenant_groups</code>, <code>partner_groups</code></td><td>Which folders the user may open</td></tr>
+<tr><td class="k">Folder ID</td><td><code>512</code>, <code>530</code></td><td><span class="chip lk">Looker</span></td><td>Looker · <code>group_folders</code></td><td>Container that holds the dashboards</td></tr>
+<tr><td class="k">Dashboard ID</td><td><code>42</code>, <code>43</code>, <code>44</code></td><td><span class="chip lk">Looker</span></td><td>Looker folder contents · <code>tenants.home_dashboard_id</code></td><td>What the user opens</td></tr>
+<tr><td class="k">External user ID</td><td><code>PRT-ACME-0071::acme</code></td><td><span class="chip rt">Database</span></td><td><code>partner_users</code> (generated)</td><td>Ties the partner to one Looker embed user</td></tr>
+<tr><td class="k">Looker user ID</td><td><code>2381</code></td><td><span class="chip lk">Looker</span></td><td>Looker · optional copy in <code>partner_users</code></td><td>Support and audit</td></tr>
+<tr><td class="k">Business group</td><td><code>retail</code></td><td><span class="chip reg">Onboarding</span></td><td><code>partner_users</code>, <code>tenant_groups</code></td><td>Narrower row filter</td></tr>
+</table></div>
+
+<div class="key"><b>Why this design.</b> The caller never sends a tenant, group or folder – only the verified partner ID. Everything else comes from the registry, so access can be changed (add a folder, end a membership, suspend a tenant) with one row change, effective at the next login. Looker checks the folder permission on every dashboard open, and the row filters on every query.</div>
+
+<footer>Partner dashboard access · Tenant Registry design · example values: tenant <code>acme</code>, partner <code>PRT-ACME-0071</code></footer>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'base',
+  securityLevel: 'loose',
+  themeVariables: {
+    fontFamily: '"Segoe UI", Inter, Helvetica, Arial, sans-serif',
+    fontSize: '16px',
+    primaryColor: '#e6effa', primaryBorderColor: '#1f5fa8', primaryTextColor: '#0d2f57',
+    lineColor: '#5a6878', edgeLabelBackground: '#ffffff', tertiaryColor: '#f6f8fb'
+  },
+  flowchart: { curve: 'basis', htmlLabels: true, nodeSpacing: 40, rankSpacing: 80, padding: 14, useMaxWidth: true },
+  er: { useMaxWidth: true, fontSize: 14, entityPadding: 14 }
+});
+</script>
+</body></html>
