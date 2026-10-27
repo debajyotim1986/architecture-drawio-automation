@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Write-back Call Flow</title>
+<style>
+:root{--ink:#1d2733;--muted:#5b6b7b;--line:#d9e1ea;--soft:#f5f8fb;--accent:#1f4e79;--accent2:#2e75b6}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:var(--ink);font:15px/1.6 "Segoe UI",Helvetica,Arial,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+header{border-bottom:3px solid var(--accent);padding-bottom:14px;margin-bottom:20px}
+.eyebrow{font-size:13px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+h1{font-size:30px;margin:6px 0 8px;color:var(--accent)}
+h2{font-size:22px;margin:44px 0 10px;padding:10px 14px;border-radius:8px;color:#fff;background:var(--accent)}
+h2 small{font-weight:400;font-size:14px;opacity:.85;margin-left:8px}
+h3{font-size:16.5px;margin:0 0 6px;color:var(--accent)}
+p.lede{color:var(--muted);margin:0 0 10px}
+nav.toc{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:12px 18px;margin:16px 0}
+nav.toc ol{margin:6px 0 0;padding-left:22px;columns:2;column-gap:26px}
+nav.toc a{color:var(--accent2);text-decoration:none}
+.step{border:1px solid var(--line);border-left:6px solid var(--c,var(--accent2));border-radius:10px;padding:12px 16px;margin:14px 0}
+.num{display:inline-block;min-width:40px;margin-right:8px;font-weight:700;color:var(--c,var(--accent2))}
+.path{font-size:13px;color:var(--muted);margin:0 0 6px}
+.path b{color:var(--ink)}
+table{border-collapse:collapse;width:100%;margin:8px 0 14px;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:var(--accent);color:#fff}
+tr:nth-child(even) td{background:#fafcfe}
+.tw{overflow-x:auto}
+code{font-family:Consolas,"Courier New",monospace;background:#eef3f8;border-radius:4px;padding:1px 5px;font-size:12.5px;word-break:break-word}
+pre{background:#0f1b2a;color:#e8eef5;border-radius:8px;padding:12px 14px;overflow-x:auto;font:12.5px/1.5 Consolas,"Courier New",monospace;margin:8px 0}
+pre .c{color:#8fb3d9}
+pre.mermaid{background:transparent;color:inherit;padding:0;margin:0;overflow:visible}
+.dia{border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0;overflow-x:auto;text-align:center}
+.cap{font-size:13px;color:var(--muted);text-align:center;margin:-6px 0 14px}
+.check{background:#e2efda;border-radius:6px;padding:6px 10px;margin-top:6px;font-size:13.5px}
+.check b{color:#38761d}
+.fail{background:#fde9e7;border-radius:6px;padding:6px 10px;margin-top:6px;font-size:13.5px}
+.fail b{color:#c00000}
+.note{background:#fff4ce;border-left:5px solid #c9a227;border-radius:6px;padding:10px 14px;margin:12px 0}
+.info{background:#e8f1fb;border-left:5px solid var(--accent2);border-radius:6px;padding:10px 14px;margin:12px 0}
+@media(max-width:860px){nav.toc ol{columns:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Looker write-back to BigQuery · Architecture v6 · Runtime behaviour</div>
+  <h1>Write-back – end-to-end call flow</h1>
+  <p class="lede">What happens, call by call, from the moment a user clicks “Write back” on a Looker dashboard until the new value is shown: Looker → Action Hub → Microsoft Entra → Apigee → ID&amp;A → Write-back API → Writer API → BigQuery → back to Looker. Each step lists the endpoint, what is sent, what is checked, what comes back and what happens if it fails.</p>
+</header>
+
+<nav class="toc"><b>Sections</b><ol>
+<li><a href="#pre">Before the click (already in place)</a></li>
+<li><a href="#seq">Sequence diagram</a></li>
+<li><a href="#A">A · User and Looker (steps 1–4)</a></li>
+<li><a href="#B">B · Action Hub checks (steps 5–6)</a></li>
+<li><a href="#C">C · Microsoft Entra token (steps 7–8)</a></li>
+<li><a href="#D">D · Apigee and ID&amp;A token exchange (steps 9–11)</a></li>
+<li><a href="#E">E · Write-back API (steps 12–15)</a></li>
+<li><a href="#F">F · Writer API and BigQuery (steps 16–18)</a></li>
+<li><a href="#G">G · Back to the user (steps 19–21)</a></li>
+<li><a href="#T">Tokens used in the flow</a></li>
+<li><a href="#X">Failure paths</a></li>
+<li><a href="#N">Network path of each call</a></li>
+</ol></nav>
+
+<h2 id="pre">Before the click <small>already in place, not part of each request</small></h2>
+<div class="tw"><table>
+<tr><th>#</th><th>What</th><th>Result</th></tr>
+<tr><td>P1</td><td>User signs in to Looker through the existing Entra SAML app</td><td>Looker session; authentication only – no write permission comes from Entra</td></tr>
+<tr><td>P2</td><td>User is a member of the Looker group “Writeback Users”</td><td>User attribute <code>writeback_allowed = yes</code> (everyone else: <code>no</code>)</td></tr>
+<tr><td>P3</td><td>Looker admin registered the Action Hub; Looker called <code>POST /</code> on it</td><td>Looker knows the action “Write back” and on which fields it applies</td></tr>
+<tr><td>P4</td><td>LookML field has <code>tags: ["writeback_key"]</code></td><td>The action appears on that field’s menu</td></tr>
+<tr><td>P5</td><td>Pods started with Workload Identity</td><td>Action Hub = <code>action-hub@</code>, Write-back API = <code>writeback-api@</code>, Writer = <code>writer@</code>; no keys anywhere</td></tr>
+</table></div>
+
+<h2 id="seq">Sequence diagram</h2>
+<div class="dia"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant L as Looker
+  participant AH as Action Hub
+  participant MD as GKE metadata<br/>server
+  participant EN as Microsoft Entra
+  participant AP as Apigee
+  participant ID as ID&A
+  participant WB as Write-back API
+  participant WR as Writer API
+  participant BQ as BigQuery
+  U->>L: click value → Actions → Write back
+  L->>AH: POST /actions/writeback/form
+  AH-->>L: form (new value, comment)
+  U->>L: enter value, Submit
+  L->>AH: POST /actions/writeback/execute (Looker secret)
+  AH->>AH: check secret, writeback_allowed = yes, payload
+  AH->>MD: Google ID token (aud api://AzureADTokenExchange)
+  AH->>EN: POST /oauth2/v2.0/token (client_assertion)
+  EN-->>AH: Entra access token
+  AH->>AP: POST /v1/token-exchange (Entra token)
+  AP->>ID: exchange (after VerifyJWT, quota)
+  ID-->>AP: ID&A JWT (aud writeback-api)
+  AP-->>AH: ID&A JWT
+  AH->>WB: POST /v1/writeback (Bearer ID&A JWT)
+  WB->>AP: GET /v1/jwks (cached 10 min)
+  WB->>WB: verify JWT, apply rules
+  WB->>MD: Google ID token (aud https://writer.internal)
+  WB->>WR: POST /v1/write (Bearer Google ID token)
+  WR->>BQ: insert writeback_log (insertId = request_id)
+  BQ-->>WR: ok
+  WR-->>WB: 200 row ref
+  WB-->>AH: 200 written
+  AH-->>L: success, refresh_query
+  L->>BQ: re-run tile query (current_state view)
+  L-->>U: new value on the dashboard
+</pre></div>
+<div class="cap">Figure 1 – One write-back click; numbers are the call order (the form call is skipped if the action has no form)</div>
+
+<!-- ======================= A -->
+<h2 id="A">A · User and Looker <small>steps 1–4</small></h2>
+
+<div class="step" style="--c:#a0430a"><h3><span class="num">1</span>User clicks the value and chooses “Write back”</h3>
+<p class="path"><b>User → Looker UI</b> (browser, existing Looker session)</p>
+<p>On a dashboard tile the user clicks a value of a field tagged <code>writeback_key</code>. The drill/actions menu shows <b>Write back</b> (listed by the Action Hub at registration, step P3).</p>
+<div class="check"><b>Check:</b> the action is visible only on tagged fields; the role “Writeback User” (send_to_integration) is needed to send.</div>
+</div>
+
+<div class="step" style="--c:#255a12"><h3><span class="num">2</span>Looker asks the Action Hub for the form</h3>
+<p class="path"><b>Looker server → Action Hub</b> · <code>POST https://action-hub.looker-actions.svc.cluster.local/actions/writeback/form</code></p>
+<pre>Authorization: Token token="&lt;looker-action-secret&gt;"
+{ "data": { "record_key": "ACC-1042", "field": "forecast_value", "current_value": "118000" } }</pre>
+<p>Action Hub checks the Looker secret and returns the form definition:</p>
+<pre>[ { "name": "new_value", "label": "New value", "type": "text", "required": true },
+  { "name": "comment",   "label": "Comment",   "type": "textarea" } ]</pre>
+<div class="fail"><b>If it fails:</b> wrong secret → 401 → Looker shows “action unavailable”. Skipped entirely if the action has no form.</div>
+</div>
+
+<div class="step" style="--c:#a0430a"><h3><span class="num">3</span>User enters the new value and submits</h3>
+<p class="path"><b>User → Looker UI</b></p>
+<p>Example: new value <code>125000</code>, comment “Q4 update”. The browser never talks to the Action Hub – only the Looker server does.</p>
+</div>
+
+<div class="step" style="--c:#255a12"><h3><span class="num">4</span>Looker sends the action to the Action Hub</h3>
+<p class="path"><b>Looker server → Action Hub</b> · <code>POST /actions/writeback/execute</code> (inside the Looker cluster, ClusterIP + NetworkPolicy)</p>
+<pre>Authorization: Token token="&lt;looker-action-secret&gt;"
+{ "type": "cell",
+  "data": { "record_key": "ACC-1042", "field": "forecast_value", "value": "118000" },
+  "form_params": { "new_value": "125000", "comment": "Q4 update" },
+  "params": { "user_email": "jane.doe@lbg.example", "user_id": "2381",
+              "writeback_allowed": "yes", "tenant": "tenant_a" } }</pre>
+<p class="path">The <code>params</code> values come from Looker user attributes (liquid <code>{{ _user_attributes['writeback_allowed'] }}</code> etc.), so the user cannot change them.</p>
+</div>
+
+<!-- ======================= B -->
+<h2 id="B">B · Action Hub checks <small>steps 5–6</small></h2>
+
+<div class="step" style="--c:#255a12"><h3><span class="num">5</span>Check the Looker secret</h3>
+<p class="path"><b>Action Hub → Secret Manager</b> · <code>accessSecretVersion projects/looker-prj-int/secrets/looker-action-secret/versions/latest</code> (Workload Identity as <code>action-hub@</code>; value cached in memory 5 min)</p>
+<p>Compare the token in the <code>Authorization</code> header with the secret (constant-time compare).</p>
+<div class="fail"><b>If it fails:</b> 401 to Looker; audit event <code>ACTION_AUTH_FAILED</code>.</div>
+</div>
+
+<div class="step" style="--c:#255a12"><h3><span class="num">6</span>Check permission and payload, create the request id</h3>
+<ul>
+<li><code>writeback_allowed</code> must be <code>yes</code> → otherwise <b>403</b>, nothing else is called.</li>
+<li>Required fields present: <code>record_key</code>, <code>field</code>, <code>new_value</code>, <code>user_email</code>, <code>user_id</code>.</li>
+<li>Create <code>request_id</code> (UUID) – sent as <code>X-Request-Id</code> on every following call and used by the Writer to avoid duplicates.</li>
+</ul>
+<div class="fail"><b>If it fails:</b> 403 “not allowed to write back” or 400 “missing field” returned to Looker; no token is requested.</div>
+</div>
+
+<!-- ======================= C -->
+<h2 id="C">C · Microsoft Entra token <small>steps 7–8 · service identity, no user token</small></h2>
+
+<div class="step" style="--c:#005a9e"><h3><span class="num">7</span>Get a Google ID token for Entra</h3>
+<p class="path"><b>Action Hub → GKE metadata server</b> · <code>GET http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=api://AzureADTokenExchange&amp;format=full</code> (header <code>Metadata-Flavor: Google</code>)</p>
+<p>Returns a Google-signed ID token for <code>action-hub@</code>: <code>iss https://accounts.google.com</code>, <code>sub &lt;unique id of action-hub@&gt;</code>, <code>aud api://AzureADTokenExchange</code>, valid 1 hour. This replaces a client secret.</p>
+</div>
+
+<div class="step" style="--c:#005a9e"><h3><span class="num">8</span>Call the Microsoft Entra token endpoint</h3>
+<p class="path"><b>Action Hub → Microsoft Entra</b> · <code>POST https://login.microsoftonline.com/&lt;tenant-id&gt;/oauth2/v2.0/token</code> (egress from the Looker cluster through the Spoke 2 proxy / NAT allow-list)</p>
+<pre>Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials
+&amp;client_id=&lt;app id of looker-writeback-action-hub&gt;
+&amp;scope=api://ida-token-exchange/.default
+&amp;client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer
+&amp;client_assertion=&lt;Google ID token from step 7&gt;</pre>
+<p>Entra checks the app’s <b>federated credential</b>: issuer <code>https://accounts.google.com</code>, subject = unique id of <code>action-hub@</code>, audience <code>api://AzureADTokenExchange</code>. It then issues an app-only token:</p>
+<pre>{ "token_type": "Bearer", "expires_in": 3599, "access_token": "&lt;Entra access token&gt;" }</pre>
+<div class="check"><b>Cached:</b> the Entra token is reused until about 5 minutes before expiry, so most clicks skip steps 7–8.</div>
+<div class="fail"><b>If it fails:</b> <code>AADSTS70021</code> (subject / audience mismatch) or network error → retry once, then 502 to Looker “write-back service unavailable”; audit <code>ENTRA_TOKEN_FAILED</code>.</div>
+<p class="path">The <code>scope</code> value is the Entra identifier of the ID&amp;A exchange API – confirm the exact value with ID&amp;A.</p>
+</div>
+
+<!-- ======================= D -->
+<h2 id="D">D · Apigee and ID&amp;A token exchange <small>steps 9–11</small></h2>
+
+<div class="step" style="--c:#8c6a00"><h3><span class="num">9</span>Pass the Entra token to Apigee</h3>
+<p class="path"><b>Action Hub → Apigee</b> · <code>POST https://api-int.lloyds.internal/lloyds-auth-int/v1/token-exchange</code> (Spoke 2 PSC endpoint → Apigee; TLS, internal CA)</p>
+<pre>Content-Type: application/x-www-form-urlencoded
+X-Request-Id: 7f3c…
+
+grant_type=urn:ietf:params:oauth:grant-type:token-exchange
+&amp;subject_token=&lt;Entra access token&gt;
+&amp;subject_token_type=urn:ietf:params:oauth:token-type:access_token
+&amp;audience=writeback-api
+&amp;scope=writeback.write</pre>
+</div>
+
+<div class="step" style="--c:#8c6a00"><h3><span class="num">10</span>Apigee checks the request and forwards it to ID&amp;A</h3>
+<p class="path"><b>Apigee proxy lloyds-auth-int</b> policy flow</p>
+<ol>
+<li>SpikeArrest 50 per second.</li>
+<li>Quota 600 per minute per client.</li>
+<li>VerifyJWT on <code>subject_token</code>: Entra JWKS signature, issuer <code>https://sts.windows.net/&lt;tenant&gt;/</code>, audience <code>api://ida-token-exchange</code>, not expired, <code>appid</code> = Action Hub app.</li>
+<li>Route to the ID&amp;A token-exchange service.</li>
+</ol>
+<div class="fail"><b>If it fails:</b> 401 (bad or expired Entra token) or 429 (quota) back to the Action Hub → Action Hub drops its cached Entra token, retries once from step 7, then 502 to Looker.</div>
+</div>
+
+<div class="step" style="--c:#7030a0"><h3><span class="num">11</span>ID&amp;A issues the ID&amp;A JWT</h3>
+<p class="path"><b>ID&amp;A → Apigee → Action Hub</b></p>
+<pre>{ "access_token": "&lt;ID&amp;A JWT&gt;", "token_type": "Bearer", "expires_in": 900 }
+
+// decoded claims
+{ "iss": "https://ida.lloyds.internal", "sub": "looker-action-hub", "aud": "writeback-api",
+  "scope": "writeback.write", "exp": 1730000900, "kid": "ida-2026-10" }</pre>
+<div class="check"><b>Cached:</b> the ID&amp;A JWT is reused for about 14 minutes (expires in 15).</div>
+</div>
+
+<!-- ======================= E -->
+<h2 id="E">E · Write-back API <small>steps 12–15 · new write-back cluster, Spoke 2</small></h2>
+
+<div class="step" style="--c:#12355b"><h3><span class="num">12</span>Action Hub calls the Write-back API</h3>
+<p class="path"><b>Action Hub → Write-back API</b> · <code>POST https://writeback-api-int.internal/v1/writeback</code> (internal LB in Spoke 2; only the Looker cluster pod range is allowed)</p>
+<pre>Authorization: Bearer &lt;ID&amp;A JWT&gt;
+X-Request-Id: 7f3c…
+{ "request_id": "7f3c…", "tenant": "tenant_a", "record_key": "ACC-1042", "field": "forecast_value",
+  "old_value": "118000", "new_value": "125000", "comment": "Q4 update",
+  "actor_email": "jane.doe@lbg.example", "actor_id": "2381" }</pre>
+</div>
+
+<div class="step" style="--c:#12355b"><h3><span class="num">13</span>Verify the ID&amp;A JWT</h3>
+<p class="path"><b>Write-back API → Apigee</b> · <code>GET https://api-int.lloyds.internal/lloyds-auth-int/v1/jwks</code> (only when the key cache is empty or a new <code>kid</code> appears; cached 10 min)</p>
+<p>Checks: RS256 signature with the key matching <code>kid</code> · <code>iss</code> = ID&amp;A · <code>aud</code> = <code>writeback-api</code> · <code>scope</code> contains <code>writeback.write</code> · <code>sub</code> = <code>looker-action-hub</code> · not expired (60 s clock skew).</p>
+<div class="fail"><b>If it fails:</b> 401 <code>invalid_token</code> → Action Hub drops its cached ID&amp;A JWT, retries once from step 9, then 502 to Looker.</div>
+</div>
+
+<div class="step" style="--c:#12355b"><h3><span class="num">14</span>Apply the write-back rules</h3>
+<p class="path"><b>Write-back API</b> (rules from <code>/config/writeback-rules.yaml</code>)</p>
+<ul>
+<li>Field <code>forecast_value</code> is writable; value is a number within 0 – 100,000,000.</li>
+<li><code>record_key</code> matches the allowed pattern; tenant is known.</li>
+<li>Rate limit per user (30 per minute).</li>
+</ul>
+<div class="fail"><b>If it fails:</b> 400 (invalid value) or 403 (field / tenant not allowed) → Action Hub returns the message to Looker; nothing is written.</div>
+</div>
+
+<div class="step" style="--c:#12355b"><h3><span class="num">15</span>Get a Google ID token for the Writer</h3>
+<p class="path"><b>Write-back API → GKE metadata server</b> · <code>…/service-accounts/default/identity?audience=https://writer.internal&amp;format=full</code></p>
+<p>Returns an ID token for <code>writeback-api@</code> with <code>aud https://writer.internal</code>.</p>
+</div>
+
+<!-- ======================= F -->
+<h2 id="F">F · Writer API and BigQuery <small>steps 16–18</small></h2>
+
+<div class="step" style="--c:#005353"><h3><span class="num">16</span>Write-back API calls the Writer</h3>
+<p class="path"><b>Write-back API → Writer API</b> · <code>POST https://writer.writeback.svc.cluster.local/v1/write</code> (ClusterIP; NetworkPolicy allows only Write-back API pods)</p>
+<pre>Authorization: Bearer &lt;Google ID token&gt;
+X-Request-Id: 7f3c…
+{ "request_id": "7f3c…", "tenant": "tenant_a", "record_key": "ACC-1042", "field": "forecast_value",
+  "new_value": "125000", "actor_email": "jane.doe@lbg.example", "actor_id": "2381" }</pre>
+<p>Writer verifies the ID token with Google’s public certificates: <code>aud</code> = <code>https://writer.internal</code>, <code>email</code> = <code>writeback-api@…</code>, <code>email_verified</code> = true.</p>
+<div class="fail"><b>If it fails:</b> 401 / 403 <code>caller_not_allowed</code> → 502 back up the chain.</div>
+</div>
+
+<div class="step" style="--c:#005353"><h3><span class="num">17</span>(Tenant-owned dataset only) impersonate the tenant writer</h3>
+<p class="path"><b>Writer → IAM Credentials</b> · <code>POST https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/writer-tenant-a@tenant-a-data-prj.iam.gserviceaccount.com:generateAccessToken</code></p>
+<p>Allowed because the tenant granted <code>roles/iam.serviceAccountTokenCreator</code> to <code>writer@</code>. Returns a 1-hour access token for <code>writer-tenant-a@</code>. Skipped for the platform-owned dataset.</p>
+</div>
+
+<div class="step" style="--c:#005353"><h3><span class="num">18</span>Insert the row in BigQuery</h3>
+<p class="path"><b>Writer → BigQuery</b> · <code>POST https://bigquery.googleapis.com/bigquery/v2/projects/lbg-data-prj-int/datasets/writeback/tables/writeback_log/insertAll</code> (Private Google Access)</p>
+<pre>{ "rows": [ { "insertId": "7f3c…",
+  "json": { "request_id": "7f3c…", "record_key": "ACC-1042", "field": "forecast_value", "new_value": "125000",
+            "actor_email": "jane.doe@lbg.example", "actor_id": "2381", "written_at": "2026-10-27T06:46:11Z" } } ] }</pre>
+<div class="check"><b>Duplicates:</b> the same <code>request_id</code> is used as <code>insertId</code> and checked by the Writer, so a retried click writes one row only.</div>
+<div class="fail"><b>If it fails:</b> 500 from BigQuery → Writer retries with back-off (max 3 s) → 502 up the chain.</div>
+</div>
+
+<!-- ======================= G -->
+<h2 id="G">G · Back to the user <small>steps 19–21</small></h2>
+
+<div class="step" style="--c:#38761d"><h3><span class="num">19</span>Responses travel back</h3>
+<p class="path"><b>Writer → Write-back API → Action Hub</b></p>
+<pre>Writer → Write-back API : 200 { "status": "written", "request_id": "7f3c…" }
+Write-back API → Action Hub : 200 { "status": "written", "request_id": "7f3c…" }</pre>
+</div>
+
+<div class="step" style="--c:#255a12"><h3><span class="num">20</span>Action Hub answers Looker</h3>
+<p class="path"><b>Action Hub → Looker server</b> (response to step 4)</p>
+<pre>{ "looker": { "success": true, "refresh_query": true } }</pre>
+<p>On any failure: <code>{ "looker": { "success": false, "validation_errors": [ { "field": "new_value", "message": "…" } ] } }</code> or a plain error message – Looker shows it to the user.</p>
+</div>
+
+<div class="step" style="--c:#a0430a"><h3><span class="num">21</span>Looker refreshes and the user sees the new value</h3>
+<p class="path"><b>Looker → BigQuery → User</b></p>
+<p>Looker shows “Action sent successfully” and re-runs the tile query. The explore reads <code>writeback.current_state</code> (latest value per key and field), so <code>ACC-1042 · forecast_value = 125000</code> appears on the dashboard.</p>
+</div>
+
+<!-- ======================= T -->
+<h2 id="T">Tokens used in the flow</h2>
+<div class="tw"><table>
+<tr><th>Token</th><th>Issued by</th><th>For (audience)</th><th>Proves</th><th>Lifetime / cache</th><th>Steps</th></tr>
+<tr><td>Looker action secret</td><td>Platform (Secret Manager)</td><td>Action Hub</td><td>Call comes from our Looker</td><td>static, rotated; cached 5 min</td><td>2, 4, 5</td></tr>
+<tr><td>Google ID token #1</td><td>Google (metadata server)</td><td><code>api://AzureADTokenExchange</code></td><td>Caller is <code>action-hub@</code></td><td>1 h</td><td>7, 8</td></tr>
+<tr><td>Entra access token</td><td>Microsoft Entra</td><td><code>api://ida-token-exchange</code></td><td>Caller is app <code>looker-writeback-action-hub</code></td><td>~1 h; reused until 5 min before expiry</td><td>8, 9, 10</td></tr>
+<tr><td>ID&amp;A JWT</td><td>ID&amp;A (via Apigee)</td><td><code>writeback-api</code></td><td>Action Hub may write back (<code>writeback.write</code>)</td><td>15 min; reused ~14 min</td><td>11, 12, 13</td></tr>
+<tr><td>Google ID token #2</td><td>Google (metadata server)</td><td><code>https://writer.internal</code></td><td>Caller is <code>writeback-api@</code></td><td>1 h</td><td>15, 16</td></tr>
+<tr><td>Google access token</td><td>Google (metadata / IAM Credentials)</td><td>BigQuery API</td><td><code>writer@</code> or <code>writer-&lt;tenant&gt;@</code></td><td>1 h</td><td>17, 18</td></tr>
+</table></div>
+<div class="note"><b>User identity:</b> the user is never authenticated by these tokens. Who clicked (<code>user_email</code>, <code>user_id</code>) and whether they may write (<code>writeback_allowed</code>) come from Looker user attributes and are carried in the request body to BigQuery for the audit trail.</div>
+
+<!-- ======================= X -->
+<h2 id="X">Failure paths</h2>
+<div class="tw"><table>
+<tr><th>Where</th><th>Cause</th><th>Returned</th><th>User sees</th><th>Audit event</th></tr>
+<tr><td>Step 5</td><td>Wrong / missing Looker secret</td><td>401 to Looker</td><td>“Action failed”</td><td>ACTION_AUTH_FAILED</td></tr>
+<tr><td>Step 6</td><td>User not in “Writeback Users”</td><td>403 to Looker</td><td>“You are not allowed to write back”</td><td>WRITEBACK_DENIED</td></tr>
+<tr><td>Step 8</td><td>Entra rejects the assertion / unreachable</td><td>502 to Looker after 1 retry</td><td>“Write-back service unavailable, try again”</td><td>ENTRA_TOKEN_FAILED</td></tr>
+<tr><td>Step 10</td><td>Apigee 401 / 429</td><td>502 after 1 retry</td><td>“Write-back service unavailable”</td><td>TOKEN_EXCHANGE_FAILED</td></tr>
+<tr><td>Step 13</td><td>ID&amp;A JWT invalid / expired / wrong audience</td><td>401 → retry once → 502</td><td>“Write-back service unavailable”</td><td>JWT_REJECTED</td></tr>
+<tr><td>Step 14</td><td>Value or field not allowed</td><td>400 / 403</td><td>The validation message</td><td>RULE_REJECTED</td></tr>
+<tr><td>Step 16</td><td>Wrong caller or audience</td><td>403 → 502</td><td>“Write-back service unavailable”</td><td>CALLER_NOT_ALLOWED</td></tr>
+<tr><td>Step 18</td><td>BigQuery error</td><td>500 → 502</td><td>“Could not save, try again”</td><td>WRITE_FAILED</td></tr>
+<tr><td>Step 18</td><td>Same request twice</td><td>200 (no second row)</td><td>Success</td><td>DUPLICATE_IGNORED</td></tr>
+</table></div>
+<div class="info">Every log line carries the same <code>X-Request-Id</code>, so one search in Cloud Logging shows the whole click across Action Hub, Write-back API and Writer. Tokens, secrets and full values are never logged.</div>
+
+<!-- ======================= N -->
+<h2 id="N">Network path of each call</h2>
+<div class="tw"><table>
+<tr><th>Call</th><th>From → To</th><th>Path</th></tr>
+<tr><td>Steps 2, 4</td><td>Looker → Action Hub</td><td>Inside the Looker GKE cluster (ClusterIP, NetworkPolicy)</td></tr>
+<tr><td>Steps 5, 7, 15, 17, 18</td><td>Pods → Google APIs / metadata server</td><td>Node metadata server; Private Google Access – no internet</td></tr>
+<tr><td>Step 8</td><td>Action Hub → Entra</td><td>Looker cluster → Spoke 2 egress proxy / Cloud NAT allow-list → <code>login.microsoftonline.com</code></td></tr>
+<tr><td>Steps 9, 13</td><td>Action Hub / Write-back API → Apigee</td><td>Spoke 2 PSC endpoint → Apigee (<code>api-int.lloyds.internal</code>)</td></tr>
+<tr><td>Step 10–11</td><td>Apigee → ID&amp;A</td><td>Apigee southbound (Apigee team)</td></tr>
+<tr><td>Step 12</td><td>Action Hub → Write-back API</td><td>Looker cluster → internal LB <code>writeback-api-int.internal</code> in Spoke 2 (no HUB)</td></tr>
+<tr><td>Step 16</td><td>Write-back API → Writer</td><td>Inside the write-back cluster (ClusterIP, NetworkPolicy)</td></tr>
+</table></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:'default',sequence:{useMaxWidth:true}});</script>
+</body></html>

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Write-back Endpoints and APIs</title>
+<style>
+:root{--ink:#1d2733;--muted:#5b6b7b;--line:#d9e1ea;--soft:#f5f8fb;--accent:#1f4e79;--accent2:#2e75b6}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:var(--ink);font:15px/1.6 "Segoe UI",Helvetica,Arial,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+header{border-bottom:3px solid var(--accent);padding-bottom:14px;margin-bottom:20px}
+.eyebrow{font-size:13px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+h1{font-size:30px;margin:6px 0 8px;color:var(--accent)}
+h2{font-size:22px;margin:44px 0 10px;padding:10px 14px;border-radius:8px;color:#fff;background:var(--accent)}
+h2 small{font-weight:400;font-size:14px;opacity:.85;margin-left:8px}
+h3{font-size:17px;margin:0 0 6px;color:var(--accent)}
+p.lede{color:var(--muted);margin:0 0 10px}
+nav.toc{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:12px 18px;margin:16px 0}
+nav.toc ol{margin:6px 0 0;padding-left:22px;columns:2;column-gap:26px}
+nav.toc a{color:var(--accent2);text-decoration:none}
+.svc{border:1px solid var(--line);border-left:6px solid var(--c,var(--accent2));border-radius:10px;padding:14px 16px;margin:16px 0}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px 18px;font-size:13.5px;margin:6px 0 10px}
+.facts div b{display:block;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+table{border-collapse:collapse;width:100%;margin:8px 0 14px;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:var(--accent);color:#fff}
+tr:nth-child(even) td{background:#fafcfe}
+.tw{overflow-x:auto}
+td.n{font-weight:700;color:var(--accent2);white-space:nowrap}
+.m{display:inline-block;font:700 11px Consolas,monospace;color:#fff;border-radius:4px;padding:1px 6px;margin-right:4px}
+.GET{background:#38761d}.POST{background:#1f4e79}
+code{font-family:Consolas,"Courier New",monospace;background:#eef3f8;border-radius:4px;padding:1px 5px;font-size:12.5px;word-break:break-word}
+pre{background:#0f1b2a;color:#e8eef5;border-radius:8px;padding:12px 14px;overflow-x:auto;font:12.5px/1.5 Consolas,"Courier New",monospace;margin:8px 0}
+pre.mermaid{background:transparent;color:inherit;padding:0;margin:0;overflow:visible}
+.dia{border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0;overflow-x:auto;text-align:center}
+.cap{font-size:13px;color:var(--muted);text-align:center;margin:-6px 0 14px}
+.tag{display:inline-block;font-size:11px;font-weight:700;color:#fff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.build{background:#38761d}.apigee{background:#8c6a00}.cfg{background:#7030a0}.gcp{background:#005353}.lk{background:#255a12}
+.note{background:#fff4ce;border-left:5px solid #c9a227;border-radius:6px;padding:10px 14px;margin:12px 0}
+.info{background:#e8f1fb;border-left:5px solid var(--accent2);border-radius:6px;padding:10px 14px;margin:12px 0}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:14px 0}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--soft)}
+.card .big{font-size:30px;font-weight:700;color:var(--accent)}
+.card .lbl{font-size:13px;color:var(--muted)}
+@media(max-width:860px){nav.toc ol{columns:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Looker write-back to BigQuery · Architecture v6 · Development scope</div>
+  <h1>Write-back – endpoints to develop and APIs to deploy</h1>
+  <p class="lede">Every endpoint in the write-back flow: what the teams build, what Apigee builds, what is only configured, and which Google endpoints the services call. Action Hub runs on the existing Looker GKE cluster; Write-back API and Writer API run on the new write-back GKE cluster in Spoke 2.</p>
+</header>
+
+<div class="cards">
+  <div class="card"><div class="big">3</div><div class="lbl">services to build and deploy<br>Action Hub · Write-back API · Writer API</div></div>
+  <div class="card"><div class="big">11</div><div class="lbl">endpoints in those services<br>(5 + 3 + 3, incl. health probes)</div></div>
+  <div class="card"><div class="big">2</div><div class="lbl">Apigee proxy endpoints<br>token-exchange · jwks</div></div>
+  <div class="card"><div class="big">9</div><div class="lbl">configured or consumed only<br>Entra, ID&amp;A, Google APIs, Looker</div></div>
+</div>
+
+<nav class="toc"><b>Sections</b><ol>
+<li><a href="#flow">Call flow</a></li>
+<li><a href="#sum">All endpoints at a glance</a></li>
+<li><a href="#A">A · APIs to build and deploy</a></li>
+<li><a href="#B">B · Apigee proxies to build</a></li>
+<li><a href="#C">C · Configured, not built</a></li>
+<li><a href="#D">D · Google endpoints the services call</a></li>
+<li><a href="#E">E · Looker-side registration</a></li>
+<li><a href="#F">F · Common rules for every endpoint</a></li>
+</ol></nav>
+
+<h2 id="flow">Call flow <small>one “Write back” click</small></h2>
+<div class="dia"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant L as Looker server
+  participant AH as Action Hub<br/>(Looker cluster)
+  participant SM as Secret Manager
+  participant EN as Entra
+  participant AP as Apigee<br/>lloyds-auth-int
+  participant WB as Write-back API<br/>(write-back cluster)
+  participant WR as Writer API<br/>(write-back cluster)
+  participant BQ as BigQuery
+  L->>AH: POST /actions/writeback/execute (Looker secret)
+  AH->>SM: read looker-action-secret
+  AH->>EN: POST /oauth2/v2.0/token (Google ID token as assertion)
+  EN-->>AH: Entra access token
+  AH->>AP: POST /v1/token-exchange
+  AP-->>AH: ID&A JWT
+  AH->>WB: POST /v1/writeback (Bearer ID&A JWT)
+  WB->>AP: GET /v1/jwks (cached)
+  WB->>WR: POST /v1/write (Google ID token)
+  WR->>BQ: insert writeback_log
+  WR-->>WB: 200 row ref
+  WB-->>AH: 200
+  AH-->>L: success
+</pre></div>
+<div class="cap">Figure 1 – Request path for one write-back click; numbers are the call order</div>
+
+<h2 id="sum">All endpoints at a glance</h2>
+<div class="tw"><table>
+<tr><th>#</th><th>Type</th><th>Service</th><th>Endpoint</th><th>Called by</th><th>Auth</th></tr>
+<tr><td class="n">1</td><td><span class="tag build">Build</span></td><td>Action Hub</td><td><span class="m POST">POST</span><code>/</code></td><td>Looker</td><td>Looker secret</td></tr>
+<tr><td class="n">2</td><td><span class="tag build">Build</span></td><td>Action Hub</td><td><span class="m POST">POST</span><code>/actions/writeback/form</code></td><td>Looker</td><td>Looker secret</td></tr>
+<tr><td class="n">3</td><td><span class="tag build">Build</span></td><td>Action Hub</td><td><span class="m POST">POST</span><code>/actions/writeback/execute</code></td><td>Looker server</td><td>Looker secret</td></tr>
+<tr><td class="n">4</td><td><span class="tag build">Build</span></td><td>Action Hub</td><td><span class="m GET">GET</span><code>/healthz</code></td><td>GKE probe</td><td>none (cluster only)</td></tr>
+<tr><td class="n">5</td><td><span class="tag build">Build</span></td><td>Action Hub</td><td><span class="m GET">GET</span><code>/readyz</code></td><td>GKE probe</td><td>none (cluster only)</td></tr>
+<tr><td class="n">6</td><td><span class="tag build">Build</span></td><td>Write-back API</td><td><span class="m POST">POST</span><code>/v1/writeback</code></td><td>Action Hub</td><td>ID&amp;A JWT</td></tr>
+<tr><td class="n">7</td><td><span class="tag build">Build</span></td><td>Write-back API</td><td><span class="m GET">GET</span><code>/healthz</code></td><td>GKE probe</td><td>none</td></tr>
+<tr><td class="n">8</td><td><span class="tag build">Build</span></td><td>Write-back API</td><td><span class="m GET">GET</span><code>/readyz</code></td><td>GKE probe</td><td>none</td></tr>
+<tr><td class="n">9</td><td><span class="tag build">Build</span></td><td>Writer API</td><td><span class="m POST">POST</span><code>/v1/write</code></td><td>Write-back API</td><td>Google ID token</td></tr>
+<tr><td class="n">10</td><td><span class="tag build">Build</span></td><td>Writer API</td><td><span class="m GET">GET</span><code>/healthz</code></td><td>GKE probe</td><td>none</td></tr>
+<tr><td class="n">11</td><td><span class="tag build">Build</span></td><td>Writer API</td><td><span class="m GET">GET</span><code>/readyz</code></td><td>GKE probe</td><td>none</td></tr>
+<tr><td class="n">12</td><td><span class="tag apigee">Apigee</span></td><td>lloyds-auth-int</td><td><span class="m POST">POST</span><code>/v1/token-exchange</code></td><td>Action Hub</td><td>Entra access token</td></tr>
+<tr><td class="n">13</td><td><span class="tag apigee">Apigee</span></td><td>lloyds-auth-int</td><td><span class="m GET">GET</span><code>/v1/jwks</code></td><td>Write-back API</td><td>none (public keys)</td></tr>
+<tr><td class="n">14</td><td><span class="tag cfg">Configure</span></td><td>Entra</td><td><span class="m POST">POST</span><code>/&lt;tenant&gt;/oauth2/v2.0/token</code></td><td>Action Hub</td><td>federated credential</td></tr>
+<tr><td class="n">15</td><td><span class="tag cfg">Configure</span></td><td>ID&amp;A</td><td>token exchange (behind Apigee)</td><td>Apigee</td><td>client registration</td></tr>
+<tr><td class="n">16</td><td><span class="tag cfg">Configure</span></td><td>ID&amp;A</td><td>JWKS (behind Apigee)</td><td>Apigee</td><td>—</td></tr>
+<tr><td class="n">17</td><td><span class="tag gcp">Google</span></td><td>Secret Manager</td><td><code>accessSecretVersion</code></td><td>Action Hub</td><td>Workload Identity</td></tr>
+<tr><td class="n">18</td><td><span class="tag gcp">Google</span></td><td>GKE metadata server</td><td><code>…/service-accounts/default/identity</code></td><td>Action Hub, Write-back API</td><td>Workload Identity</td></tr>
+<tr><td class="n">19</td><td><span class="tag gcp">Google</span></td><td>IAM Credentials</td><td><code>generateAccessToken</code></td><td>Writer API</td><td>Workload Identity + tokenCreator</td></tr>
+<tr><td class="n">20</td><td><span class="tag gcp">Google</span></td><td>BigQuery</td><td><code>tabledata.insertAll</code> / Storage Write API</td><td>Writer API</td><td>Workload Identity</td></tr>
+<tr><td class="n">21</td><td><span class="tag lk">Looker</span></td><td>Looker Admin</td><td>Action Hub registration</td><td>Looker admin / script</td><td>Looker secret</td></tr>
+<tr><td class="n">22</td><td><span class="tag lk">Looker</span></td><td>LookML</td><td><code>tags: ["writeback_key"]</code></td><td>Looker developers</td><td>—</td></tr>
+</table></div>
+
+<h2 id="A">A · APIs to build and deploy <small>your code – 3 services</small></h2>
+
+<div class="svc" style="--c:#255a12">
+<h3>1 · Action Hub</h3>
+<div class="facts">
+  <div><b>Cluster / namespace</b>Existing Looker GKE · <code>looker-actions</code></div>
+  <div><b>Deployment / identity</b><code>action-hub</code> · KSA <code>action-hub-ksa</code> → <code>action-hub@</code></div>
+  <div><b>Exposed as</b>ClusterIP <code>https://action-hub.looker-actions.svc.cluster.local</code></div>
+  <div><b>Who may call</b>Looker only (NetworkPolicy from Looker's namespace)</div>
+</div>
+<div class="tw"><table>
+<tr><th>#</th><th>Endpoint</th><th>Called by / when</th><th>What it does</th><th>Responses</th></tr>
+<tr><td class="n">1</td><td><span class="m POST">POST</span><code>/</code></td><td>Looker, when the hub is registered or refreshed</td><td>Returns the action list (Looker Action Hub protocol): action <code>writeback</code>, supported on fields tagged <code>writeback_key</code>. Checks the Looker secret in the <code>Authorization</code> header.</td><td>200 action list · 401 bad secret</td></tr>
+<tr><td class="n">2</td><td><span class="m POST">POST</span><code>/actions/writeback/form</code></td><td>Looker, before showing the action (only if a form is used)</td><td>Returns the input form: field, new value, comment.</td><td>200 form · 401</td></tr>
+<tr><td class="n">3</td><td><span class="m POST">POST</span><code>/actions/writeback/execute</code></td><td>Looker server, once per click (never the browser)</td><td>Receives the row, user email and id, <code>writeback_allowed</code> and the new value. Checks the Looker secret and <code>writeback_allowed = yes</code>, gets an Entra token (#14), exchanges it at Apigee for an ID&amp;A JWT (#12, cached until expiry), calls the Write-back API (#6) and returns the outcome to Looker.</td><td>200 success · 401 bad secret · 403 not allowed · 502 downstream failure</td></tr>
+<tr><td class="n">4</td><td><span class="m GET">GET</span><code>/healthz</code></td><td>GKE liveness probe</td><td>Process is alive.</td><td>200 · 503</td></tr>
+<tr><td class="n">5</td><td><span class="m GET">GET</span><code>/readyz</code></td><td>GKE readiness probe</td><td>The Looker secret can be read from Secret Manager.</td><td>200 · 503</td></tr>
+</table></div>
+<pre>// #3 request from Looker (abridged)
+{ "type": "cell",
+  "scheduled_plan": null,
+  "data": { "record_key": "ACC-1042", "field": "forecast_value", "new_value": "125000", "comment": "Q4 update" },
+  "attachment": null,
+  "params": { "user_email": "jane.doe@lbg.example", "user_id": "2381", "writeback_allowed": "yes" } }
+
+// #3 response to Looker
+{ "looker": { "success": true, "refresh_query": true } }</pre>
+</div>
+
+<div class="svc" style="--c:#12355b">
+<h3>2 · Write-back API</h3>
+<div class="facts">
+  <div><b>Cluster / namespace</b>New write-back GKE (Spoke 2) · <code>writeback</code></div>
+  <div><b>Deployment / identity</b><code>writeback-api</code> · KSA <code>writeback-ksa</code> → <code>writeback-api@</code></div>
+  <div><b>Exposed as</b>Internal LB <code>https://writeback-api-int.internal</code></div>
+  <div><b>Who may call</b>Looker cluster pod range only (ILB source ranges + firewall + NetworkPolicy)</div>
+</div>
+<div class="tw"><table>
+<tr><th>#</th><th>Endpoint</th><th>Called by / when</th><th>What it does</th><th>Responses</th></tr>
+<tr><td class="n">6</td><td><span class="m POST">POST</span><code>/v1/writeback</code></td><td>Action Hub, with <code>Authorization: Bearer &lt;ID&amp;A JWT&gt;</code></td><td>Verifies the JWT with JWKS from #13 (signature, <code>exp</code>, <code>iss</code>, <code>aud = writeback-api</code>, <code>scope = writeback.write</code>, <code>sub = looker-action-hub</code>). Validates field and value against <code>writeback-rules.yaml</code> and the tenant. Calls the Writer (#9) with a Google ID token (audience <code>https://writer.internal</code>).</td><td>200 written · 400 invalid value · 401 bad token · 403 field/tenant not allowed · 409 duplicate request_id · 502 Writer failure</td></tr>
+<tr><td class="n">7</td><td><span class="m GET">GET</span><code>/healthz</code></td><td>GKE liveness probe</td><td>Process is alive.</td><td>200 · 503</td></tr>
+<tr><td class="n">8</td><td><span class="m GET">GET</span><code>/readyz</code></td><td>GKE readiness probe</td><td>JWKS loaded (and not older than 30 min); Writer reachable.</td><td>200 · 503</td></tr>
+</table></div>
+<pre>// #6 request from Action Hub
+POST /v1/writeback
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6…
+X-Request-Id: 7f3c…
+{ "request_id": "7f3c…", "tenant": "tenant_a", "record_key": "ACC-1042", "field": "forecast_value",
+  "new_value": "125000", "actor_email": "jane.doe@lbg.example", "actor_id": "2381" }</pre>
+</div>
+
+<div class="svc" style="--c:#005353">
+<h3>3 · Writer API</h3>
+<div class="facts">
+  <div><b>Cluster / namespace</b>New write-back GKE (Spoke 2) · <code>writeback</code></div>
+  <div><b>Deployment / identity</b><code>writer</code> · KSA <code>writer-ksa</code> → <code>writer@</code></div>
+  <div><b>Exposed as</b>ClusterIP <code>https://writer.writeback.svc.cluster.local</code></div>
+  <div><b>Who may call</b>Write-back API pods only (NetworkPolicy) and ID token from <code>writeback-api@</code></div>
+</div>
+<div class="tw"><table>
+<tr><th>#</th><th>Endpoint</th><th>Called by / when</th><th>What it does</th><th>Responses</th></tr>
+<tr><td class="n">9</td><td><span class="m POST">POST</span><code>/v1/write</code></td><td>Write-back API, with a Google ID token</td><td>Verifies the ID token (<code>aud = https://writer.internal</code>, <code>email = writeback-api@</code>). Writes one row to <code>writeback.writeback_log</code>; for tenant-owned datasets first impersonates <code>writer-&lt;tenant&gt;@</code> (#19). Idempotent on <code>request_id</code> – the same request twice writes one row.</td><td>200 row ref · 401 bad token · 403 caller_not_allowed · 409 duplicate · 500 BigQuery error</td></tr>
+<tr><td class="n">10</td><td><span class="m GET">GET</span><code>/healthz</code></td><td>GKE liveness probe</td><td>Process is alive.</td><td>200 · 503</td></tr>
+<tr><td class="n">11</td><td><span class="m GET">GET</span><code>/readyz</code></td><td>GKE readiness probe</td><td>BigQuery reachable.</td><td>200 · 503</td></tr>
+</table></div>
+</div>
+
+<h2 id="B">B · Apigee proxies to build <small>Apigee team · proxy lloyds-auth-int</small></h2>
+<div class="tw"><table>
+<tr><th>#</th><th>Endpoint</th><th>Called by</th><th>Policy flow</th><th>Returns</th></tr>
+<tr><td class="n">12</td><td><span class="m POST">POST</span><code>https://api-int.lloyds.internal/lloyds-auth-int/v1/token-exchange</code></td><td>Action Hub, over the Spoke 2 PSC endpoint</td><td>SpikeArrest (50 ps) → Quota per client (600/min) → VerifyJWT on <code>subject_token</code> (Entra JWKS, issuer <code>https://sts.windows.net/&lt;tenant&gt;/</code>, audience <code>api://ida-token-exchange</code>) → route to ID&amp;A token exchange</td><td><code>{access_token, expires_in}</code> · 401 tampered/expired token · 429 quota</td></tr>
+<tr><td class="n">13</td><td><span class="m GET">GET</span><code>https://api-int.lloyds.internal/lloyds-auth-int/v1/jwks</code></td><td>Write-back API</td><td>Proxy ID&amp;A <code>/.well-known/jwks.json</code> with ResponseCache 10 min</td><td>JWKS keys</td></tr>
+</table></div>
+
+<h2 id="C">C · Configured, not built <small>owned by other teams</small></h2>
+<div class="tw"><table>
+<tr><th>#</th><th>Endpoint</th><th>Owner</th><th>What is configured</th></tr>
+<tr><td class="n">14</td><td><span class="m POST">POST</span><code>https://login.microsoftonline.com/&lt;tenant&gt;/oauth2/v2.0/token</code></td><td>IAM (Entra)</td><td>App <code>looker-writeback-action-hub</code> with a federated credential (issuer Google, subject = <code>action-hub@</code> unique id). Action Hub sends <code>client_assertion</code> = Google ID token, no secret.</td></tr>
+<tr><td class="n">15</td><td>ID&amp;A token exchange (behind Apigee)</td><td>ID&amp;A</td><td>Client registration; token profile <code>sub looker-action-hub</code> · <code>aud writeback-api</code> · <code>scope writeback.write</code> · <code>exp 900 s</code> · RS256 with <code>kid</code>.</td></tr>
+<tr><td class="n">16</td><td>ID&amp;A JWKS (behind Apigee)</td><td>ID&amp;A</td><td>Public signing keys and a key-rotation notice.</td></tr>
+</table></div>
+
+<h2 id="D">D · Google endpoints the services call <small>nothing to build</small></h2>
+<div class="tw"><table>
+<tr><th>#</th><th>Endpoint</th><th>Used by</th><th>Purpose</th></tr>
+<tr><td class="n">17</td><td>Secret Manager <code>accessSecretVersion</code></td><td>Action Hub</td><td>Read <code>looker-action-secret</code></td></tr>
+<tr><td class="n">18</td><td>GKE metadata server <code>/computeMetadata/v1/instance/service-accounts/default/identity</code></td><td>Action Hub · Write-back API</td><td>Google ID tokens: audience <code>api://AzureADTokenExchange</code> (for Entra) and <code>https://writer.internal</code> (for the Writer)</td></tr>
+<tr><td class="n">19</td><td>IAM Credentials <code>generateAccessToken</code></td><td>Writer API</td><td>Impersonate <code>writer-&lt;tenant&gt;@</code> for tenant-owned datasets</td></tr>
+<tr><td class="n">20</td><td>BigQuery <code>tabledata.insertAll</code> or Storage Write API</td><td>Writer API</td><td>Insert into <code>writeback.writeback_log</code></td></tr>
+</table></div>
+
+<h2 id="E">E · Looker-side registration <small>configured, not built</small></h2>
+<div class="tw"><table>
+<tr><th>#</th><th>Item</th><th>Owner</th><th>Details</th></tr>
+<tr><td class="n">21</td><td>Action Hub registration (Admin › Platform › Actions)</td><td>BIaaS / <code>configure_looker.py</code></td><td>URL from #1 with the Looker secret; enable the “Write back” action</td></tr>
+<tr><td class="n">22</td><td>LookML field tags</td><td>Looker developers</td><td><code>tags: ["writeback_key"]</code> on writable fields; explores read <code>writeback.current_state</code></td></tr>
+</table></div>
+
+<h2 id="F">F · Common rules for every endpoint we build</h2>
+<div class="tw"><table>
+<tr><th>Rule</th><th>Detail</th></tr>
+<tr><td>Transport</td><td>HTTPS on container port 8443; TLS PEM mounted from Secret Manager at <code>/tls/tls.pem</code></td></tr>
+<tr><td>Correlation</td><td><code>X-Request-Id</code> accepted or generated, passed to every downstream call and logged on every line</td></tr>
+<tr><td>Logging</td><td>JSON logs with <code>http_status</code>, <code>event</code>, <code>outcome</code> (feed the log-based alerts); never log tokens, secrets or the new value in full</td></tr>
+<tr><td>Timeouts</td><td>Total click budget under 5 s; Entra and Apigee 2 s each with one retry; BigQuery 3 s</td></tr>
+<tr><td>Errors</td><td>JSON <code>{ "error": "&lt;code&gt;", "request_id": "…" }</code>; no stack traces to callers</td></tr>
+<tr><td>Probes</td><td><code>/healthz</code> liveness, <code>/readyz</code> readiness – cluster-internal only, never exposed through the ILB rules</td></tr>
+<tr><td>Identity</td><td>Workload Identity only; no key files, no secrets in environment variables or YAML</td></tr>
+<tr><td>Container</td><td>Non-root, read-only root filesystem, all capabilities dropped; 2–6 replicas with PDB and HPA</td></tr>
+</table></div>
+
+<div class="info"><b>Related documents:</b> <code>writeback-setup-runbook.html</code> (gcloud), <code>writeback-setup-runbook-terraform.html</code> (Terraform), <code>service-impersonation.html</code> (tenant writers).</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:'default',sequence:{useMaxWidth:true}});</script>
+</body></html>
