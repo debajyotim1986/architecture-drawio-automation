@@ -4,6 +4,21 @@
 
 [changelog]
 # Used by `--prepend` to remove the previous header.
+{% if version %}\
+## [{{ version }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+{% for commit in commits %}
+- {% if commit.scope %}**{{ commit.scope }}**: {% endif %}\
+{{ commit.message | split(pat="\n") | first | upper_first }} \
+({{ commit.author.name }}, \
+{{ commit.author.timestamp | date(format="%Y-%m-%d %H:%M", timezone="Asia/Kolkata") }}, \
+`{{ commit.id | truncate(length=7, end="") }}`)
+{% endfor %}
+{% endfor %}
 header_marker = "<!-- git-cliff: end of header -->"
 # A Tera template to be rendered for each release in the changelog.
 # See https://keats.github.io/tera/#getting-started
