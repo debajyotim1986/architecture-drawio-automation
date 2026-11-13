@@ -1,0 +1,33 @@
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: "!startsWith(github.event.head_commit.message, 'chore(release)')"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - run: npm install -g git-cliff
+
+      - name: Update changelog and tag
+        run: |
+          NEXT=$(git cliff --bumped-version)
+          if git rev-parse "$NEXT" >/dev/null 2>&1; then
+            echo "Nothing new to release"
+            exit 0
+          fi
+          git cliff --tag "$NEXT" -o CHANGELOG.md
+          git config user.name "github-actions[bot]"
+          git config user.email "debajyoti.mukhopadhyay@hotmail.com"
+          git add CHANGELOG.md
+          git commit -m "chore(release): $NEXT"
+          git tag "$NEXT"
+          git push origin HEAD --tags
